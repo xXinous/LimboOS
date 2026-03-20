@@ -1,20 +1,20 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ArrowLeft, LogOut, Scroll, Trophy } from 'lucide-react';
-import type { PlayerProfile } from '../store/profile';
 import { resolveTapes } from '../data/tapes';
 import { ALL_ACHIEVEMENTS } from '../data/achievements';
 
-interface ProfileScreenProps {
-  profile: PlayerProfile;
-  onBack: () => void;
-  onLogout: () => void;
+interface ProfileData {
+  id: string;
+  username: string;
+  unlockedTapeIds: string[];
+  achievementIds: string[];
 }
 
-function formatDuration(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${m}m ${s}s`;
+interface ProfileScreenProps {
+  profile: ProfileData;
+  onBack: () => void;
+  onLogout: () => void;
 }
 
 export default function ProfileScreen({ profile, onBack, onLogout }: ProfileScreenProps) {
@@ -68,10 +68,6 @@ export default function ProfileScreen({ profile, onBack, onLogout }: ProfileScre
         <div className="flex-1 flex flex-col items-center py-3">
           <span className="text-orange-500 font-bold text-xl">{profile.achievementIds.length}</span>
           <span className="text-[9px] text-gray-500 uppercase tracking-wider mt-0.5">Conquistas</span>
-        </div>
-        <div className="flex-1 flex flex-col items-center py-3">
-          <span className="text-orange-500 font-bold text-xl">{formatDuration(profile.listenSeconds)}</span>
-          <span className="text-[9px] text-gray-500 uppercase tracking-wider mt-0.5">Ouvidas</span>
         </div>
       </div>
 
