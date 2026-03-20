@@ -26,7 +26,13 @@ export default function ToastNotification({ toasts, onDismiss }: ToastNotificati
   );
 }
 
-function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: (id: string) => void }) {
+interface ToastItemProps {
+  toast: Toast;
+  onDismiss: (id: string) => void;
+  key?: string;
+}
+
+function ToastItem({ toast, onDismiss }: ToastItemProps) {
   useEffect(() => {
     const timer = setTimeout(() => onDismiss(toast.id), 3500);
     return () => clearTimeout(timer);
