@@ -1,94 +1,104 @@
-// localStorage-based player profile system.
-// Each profile is stored under key: "runningman:profile:<id>"
-// The session (current logged-in profile) is NOT persisted — users log in each time.
+// Firebase Auth service — replaces the localStorage-based profile system.
+//
+// Login strategy (Opção B from the plan):
+//   "Codinome do Agente" is used as the username.
+//   Internally we craft a synthetic email: {codinome}@runningman.local
+//   The player never sees or types an email address.
 
-export interface PlayerProfile {
-  id: string;
-  username: string;
-  passwordHash: string;
-  unlockedTapeIds: string[];
-  achievementIds: string[];
-  listenSeconds: number;
-  createdAt: string;
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signOut as firebaseSignOut,
+  onAuthStateChanged as firebaseOnAuthStateChanged,
+  type User,
+} from 'firebase/auth';
+import { auth } from '../lib/firebase';
+import { createUserDoc, loadPlayerData } from './firestore';
+import type { PlayerData } from './firestore';
+
+// Re-export so the rest of the app only imports from here
+export type { PlayerData };
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+/** Turn a codinome into a stable synthetic email accepted by Firebase Auth. */
+function codinomeToEmail(codinome: string): string {
+  const slug = codinome.trim().toLowerCase().replace(/[^a-z0-9._-]/g, '_');
+  return `${slug}@runningman.local`;
 }
 
-const STORAGE_PREFIX = 'runningman:profile:';
+// ─── Auth actions ─────────────────────────────────────────────────────────────
 
-/** Very simple deterministic hash — NOT cryptographic. Just for local profile separation. */
-function simpleHash(str: string): string {
-  let h = 0;
-  for (let i = 0; i < str.length; i++) {
-    h = (Math.imul(31, h) + str.charCodeAt(i)) | 0;
+export type LoginResult =
+  | { ok: true;  data: PlayerData }
+  | { ok: false; error: 'wrong_password' | 'network' | 'unknown'; message: string };
+
+/**
+ * Attempt to sign in, and create the account if it doesn't exist yet.
+ * Returns the full PlayerData on success.
+ */
+export async function loginOrCreate(
+  codinome: string,
+  password: string,
+): Promise<LoginResult> {
+  const email = codinomeToEmail(codinome);
+
+  try {
+    // ── Try sign-in first ──────────────────────────────────────────────────
+    const { user } = await signInWithEmailAndPassword(auth, email, password);
+    const data = await loadPlayerData(user.uid);
+    return { ok: true, data };
+
+  } catch (signInErr: unknown) {
+    const code = (signInErr as { code?: string }).code ?? '';
+
+    // ── Account doesn't exist → create it ─────────────────────────────────
+    if (code === 'auth/user-not-found' || code === 'auth/invalid-credential') {
+      try {
+        const { user } = await createUserWithEmailAndPassword(auth, email, password);
+        await createUserDoc(user.uid, codinome.trim());
+        const data = await loadPlayerData(user.uid);
+        return { ok: true, data };
+      } catch (createErr: unknown) {
+        const createCode = (createErr as { code?: string }).code ?? '';
+        if (createCode === 'auth/weak-password') {
+          return { ok: false, error: 'wrong_password', message: 'Senha muito fraca (mínimo 6 caracteres).' };
+        }
+        return { ok: false, error: 'unknown', message: 'Erro ao criar perfil.' };
+      }
+    }
+
+    // ── Wrong password ─────────────────────────────────────────────────────
+    if (code === 'auth/wrong-password') {
+      return { ok: false, error: 'wrong_password', message: 'FALHA NA AUTENTICAÇÃO: CREDENCIAIS INVÁLIDAS' };
+    }
+
+    // ── Network / other ────────────────────────────────────────────────────
+    if (code.startsWith('auth/network')) {
+      return { ok: false, error: 'network', message: 'SEM CONEXÃO: verifique a rede.' };
+    }
+
+    return { ok: false, error: 'unknown', message: `Erro inesperado (${code})` };
   }
-  return Math.abs(h).toString(16);
 }
 
-function profileKey(id: string) {
-  return `${STORAGE_PREFIX}${id}`;
+/** Sign out the current user. */
+export async function logout(): Promise<void> {
+  await firebaseSignOut(auth);
 }
 
-/** Generate a stable profile ID from username (so same username = same slot). */
-function usernameToId(username: string): string {
-  return simpleHash(username.toLowerCase().trim());
+/**
+ * Subscribe to auth state changes.
+ * Returns unsubscribe function.
+ * Fires immediately with the current user (or null).
+ */
+export function onAuthStateChanged(
+  callback: (user: User | null) => void,
+): () => void {
+  return firebaseOnAuthStateChanged(auth, callback);
 }
 
-export function loginOrCreate(username: string, password: string): PlayerProfile | 'wrong_password' {
-  const id = usernameToId(username);
-  const key = profileKey(id);
-  const stored = localStorage.getItem(key);
-
-  if (stored) {
-    const profile: PlayerProfile = JSON.parse(stored);
-    const hash = simpleHash(password);
-    if (profile.passwordHash !== hash) return 'wrong_password';
-    return profile;
-  }
-
-  // New player — create profile
-  const newProfile: PlayerProfile = {
-    id,
-    username: username.trim(),
-    passwordHash: simpleHash(password),
-    unlockedTapeIds: [],
-    achievementIds: [],
-    listenSeconds: 0,
-    createdAt: new Date().toISOString(),
-  };
-  saveProfile(newProfile);
-  return newProfile;
-}
-
-export function saveProfile(profile: PlayerProfile): void {
-  localStorage.setItem(profileKey(profile.id), JSON.stringify(profile));
-}
-
-export function loadProfile(id: string): PlayerProfile | null {
-  const stored = localStorage.getItem(profileKey(id));
-  return stored ? JSON.parse(stored) : null;
-}
-
-/** Unlock a tape for a profile (idempotent). Returns updated profile. */
-export function unlockTape(profile: PlayerProfile, tapeId: string): PlayerProfile {
-  if (profile.unlockedTapeIds.includes(tapeId)) return profile;
-  const updated: PlayerProfile = {
-    ...profile,
-    unlockedTapeIds: [...profile.unlockedTapeIds, tapeId],
-  };
-  saveProfile(updated);
-  return updated;
-}
-
-/** Add achievement IDs to profile. Returns updated profile. */
-export function grantAchievements(profile: PlayerProfile, achievementIds: string[]): PlayerProfile {
-  const merged = Array.from(new Set([...profile.achievementIds, ...achievementIds]));
-  const updated: PlayerProfile = { ...profile, achievementIds: merged };
-  saveProfile(updated);
-  return updated;
-}
-
-/** Update listen time. Returns updated profile. */
-export function addListenSeconds(profile: PlayerProfile, seconds: number): PlayerProfile {
-  const updated: PlayerProfile = { ...profile, listenSeconds: profile.listenSeconds + seconds };
-  saveProfile(updated);
-  return updated;
+/** Get current Firebase user (synchronous, may be null before auth resolves). */
+export function getCurrentFirebaseUser(): User | null {
+  return auth.currentUser;
 }

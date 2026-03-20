@@ -1,4 +1,8 @@
-import type { PlayerProfile } from '../store/profile';
+/** Minimal profile shape needed for achievement checks. */
+interface AchievableProfile {
+  unlockedTapeIds: string[];
+  achievementIds: string[];
+}
 
 export interface Achievement {
   id: string;
@@ -54,7 +58,7 @@ export const ALL_ACHIEVEMENTS: Achievement[] = [
 ];
 
 /** Returns achievements that are newly earned based on the current profile state. */
-export function checkNewAchievements(profile: PlayerProfile): Achievement[] {
+export function checkNewAchievements(profile: AchievableProfile): Achievement[] {
   const earned = new Set(profile.achievementIds);
   const newlyEarned: Achievement[] = [];
 
