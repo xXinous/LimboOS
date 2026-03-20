@@ -1,5 +1,5 @@
 {
-  "name": "Retro Walkman Player",
+  "name": "Retro RunningMan Player",
   "description": "A nostalgic Sony Ericsson style media player with a pixel-art interface and orange accents.",
   "requestFramePermissions": ["camera"]
 }
