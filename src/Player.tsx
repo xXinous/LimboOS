@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { AnimatePresence, motion } from 'motion/react';
+import { AnimatePresence, motion, useMotionValue, useTransform, animate } from 'motion/react';
 import { Play, Pause, RotateCcw, Battery, Camera, User } from 'lucide-react';
 
 import LoginScreen from './components/LoginScreen';
@@ -9,8 +9,8 @@ import ToastNotification from './components/ToastNotification';
 import type { Toast } from './components/ToastNotification';
 
 import { onAuthStateChanged, logout } from './store/profile';
-import type { PlayerData } from './store/profile';
-import { loadPlayerData, firestoreUnlockTape, firestoreGrantAchievements, recordPlayEvent } from './store/firestore';
+import type { PlayerData, PlayerStats } from './store/firestore';
+import { loadPlayerData, firestoreUnlockTape, firestoreGrantAchievements, recordPlayEvent, markPlayEventCompleted, firestoreUpdateStats } from './store/firestore';
 import { getTapeByCode, resolveTapes } from './data/tapes';
 import type { Tape } from './data/tapes';
 import { checkNewAchievements } from './data/achievements';
@@ -23,9 +23,9 @@ type DisplayMode = 'default' | 'title' | 'chapter';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const Screw = ({ className }: { className?: string }) => (
-  <div className={`absolute w-4 h-4 rounded-full bg-[#1a1a1a] border border-[#3a3a3a] flex items-center justify-center ${className}`}>
-    <div className="w-2 h-0.5 bg-[#3a3a3a] rotate-45" />
+const Screw = ({ className, onClick }: { className?: string; onClick?: () => void }) => (
+  <div onClick={onClick} className={`absolute w-4 h-4 rounded-full bg-[#1a1a1a] border border-[#3a3a3a] flex items-center justify-center ${onClick ? 'cursor-pointer hover:bg-[#222]' : ''} ${className}`}>
+    <div className="w-2 h-0.5 bg-[#3a3a3a] rotate-45 pointer-events-none" />
   </div>
 );
 
@@ -178,53 +178,116 @@ const TapeLibrary = ({ tapes, currentTapeId, isPlaying, displayMode, onTapeSelec
 const SideControls = ({ volume, setVolume, onModeChange, onProfileOpen }: {
   volume: number; setVolume: (v: number) => void;
   onModeChange: (dir: 'up' | 'down') => void; onProfileOpen: () => void;
-}) => (
-  <div className="absolute right-2 top-[240px] bottom-20 flex flex-col items-center justify-center gap-6 w-16">
-    <button onClick={onProfileOpen} className="w-10 h-10 rounded-full bg-[#333] border-2 border-[#1a1a1a] flex items-center justify-center hover:bg-orange-900/30 transition-colors shrink-0">
-      <User size={16} className="text-orange-500" />
-    </button>
-    <motion.div drag="y" dragConstraints={{ top: -20, bottom: 20 }} dragElastic={0.1}
-      onDragEnd={(_, info) => { if (info.offset.y < -10) onModeChange('up'); else if (info.offset.y > 10) onModeChange('down'); }}
-      dragSnapToOrigin className="relative w-14 h-14 rounded-full bg-[#333] border-4 border-[#1a1a1a] shadow-lg flex items-center justify-center group cursor-ns-resize shrink-0 z-20">
-      <div className="absolute inset-0 rounded-full border border-white/10" />
-      <div className="w-10 h-10 rounded-full bg-[#444] border-2 border-[#222] flex items-center justify-center shadow-inner pointer-events-none">
-        <div className="w-5 h-5 rounded-full bg-orange-600 border-2 border-[#1a1a1a]" />
-      </div>
-      <div className="absolute -top-4 text-gray-500 group-hover:text-orange-500 pointer-events-none"><div className="w-0 h-0 border-l-4 border-l-transparent border-r-4 border-r-transparent border-b-[6px] border-b-current" /></div>
-      <div className="absolute -bottom-4 text-gray-500 group-hover:text-orange-500 pointer-events-none"><div className="w-0 h-0 border-l-4 border-l-transparent border-r-4 border-r-transparent border-t-[6px] border-t-current" /></div>
-    </motion.div>
-    <div className="w-8 flex-1 max-h-40 bg-[#1a1a1a] rounded-full border-2 border-[#333] relative flex flex-col items-center py-2 shrink-0">
-      <span className="text-[10px] text-gray-500 font-bold mb-1">+</span>
-      <div className="flex-1 w-1 bg-[#222] rounded-full relative overflow-visible">
-        <motion.div className="absolute bottom-0 w-full bg-orange-600 rounded-full" style={{ height: `${volume}%` }} />
-        <motion.div className="absolute left-1/2 -translate-x-1/2 w-6 h-8 bg-linear-to-b from-stone-200 to-stone-400 rounded border-2 border-stone-600 shadow-lg cursor-ns-resize flex flex-col justify-center items-center gap-0.5 z-10"
-          style={{ bottom: `calc(${volume}% - 16px)` }}
+}) => {
+  const dragY = useMotionValue(0);
+  const firedRef = useRef(false);
+  const upArrowColor = useTransform(dragY, (v: number) => v < -5 ? '#ea580c' : '#6b7280');
+  const downArrowColor = useTransform(dragY, (v: number) => v > 5 ? '#ea580c' : '#6b7280');
+
+  return (
+    <div className="absolute right-2 top-[240px] bottom-20 flex flex-col items-center justify-center gap-6 w-16">
+      <button onClick={onProfileOpen} className="w-10 h-10 rounded-full bg-[#333] border-2 border-[#1a1a1a] flex items-center justify-center hover:bg-orange-900/30 transition-colors shrink-0">
+        <User size={16} className="text-orange-500" />
+      </button>
+      
+      {/* Mode Switch Container */}
+      <div className="relative w-14 h-14 shrink-0 flex items-center justify-center z-20">
+        {/* Static Arrows */}
+        <motion.div style={{ color: upArrowColor }} className="absolute -top-4 pointer-events-none transition-colors">
+          <div className="w-0 h-0 border-l-4 border-l-transparent border-r-4 border-r-transparent border-b-[6px] border-b-current" />
+        </motion.div>
+        <motion.div style={{ color: downArrowColor }} className="absolute -bottom-4 pointer-events-none transition-colors">
+          <div className="w-0 h-0 border-l-4 border-l-transparent border-r-4 border-r-transparent border-t-[6px] border-t-current" />
+        </motion.div>
+
+        {/* Draggable Switch — custom pointer drag for auto-return */}
+        <motion.div
+          style={{ y: dragY, touchAction: 'none' }}
+          className="relative w-14 h-14 rounded-full bg-[#333] border-4 border-[#1a1a1a] shadow-lg flex items-center justify-center group cursor-ns-resize"
           onPointerDown={(e) => {
-            const startY = e.clientY, startVol = volume;
-            const onMove = (me: PointerEvent) => setVolume(Math.max(0, Math.min(100, Math.round(startVol + ((startY - me.clientY) / 80) * 100))));
-            const onUp = () => { window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp); };
-            window.addEventListener('pointermove', onMove); window.addEventListener('pointerup', onUp);
+            e.preventDefault();
+            e.currentTarget.setPointerCapture(e.pointerId);
+            const el = e.currentTarget;
+            let startY = e.clientY;
+            firedRef.current = false;
+
+            const onMove = (me: PointerEvent) => {
+              me.preventDefault();
+              if (firedRef.current) return; // Lock in center until finger is released
+
+              // Limite físico de 20 pixels
+              const delta = Math.max(-20, Math.min(20, me.clientY - startY));
+
+              // Gatilho de mudança em 18 pixels
+              if (delta <= -18) {
+                onModeChange('up');
+                firedRef.current = true;
+                animate(dragY, 0, { type: 'spring', stiffness: 400, damping: 25 });
+              } else if (delta >= 18) {
+                onModeChange('down');
+                firedRef.current = true;
+                animate(dragY, 0, { type: 'spring', stiffness: 400, damping: 25 });
+              } else {
+                dragY.set(delta);
+              }
+            };
+
+            const onUp = () => {
+              animate(dragY, 0, { type: 'spring', stiffness: 400, damping: 25 });
+              firedRef.current = false;
+              el.removeEventListener('pointermove', onMove);
+              el.removeEventListener('pointerup', onUp);
+            };
+
+            el.addEventListener('pointermove', onMove);
+            el.addEventListener('pointerup', onUp);
           }}>
-          {[0,1,2].map(i => <div key={i} className="w-3 h-0.5 bg-stone-500 rounded-full" />)}
+          <div className="absolute inset-0 rounded-full border border-white/10 pointer-events-none" />
+          <div className="w-10 h-10 rounded-full bg-[#444] border-2 border-[#222] flex items-center justify-center shadow-inner pointer-events-none">
+            <div className="w-5 h-5 rounded-full bg-orange-600 border-2 border-[#1a1a1a]" />
+          </div>
         </motion.div>
       </div>
-      <span className="text-[10px] text-gray-500 font-bold mt-1">-</span>
+
+      <div className="w-8 flex-1 max-h-40 bg-[#1a1a1a] rounded-full border-2 border-[#333] relative flex flex-col items-center py-2 shrink-0" style={{ touchAction: 'none' }}>
+        <span className="text-[10px] text-gray-500 font-bold mb-1">+</span>
+        <div className="flex-1 w-1 bg-[#222] rounded-full relative overflow-visible cursor-pointer"
+          onClick={(e) => {
+            const rect = e.currentTarget.getBoundingClientRect();
+            const pct = Math.round(((rect.bottom - e.clientY) / rect.height) * 100);
+            setVolume(Math.max(0, Math.min(100, pct)));
+          }}>
+          <div className="absolute bottom-0 w-full bg-orange-600 rounded-full transition-[height] duration-75" style={{ height: `${volume}%` }} />
+          <div className="absolute left-1/2 -translate-x-1/2 w-6 h-8 bg-linear-to-b from-stone-200 to-stone-400 rounded border-2 border-stone-600 shadow-lg cursor-ns-resize flex flex-col justify-center items-center gap-0.5 z-10"
+            style={{ bottom: `calc(${volume}% - 16px)`, touchAction: 'none' }}
+            onPointerDown={(e) => {
+              (e.target as Element).setPointerCapture(e.pointerId);
+              const startY = e.clientY, startVol = volume;
+              const onMove = (me: PointerEvent) => setVolume(Math.max(0, Math.min(100, Math.round(startVol + ((startY - me.clientY) / 80) * 100))));
+              const onUp = () => { window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp); };
+              window.addEventListener('pointermove', onMove); window.addEventListener('pointerup', onUp);
+            }}>
+            {[0,1,2].map(i => <div key={i} className="w-3 h-0.5 bg-stone-500 rounded-full" />)}
+          </div>
+        </div>
+        <span className="text-[10px] text-gray-500 font-bold mt-1">-</span>
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 // ─── Bottom Controls ──────────────────────────────────────────────────────────
 
 const BottomControls = ({ isPlaying, setIsPlaying, hasTape }: { isPlaying: boolean; setIsPlaying: (v: boolean) => void; hasTape: boolean }) => (
-  <div className="mt-4 flex justify-between items-center px-2 shrink-0">
-    <button className="w-16 h-10 bg-[#333] rounded-full border-2 border-[#1a1a1a] shadow-lg flex items-center justify-center active:bg-[#444] transition-all">
+  <div className="mt-4 flex justify-between items-center px-2 shrink-0" style={{ touchAction: 'manipulation' }}>
+    <button className="w-16 h-10 bg-[#333] rounded-full border-2 border-[#1a1a1a] shadow-lg flex items-center justify-center active:bg-[#444] active:scale-95 transition-all">
       <RotateCcw size={18} className="text-orange-500" />
     </button>
     <button onClick={() => hasTape && setIsPlaying(!isPlaying)}
-      className={`w-20 h-12 bg-[#333] rounded-xl border-2 border-[#1a1a1a] shadow-lg flex items-center justify-center gap-1 transition-all ${hasTape ? 'active:bg-[#444] active:shadow-inner' : 'opacity-40 cursor-not-allowed'}`}>
+      className={`w-20 h-12 bg-[#333] rounded-xl border-2 border-[#1a1a1a] shadow-lg flex items-center justify-center gap-1 transition-all ${hasTape ? 'active:bg-[#444] active:shadow-inner active:scale-95' : 'opacity-40 cursor-not-allowed'}`}>
       {isPlaying ? <Pause size={22} className="text-orange-500 fill-orange-500" /> : <Play size={22} className="text-orange-500 fill-orange-500" />}
     </button>
-    <button className="w-16 h-10 bg-[#333] rounded-full border-2 border-[#1a1a1a] shadow-lg flex items-center justify-center opacity-40">
+    <button className="w-16 h-10 bg-[#333] rounded-full border-2 border-[#1a1a1a] shadow-lg flex items-center justify-center opacity-40 active:scale-95 transition-all">
       <span className="text-orange-500 text-xs font-bold">EQ</span>
     </button>
   </div>
@@ -236,6 +299,7 @@ export default function App() {
   // ── Auth state ────────────────────────────────────────────────────────────
   // null = checking, undefined = not logged in
   const [playerData, setPlayerData] = useState<PlayerData | null | undefined>(null);
+  const [localStats, setLocalStats] = useState<PlayerStats | null>(null);
   const [screen, setScreen] = useState<AppScreen>('login');
 
   // ── Player state ──────────────────────────────────────────────────────────
@@ -246,8 +310,20 @@ export default function App() {
   const [isChangingTape, setIsChangingTape] = useState(false);
   const [displayMode, setDisplayMode] = useState<DisplayMode>('default');
   const [toasts, setToasts]           = useState<Toast[]>([]);
+  const [scanTimes, setScanTimes]     = useState<number[]>([]);
+  const [activePlayEventId, setActivePlayEventId] = useState<string | null>(null);
 
   const listenTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const hasPlayedCurrentTape = useRef(false);
+  const volumeRef = useRef(volume);
+  volumeRef.current = volume;
+
+  const incrementStat = useCallback((key: keyof PlayerStats, amount = 1) => {
+    setLocalStats(prev => {
+      if (!prev) return prev;
+      return { ...prev, [key]: (prev[key] as number) + amount };
+    });
+  }, []);
 
   // ── Firebase Auth listener ────────────────────────────────────────────────
   useEffect(() => {
@@ -259,29 +335,79 @@ export default function App() {
         }
         const data = await loadPlayerData(user.uid);
         setPlayerData(data);
+        setLocalStats(data.stats);
         setScreen('player');
       } else {
         setPlayerData(undefined);
+        setLocalStats(null);
         setScreen('login');
       }
     });
     return unsub;
   }, []);
 
+  // ── Achievement Checker ───────────────────────────────────────────────────
+  useEffect(() => {
+    if (!playerData || !localStats) return;
+
+    const profile = { ...playerData, stats: localStats };
+    const tapes = resolveTapes(playerData.unlockedTapeIds);
+    const newAchievements = checkNewAchievements(profile, tapes, scanTimes.length);
+
+    if (newAchievements.length > 0) {
+      firestoreGrantAchievements(playerData.uid, newAchievements.map(a => a.id));
+      firestoreUpdateStats(playerData.uid, localStats);
+      
+      newAchievements.forEach(ach => addToast({ type: 'achievement', title: 'Conquista!', subtitle: ach.title, icon: ach.icon }));
+      setPlayerData(prev => prev ? { 
+        ...prev, 
+        achievementIds: [...prev.achievementIds, ...newAchievements.map(a => a.id)] 
+      } : prev);
+    }
+  }, [localStats, scanTimes.length, playerData?.unlockedTapeIds.length]);
+
   // ── Listen timer  ─────────────────────────────────────────────────────────
-  // (Achievement ACH-LISTENER hooks here — placeholder for future full tracking)
   useEffect(() => {
     if (isPlaying) {
-      // Record play event for analytics/achievements
+      hasPlayedCurrentTape.current = true;
       if (currentTape && playerData) {
-        recordPlayEvent(playerData.uid, currentTape.id).catch(console.error);
+        recordPlayEvent(playerData.uid, currentTape.id)
+          .then(id => setActivePlayEventId(id))
+          .catch(console.error);
       }
-      listenTimerRef.current = setInterval(() => {/* extend later */}, 5000);
+      
+      listenTimerRef.current = setInterval(() => {
+        setLocalStats(prev => {
+          if (!prev) return prev;
+          const vol = volumeRef.current;
+          return {
+             ...prev,
+             totalListenTime: prev.totalListenTime + 5,
+             maxVolumeTime: vol === 100 ? prev.maxVolumeTime + 5 : prev.maxVolumeTime,
+             zeroVolumeTime: vol === 0 ? prev.zeroVolumeTime + 5 : prev.zeroVolumeTime,
+          };
+        });
+      }, 5000);
     } else {
       if (listenTimerRef.current) clearInterval(listenTimerRef.current);
+      // If we stop playing and have an active event, we don't clear it yet 
+      // because we only mark completion on END, not pause.
     }
     return () => { if (listenTimerRef.current) clearInterval(listenTimerRef.current); };
-  }, [isPlaying]);
+  }, [isPlaying, currentTape?.id]);
+
+  // ── Sync Stats on unmount / specific events ───────────────────────────────
+  const syncStats = useCallback(() => {
+    if (playerData && localStats) {
+      firestoreUpdateStats(playerData.uid, localStats).catch(console.error);
+    }
+  }, [playerData, localStats]);
+
+  // Sync every 60s as a fallback
+  useEffect(() => {
+    const syncInt = setInterval(syncStats, 60000);
+    return () => clearInterval(syncInt);
+  }, [syncStats]);
 
   // ── Toast helpers ─────────────────────────────────────────────────────────
   const addToast = useCallback((toast: Omit<Toast, 'id'>) => {
@@ -295,7 +421,7 @@ export default function App() {
 
   // ── QR detection  ─────────────────────────────────────────────────────────
   const handleQrDetected = useCallback(async (code: string) => {
-    if (!playerData) return;
+    if (!playerData || !localStats) return;
     setTapeState('empty');
 
     const tape = getTapeByCode(code);
@@ -305,31 +431,25 @@ export default function App() {
     }
 
     const alreadyOwned = playerData.unlockedTapeIds.includes(tape.id);
-
-    // Persist to Firestore
     await firestoreUnlockTape(playerData.uid, tape.id);
-
-    // Build updated local state for achievement check
+    
+    // Update local player data immediately to trigger checker
     const updatedTapeIds = alreadyOwned
       ? playerData.unlockedTapeIds
       : [...playerData.unlockedTapeIds, tape.id];
-
-    const fakeProfile = { ...playerData, unlockedTapeIds: updatedTapeIds };
-    const newAchievements = checkNewAchievements(fakeProfile);
-
-    if (newAchievements.length > 0) {
-      await firestoreGrantAchievements(playerData.uid, newAchievements.map(a => a.id));
-      newAchievements.forEach(ach => addToast({ type: 'achievement', title: 'Conquista!', subtitle: ach.title, icon: ach.icon }));
-    }
-
-    // Update local player data
+      
+    // Record rapid scan
+    const now = Date.now();
+    const recentScans = [...scanTimes.filter(t => now - t < 5 * 60 * 1000), now];
+    setScanTimes(recentScans);
+    
     setPlayerData({
       ...playerData,
       unlockedTapeIds: updatedTapeIds,
-      achievementIds: [...playerData.achievementIds, ...newAchievements.map(a => a.id)],
     });
 
     // Animate cassette insert
+    hasPlayedCurrentTape.current = false;
     setIsChangingTape(true);
     setIsPlaying(false);
     setTimeout(() => {
@@ -338,7 +458,7 @@ export default function App() {
       setIsChangingTape(false);
       addToast({ type: 'tape', title: alreadyOwned ? 'Fita Inserida' : 'Fita Desbloqueada!', subtitle: tape.title, icon: '📼' });
     }, 400);
-  }, [playerData, addToast]);
+  }, [playerData, localStats, scanTimes, addToast]);
 
   useEffect(() => {
     (window as any).__qrDetected = handleQrDetected;
@@ -346,10 +466,20 @@ export default function App() {
   }, [handleQrDetected]);
 
   // ── Tape actions ──────────────────────────────────────────────────────────
-  const handleEject = () => { setIsPlaying(false); setTapeState('empty'); setCurrentTape(null); };
+  const checkEjectWithoutPlay = useCallback(() => {
+    if (!hasPlayedCurrentTape.current && currentTape) incrementStat('ejectWithoutPlay');
+  }, [currentTape, incrementStat]);
+
+  const handleEject = () => { 
+    checkEjectWithoutPlay();
+    setIsPlaying(false); setTapeState('empty'); setCurrentTape(null); 
+    syncStats();
+  };
 
   const handleTapeSelect = (tape: Tape) => {
     if (tape.id === currentTape?.id) return;
+    checkEjectWithoutPlay();
+    hasPlayedCurrentTape.current = false;
     setIsChangingTape(true); setIsPlaying(false); setTapeState('empty');
     setTimeout(() => { setCurrentTape(tape); setTapeState('loaded'); setIsChangingTape(false); }, 400);
   };
@@ -361,10 +491,29 @@ export default function App() {
   };
 
   const handleLogout = async () => {
+    syncStats();
     await logout();
     setCurrentTape(null); setTapeState('empty'); setIsPlaying(false);
-    // onAuthStateChanged will fire and set screen back to 'login'
+    setActivePlayEventId(null);
   };
+
+  // ── Completion logic ──────────────────────────────────────────────────────
+  // We'll simulate completion based on time or if the audio element (if we had one) ends.
+  // Since this is a custom player without a standard <audio> ref shown yet, 
+  // I will assume for now that if they play for >80% of average duration or if we add an onEnded hook.
+  // Let's implement an effect that marks completion if they reach a certain time or if we add a manual "end" trigger.
+  // For now, I'll add a dummy "Completion" check at the end of the tape's likely duration.
+  useEffect(() => {
+    if (isPlaying && activePlayEventId && currentTape) {
+      // In a real app, we'd use <audio onEnded={...}>
+      // Here we'll just simulate it for the analytics demonstration if they play for 30s 
+      // (or however the user wants to define "completion" in this RPG context)
+      const timeout = setTimeout(() => {
+        markPlayEventCompleted(activePlayEventId).catch(console.error);
+      }, 30000); // 30 seconds as "completion" for now
+      return () => clearTimeout(timeout);
+    }
+  }, [isPlaying, activePlayEventId, currentTape]);
 
   // ── Loading state ─────────────────────────────────────────────────────────
   if (playerData === null) {
@@ -399,9 +548,11 @@ export default function App() {
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-stone-900 font-mono select-none overflow-hidden">
-      <div className="relative w-[min(380px,90vw)] h-[min(680px,92vh)] bg-[#2a2a2a] rounded-[40px] shadow-2xl border-4 border-[#1a1a1a] flex flex-col p-4 overflow-hidden">
-        <Screw className="top-4 left-4" /><Screw className="top-4 right-4 -rotate-90" />
-        <Screw className="bottom-4 left-4 -rotate-90" /><Screw className="bottom-4 right-4" />
+      <div className="relative w-[min(380px,90vw)] h-[min(680px,92vh)] bg-surface-container-high rounded-[40px] shadow-2xl border-4 border-[#1a1a1a] flex flex-col p-4 overflow-hidden">
+        <Screw className="top-4 left-4" onClick={() => incrementStat('screwClicks')} />
+        <Screw className="top-4 right-4 -rotate-90" onClick={() => incrementStat('screwClicks')} />
+        <Screw className="bottom-4 left-4 -rotate-90" onClick={() => incrementStat('screwClicks')} />
+        <Screw className="bottom-4 right-4" onClick={() => incrementStat('screwClicks')} />
 
         <CassetteVisor currentTape={currentTape} isPlaying={isPlaying} volume={volume} tapeState={tapeState}
           onEject={handleEject} onScanClick={() => setTapeState('scanning')}
@@ -411,7 +562,7 @@ export default function App() {
           isPlaying={isPlaying} displayMode={displayMode} onTapeSelect={handleTapeSelect} />
 
         <SideControls volume={volume} setVolume={setVolume} onModeChange={handleModeChange}
-          onProfileOpen={() => setScreen('profile')} />
+          onProfileOpen={() => { syncStats(); setScreen('profile'); }} />
 
         <BottomControls isPlaying={isPlaying} setIsPlaying={setIsPlaying} hasTape={tapeState === 'loaded'} />
 

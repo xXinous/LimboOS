@@ -42,6 +42,10 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
   const [userTapes, setUserTapes] = useState<Record<string, TapeData[]>>({});
   const [userPlayCounts, setUserPlayCounts] = useState<Record<string, PlayCountData[]>>({});
   const [userTotalPlays, setUserTotalPlays] = useState<Record<string, number>>({});
+  // Confirm modal state
+  const [confirmDeleteUid, setConfirmDeleteUid] = useState<string | null>(null);
+  const [confirmDeleteTape, setConfirmDeleteTape] = useState<{ uid: string; tapeId: string } | null>(null);
+
 
   useEffect(() => {
     const unsubscribe = onSnapshot(
@@ -116,27 +120,25 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
     }
   };
 
-  const handleDelete = async (uid: string) => {
-    if (!isAdmin) return alert("Admin privileges required.");
-    if (
-      confirm(
-        "ATENÇÃO: Isso vai deletar o perfil do usuário e todos os dados associados (tapes, achievements, play events). Continuar?",
-      )
-    ) {
-      try {
-        // Delete subcollections
-        const tapesSnap = await getDocs(collection(db, "users", uid, "tapes"));
-        await Promise.all(tapesSnap.docs.map((d) => deleteDoc(d.ref)));
+  const handleDelete = (uid: string) => {
+    if (!isAdmin) return;
+    setConfirmDeleteUid(uid);
+  };
 
-        const achSnap = await getDocs(collection(db, "users", uid, "achievements"));
-        await Promise.all(achSnap.docs.map((d) => deleteDoc(d.ref)));
+  const executeDelete = async (uid: string) => {
+    setConfirmDeleteUid(null);
+    try {
+      // Delete subcollections
+      const tapesSnap = await getDocs(collection(db, "users", uid, "tapes"));
+      await Promise.all(tapesSnap.docs.map((d) => deleteDoc(d.ref)));
 
-        // Delete user doc
-        await deleteDoc(doc(db, "users", uid));
-      } catch (error) {
-        console.error("Error deleting user:", error);
-        alert("Failed to delete user.");
-      }
+      const achSnap = await getDocs(collection(db, "users", uid, "achievements"));
+      await Promise.all(achSnap.docs.map((d) => deleteDoc(d.ref)));
+
+      // Delete user doc
+      await deleteDoc(doc(db, "users", uid));
+    } catch (error) {
+      console.error("Error deleting user:", error);
     }
   };
 
@@ -196,15 +198,18 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
     }
   };
 
-  const handleDeleteTape = async (uid: string, tapeId: string) => {
+  const handleDeleteTape = (uid: string, tapeId: string) => {
     if (!isAdmin) return;
-    if (confirm(`Remover tape "${tapeId}" do usuário?`)) {
-      try {
-        await deleteDoc(doc(db, "users", uid, "tapes", tapeId));
-        loadUserTapes(uid);
-      } catch (error) {
-        console.error("Error removing tape:", error);
-      }
+    setConfirmDeleteTape({ uid, tapeId });
+  };
+
+  const executeDeleteTape = async (uid: string, tapeId: string) => {
+    setConfirmDeleteTape(null);
+    try {
+      await deleteDoc(doc(db, "users", uid, "tapes", tapeId));
+      loadUserTapes(uid);
+    } catch (error) {
+      console.error("Error removing tape:", error);
     }
   };
 
@@ -490,6 +495,71 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Confirm Delete User Modal */}
+      {confirmDeleteUid && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+          <div className="bg-surface-container-low border border-error/40 p-6 w-full max-w-md machined-edge">
+            <div className="flex items-center gap-3 mb-4">
+              <span className="material-symbols-outlined text-error text-xl">warning</span>
+              <h3 className="font-headline text-lg text-error">DELETE_USER_PROFILE</h3>
+            </div>
+            <p className="font-body text-sm text-zinc-300 mb-2">
+              Isso irá deletar permanentemente o perfil do usuário e todos os dados associados:
+            </p>
+            <ul className="text-xs font-label text-zinc-500 list-disc list-inside mb-6 space-y-1">
+              <li>Tapes desbloqueadas</li>
+              <li>Achievements</li>
+              <li>Play events</li>
+            </ul>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setConfirmDeleteUid(null)}
+                className="px-4 py-2 text-xs font-label text-zinc-400 hover:text-white border border-zinc-700 hover:border-zinc-500 transition-colors"
+              >
+                CANCELAR
+              </button>
+              <button
+                onClick={() => executeDelete(confirmDeleteUid)}
+                className="px-4 py-2 text-xs font-label bg-error text-white font-bold tracking-wider hover:brightness-110 transition-all"
+              >
+                CONFIRMAR_DELETE
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirm Delete Tape Modal */}
+      {confirmDeleteTape && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+          <div className="bg-surface-container-low border border-zinc-700 p-6 w-full max-w-sm machined-edge">
+            <div className="flex items-center gap-3 mb-4">
+              <span className="material-symbols-outlined text-orange-400 text-xl">album</span>
+              <h3 className="font-headline text-base text-zinc-200">REMOVER_TAPE</h3>
+            </div>
+            <p className="font-body text-sm text-zinc-400 mb-6">
+              Remover tape{" "}
+              <span className="text-orange-400 font-bold">{confirmDeleteTape.tapeId}</span>{" "}
+              do usuário?
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setConfirmDeleteTape(null)}
+                className="px-4 py-2 text-xs font-label text-zinc-400 hover:text-white border border-zinc-700 hover:border-zinc-500 transition-colors"
+              >
+                CANCELAR
+              </button>
+              <button
+                onClick={() => executeDeleteTape(confirmDeleteTape.uid, confirmDeleteTape.tapeId)}
+                className="px-4 py-2 text-xs font-label bg-orange-600 text-white font-bold tracking-wider hover:brightness-110 transition-all"
+              >
+                CONFIRMAR
+              </button>
+            </div>
           </div>
         </div>
       )}

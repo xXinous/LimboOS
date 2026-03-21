@@ -26,9 +26,18 @@ export interface PlayerMeta {
   createdAt: Timestamp | null;
 }
 
+export interface PlayerStats {
+  totalListenTime: number; // in seconds
+  screwClicks: number;
+  ejectWithoutPlay: number;
+  maxVolumeTime: number; // in seconds
+  zeroVolumeTime: number; // in seconds
+}
+
 export interface PlayerData extends PlayerMeta {
   unlockedTapeIds: string[];
   achievementIds: string[];
+  stats: PlayerStats;
 }
 
 // ── Read ─────────────────────────────────────────────────────────────────────
@@ -42,12 +51,23 @@ export async function loadPlayerData(uid: string): Promise<PlayerData> {
 
   const tapesSnap = await getDocs(collection(db, 'users', uid, 'tapes'));
   const achievementsSnap = await getDocs(collection(db, 'users', uid, 'achievements'));
+  const statsSnap = await getDoc(doc(db, 'users', uid, 'stats', 'main'));
+
+  const defaultStats: PlayerStats = {
+    totalListenTime: 0,
+    screwClicks: 0,
+    ejectWithoutPlay: 0,
+    maxVolumeTime: 0,
+    zeroVolumeTime: 0,
+  };
+  const stats = statsSnap.exists() ? { ...defaultStats, ...(statsSnap.data() as Partial<PlayerStats>) } : defaultStats;
 
   return {
     ...meta,
     uid,
     unlockedTapeIds: tapesSnap.docs.map((d) => d.id),
     achievementIds: achievementsSnap.docs.map((d) => d.id),
+    stats,
   };
 }
 
@@ -85,14 +105,28 @@ export async function firestoreGrantAchievements(
   );
 }
 
-/** Record a play event (for achievements / analytics tracking). */
+/** Record a play event (for achievements / analytics tracking). Returns the event ID. */
 export async function recordPlayEvent(
   uid: string,
   tapeId: string,
-): Promise<void> {
-  await addDoc(collection(db, 'playEvents'), {
+): Promise<string> {
+  const docRef = await addDoc(collection(db, 'playEvents'), {
     uid,
     tapeId,
     playedAt: serverTimestamp(),
+    completed: false, // Default to not completed
   });
+  return docRef.id;
+}
+
+/** Mark a play event as completed. */
+export async function markPlayEventCompleted(eventId: string): Promise<void> {
+  await setDoc(doc(db, 'playEvents', eventId), {
+    completed: true,
+  }, { merge: true });
+}
+
+/** Partially update player stats in Firestore. */
+export async function firestoreUpdateStats(uid: string, statsDelta: Partial<PlayerStats>): Promise<void> {
+  await setDoc(doc(db, 'users', uid, 'stats', 'main'), statsDelta, { merge: true });
 }

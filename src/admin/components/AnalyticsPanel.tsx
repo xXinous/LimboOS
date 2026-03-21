@@ -1,11 +1,29 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '../../lib/firebase';
-import { collection, onSnapshot, query, orderBy, getDocs } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, getDocs, collectionGroup } from 'firebase/firestore';
+import { ALL_ACHIEVEMENTS } from '../../data/achievements';
 
 interface PlayEvent {
   uid: string;
   tapeId: string;
   playedAt: any;
+  completed?: boolean;
+}
+
+interface AudioMetadata {
+  size: number;
+}
+
+interface UserAchievement {
+  achievementId: string;
+}
+
+interface PlayerStats {
+  totalListenTime?: number;
+  screwClicks?: number;
+  ejectWithoutPlay?: number;
+  maxVolumeTime?: number;
+  zeroVolumeTime?: number;
 }
 
 interface UserData {
@@ -20,7 +38,9 @@ interface UserData {
 export default function AnalyticsPanel() {
   const [playEvents, setPlayEvents] = useState<PlayEvent[]>([]);
   const [users, setUsers] = useState<UserData[]>([]);
-  const [audiosCount, setAudiosCount] = useState(0);
+  const [audios, setAudios] = useState<AudioMetadata[]>([]);
+  const [unlockedAchievements, setUnlockedAchievements] = useState<UserAchievement[]>([]);
+  const [stats, setStats] = useState<PlayerStats[]>([]);
 
   useEffect(() => {
     const unsubs: (() => void)[] = [];
@@ -38,7 +58,21 @@ export default function AnalyticsPanel() {
     }));
 
     unsubs.push(onSnapshot(collection(db, 'audios'), (snap) => {
-      setAudiosCount(snap.size);
+      const a: AudioMetadata[] = [];
+      snap.forEach(d => a.push(d.data() as AudioMetadata));
+      setAudios(a);
+    }));
+
+    unsubs.push(onSnapshot(collectionGroup(db, 'achievements'), (snap) => {
+      const achs: UserAchievement[] = [];
+      snap.forEach(d => achs.push(d.data() as UserAchievement));
+      setUnlockedAchievements(achs);
+    }));
+
+    unsubs.push(onSnapshot(collectionGroup(db, 'stats'), (snap) => {
+      const s: PlayerStats[] = [];
+      snap.forEach(d => s.push(d.data() as PlayerStats));
+      setStats(s);
     }));
 
     return () => unsubs.forEach(u => u());
@@ -108,8 +142,77 @@ export default function AnalyticsPanel() {
       }
     });
 
-    return { activeUsers, mostPlayed, mostActiveUsers, dailyPlaysSorted, maxDailyPlays, weeklyGrowth };
-  }, [playEvents, users]);
+    // Achievement Rarity
+    const achCountMap: Record<string, number> = {};
+    unlockedAchievements.forEach(a => {
+      achCountMap[a.achievementId] = (achCountMap[a.achievementId] || 0) + 1;
+    });
+    const rarityList = ALL_ACHIEVEMENTS.map(a => ({
+      ...a,
+      count: achCountMap[a.id] || 0,
+      percentage: users.length > 0 ? ((achCountMap[a.id] || 0) / users.length) * 100 : 0
+    })).sort((a, b) => a.count - b.count); // Rarest first
+
+    // Peak Activity Hours
+    const hourMap: Record<number, number> = {};
+    for (let i = 0; i < 24; i++) hourMap[i] = 0;
+    playEvents.forEach(e => {
+      if (e.playedAt?.toDate) {
+        const hour = e.playedAt.toDate().getHours();
+        hourMap[hour]++;
+      }
+    });
+    const peakHours = Object.entries(hourMap).map(([h, count]) => ({ hour: parseInt(h), count }));
+    const maxHourCount = Math.max(...Object.values(hourMap), 1);
+
+    // Audio Completion Rate
+    const completedPlays = playEvents.filter(e => e.completed).length;
+    const completionRate = playEvents.length > 0 ? (completedPlays / playEvents.length) * 100 : 0;
+
+    // Storage Usage
+    const totalStorageSize = audios.reduce((acc, a) => acc + (a.size || 0), 0);
+    const storageLimit = 5 * 1024 * 1024 * 1024; // 5GB Free Tier
+    const storagePercentage = (totalStorageSize / storageLimit) * 100;
+
+    // Aggregated Behavioral Stats
+    const totalListenSecs = stats.reduce((acc, s) => acc + (s.totalListenTime || 0), 0);
+    const avgListenSecs = users.length > 0 ? totalListenSecs / users.length : 0;
+    const totalScrews = stats.reduce((acc, s) => acc + (s.screwClicks || 0), 0);
+    const totalEjects = stats.reduce((acc, s) => acc + (s.ejectWithoutPlay || 0), 0);
+    const totalMacVolSecs = stats.reduce((acc, s) => acc + (s.maxVolumeTime || 0), 0);
+    const totalZeroVolSecs = stats.reduce((acc, s) => acc + (s.zeroVolumeTime || 0), 0);
+    
+    // Tape Obsession
+    let maxObsessionCount = 0;
+    const userTapePlays: Record<string, number> = {};
+    playEvents.forEach(e => {
+       const key = `${e.uid}_${e.tapeId}`;
+       userTapePlays[key] = (userTapePlays[key] || 0) + 1;
+       if (userTapePlays[key] > maxObsessionCount) maxObsessionCount = userTapePlays[key];
+    });
+
+    return { 
+      activeUsers, 
+      mostPlayed, 
+      mostActiveUsers, 
+      dailyPlaysSorted, 
+      maxDailyPlays, 
+      weeklyGrowth,
+      rarityList,
+      peakHours,
+      maxHourCount,
+      completionRate,
+      totalStorageSize,
+      storagePercentage,
+      totalListenSecs,
+      avgListenSecs,
+      totalScrews,
+      totalEjects,
+      totalMacVolSecs,
+      totalZeroVolSecs,
+      maxObsessionCount,
+    };
+  }, [playEvents, users, audios, unlockedAchievements, stats]);
 
   return (
     <div className="space-y-8">
@@ -117,34 +220,95 @@ export default function AnalyticsPanel() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <KPICard label="Total_Users" value={users.length} icon="group" color="text-primary" />
         <KPICard label="Active_7d" value={analytics.activeUsers} icon="trending_up" color="text-tertiary" />
-        <KPICard label="Total_Audio_Files" value={audiosCount} icon="library_music" color="text-secondary" />
+        <KPICard label="Total_Audio_Files" value={audios.length} icon="library_music" color="text-secondary" />
         <KPICard label="Total_Play_Events" value={playEvents.length} icon="play_circle" color="text-primary-container" />
       </div>
 
-      {/* Activity Timeline */}
-      <section className="bg-surface-container-lowest border border-zinc-800 p-6 machined-edge">
-        <div className="flex items-center gap-3 mb-6">
-          <span className="material-symbols-outlined text-orange-500 text-sm">timeline</span>
-          <h3 className="font-label text-[10px] uppercase tracking-widest text-zinc-400">Play_Activity_Timeline (30d)</h3>
-        </div>
-        <div className="flex items-end gap-1 h-32">
-          {analytics.dailyPlaysSorted.map(([date, count]) => (
-            <div key={date} className="flex-1 flex flex-col items-center group relative">
-              <div className="absolute -top-6 bg-zinc-800 text-zinc-300 text-[8px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
-                {date.slice(5)} : {count}
-              </div>
-              <div
-                className="w-full bg-orange-500/80 hover:bg-orange-400 transition-colors rounded-t-sm"
-                style={{ height: `${(count / analytics.maxDailyPlays) * 100}%`, minHeight: count > 0 ? '4px' : '1px' }}
-              ></div>
+      {/* Storage Usage & Completion Rate */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <section className="bg-surface-container-lowest border border-zinc-800 p-6 machined-edge">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <span className="material-symbols-outlined text-secondary text-sm">cloud_done</span>
+              <h3 className="font-label text-[10px] uppercase tracking-widest text-zinc-400">Firebase_Storage_Usage</h3>
             </div>
-          ))}
-        </div>
-        <div className="flex justify-between mt-2 text-[8px] font-label text-zinc-600">
-          <span>{analytics.dailyPlaysSorted[0]?.[0]?.slice(5) || ''}</span>
-          <span>{analytics.dailyPlaysSorted[analytics.dailyPlaysSorted.length - 1]?.[0]?.slice(5) || ''}</span>
-        </div>
-      </section>
+            <span className="text-[10px] font-label text-zinc-500">{(analytics.totalStorageSize / (1024 * 1024)).toFixed(1)} MB / 5 GB</span>
+          </div>
+          <div className="h-2 w-full bg-zinc-900 rounded-full overflow-hidden border border-zinc-800">
+            <div 
+              className="h-full bg-secondary transition-all" 
+              style={{ width: `${Math.min(analytics.storagePercentage, 100)}%` }}
+            />
+          </div>
+        </section>
+
+        <section className="bg-surface-container-lowest border border-zinc-800 p-6 machined-edge">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <span className="material-symbols-outlined text-primary text-sm">check_circle</span>
+              <h3 className="font-label text-[10px] uppercase tracking-widest text-zinc-400">Playback_Completion_Rate</h3>
+            </div>
+            <span className="text-[10px] font-label text-zinc-500">{analytics.completionRate.toFixed(1)}% Completed</span>
+          </div>
+          <div className="h-2 w-full bg-zinc-900 rounded-full overflow-hidden border border-zinc-800">
+            <div 
+              className="h-full bg-primary transition-all" 
+              style={{ width: `${analytics.completionRate}%` }}
+            />
+          </div>
+        </section>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Activity Timeline */}
+        <section className="bg-surface-container-lowest border border-zinc-800 p-6 machined-edge lg:col-span-2">
+          <div className="flex items-center gap-3 mb-6">
+            <span className="material-symbols-outlined text-orange-500 text-sm">timeline</span>
+            <h3 className="font-label text-[10px] uppercase tracking-widest text-zinc-400">Play_Activity_Timeline (30d)</h3>
+          </div>
+          <div className="flex items-end gap-1 h-32">
+            {analytics.dailyPlaysSorted.map(([date, count]) => (
+              <div key={date} className="flex-1 flex flex-col items-center group relative">
+                <div className="absolute -top-6 bg-zinc-800 text-zinc-300 text-[8px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
+                  {date.slice(5)} : {count}
+                </div>
+                <div
+                  className="w-full bg-orange-500/80 hover:bg-orange-400 transition-colors rounded-t-sm"
+                  style={{ height: `${(count / analytics.maxDailyPlays) * 100}%`, minHeight: count > 0 ? '4px' : '1px' }}
+                ></div>
+              </div>
+            ))}
+          </div>
+          <div className="flex justify-between mt-2 text-[8px] font-label text-zinc-600">
+            <span>{analytics.dailyPlaysSorted[0]?.[0]?.slice(5) || ''}</span>
+            <span>{analytics.dailyPlaysSorted[analytics.dailyPlaysSorted.length - 1]?.[0]?.slice(5) || ''}</span>
+          </div>
+        </section>
+
+        {/* Peak Hours (Heatmap) */}
+        <section className="bg-surface-container-lowest border border-zinc-800 p-6 machined-edge">
+          <div className="flex items-center gap-3 mb-6">
+            <span className="material-symbols-outlined text-orange-500 text-sm">schedule</span>
+            <h3 className="font-label text-[10px] uppercase tracking-widest text-zinc-400">Peak_Activity_Hours</h3>
+          </div>
+          <div className="grid grid-cols-6 gap-2">
+            {analytics.peakHours.map(({ hour, count }) => (
+              <div key={hour} className="flex flex-col items-center group relative">
+                <div className="absolute -top-6 bg-zinc-800 text-zinc-300 text-[8px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
+                  {hour}h: {count}
+                </div>
+                <div 
+                  className="w-full aspect-square rounded-xs transition-colors"
+                  style={{ 
+                    backgroundColor: count === 0 ? '#18181b' : `rgba(249, 115, 22, ${0.2 + (count / analytics.maxHourCount) * 0.8})` 
+                  }}
+                />
+                <span className="text-[6px] text-zinc-700 mt-1">{hour}h</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Most Played Tapes */}
@@ -216,61 +380,97 @@ export default function AnalyticsPanel() {
         </section>
       </div>
 
-      {/* User Growth & Engagement */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <section className="bg-surface-container-lowest border border-zinc-800 p-6 machined-edge lg:col-span-2">
-          <div className="flex items-center gap-3 mb-6">
-            <span className="material-symbols-outlined text-orange-500 text-sm">group_add</span>
-            <h3 className="font-label text-[10px] uppercase tracking-widest text-zinc-400">User_Growth_Weekly</h3>
-          </div>
-          {Object.keys(analytics.weeklyGrowth).length === 0 ? (
-            <p className="text-zinc-600 text-xs font-label tracking-widest">NO_GROWTH_DATA</p>
-          ) : (
-            <div className="flex items-end gap-2 h-24">
-              {Object.entries(analytics.weeklyGrowth)
-                .sort(([a], [b]) => a.localeCompare(b))
-                .slice(-12)
-                .map(([week, count]) => {
-                  const maxWeekly = Math.max(...Object.values(analytics.weeklyGrowth), 1);
-                  return (
-                    <div key={week} className="flex-1 flex flex-col items-center group relative">
-                      <div className="absolute -top-5 bg-zinc-800 text-zinc-300 text-[8px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
-                        W{week.slice(5)} +{count}
-                      </div>
-                      <div
-                        className="w-full bg-secondary/60 hover:bg-secondary/80 transition-colors rounded-t-sm"
-                        style={{ height: `${(count / maxWeekly) * 100}%`, minHeight: '4px' }}
-                      ></div>
-                    </div>
-                  );
-                })}
-            </div>
-          )}
-        </section>
-
-        {/* Engagement Summary */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Achievement Rarity */}
         <section className="bg-surface-container-lowest border border-zinc-800 p-6 machined-edge">
           <div className="flex items-center gap-3 mb-6">
-            <span className="material-symbols-outlined text-orange-500 text-sm">analytics</span>
-            <h3 className="font-label text-[10px] uppercase tracking-widest text-zinc-400">Engagement_Summary</h3>
+            <span className="material-symbols-outlined text-orange-500 text-sm">stars</span>
+            <h3 className="font-label text-[10px] uppercase tracking-widest text-zinc-400">Rarest_Achievements</h3>
           </div>
           <div className="space-y-4">
-            <MetricRow label="Avg Plays/User" value={
-              users.length > 0 ? (playEvents.length / users.length).toFixed(1) : '0'
-            } />
-            <MetricRow label="Unique Tapes Played" value={
-              new Set(playEvents.map(e => e.tapeId)).size.toString()
-            } />
-            <MetricRow label="Users w/ Plays" value={
-              new Set(playEvents.map(e => e.uid)).size.toString()
-            } />
-            <MetricRow label="Play Rate" value={
-              users.length > 0 
-                ? `${((new Set(playEvents.map(e => e.uid)).size / users.length) * 100).toFixed(0)}%`
-                : '0%'
-            } />
+            {analytics.rarityList.slice(0, 5).map((ach) => (
+              <div key={ach.id} className="flex items-center gap-3">
+                <div className="text-xl w-10 h-10 bg-zinc-900 rounded border border-zinc-800 flex items-center justify-center shrink-0">
+                  {ach.icon}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex justify-between items-start mb-1">
+                    <h4 className="font-headline font-bold text-xs text-zinc-200 truncate">{ach.title}</h4>
+                    <span className="font-label text-[8px] px-1.5 py-0.5 bg-zinc-800 text-zinc-400 rounded">
+                      {ach.percentage.toFixed(1)}% OWNED
+                    </span>
+                  </div>
+                  <div className="h-1 w-full bg-zinc-800 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-orange-500" 
+                      style={{ width: `${ach.percentage}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         </section>
+
+        {/* User Growth & Engagement Summary Combined */}
+        <div className="space-y-8">
+          <section className="bg-surface-container-lowest border border-zinc-800 p-6 machined-edge">
+            <div className="flex items-center gap-3 mb-6">
+              <span className="material-symbols-outlined text-orange-500 text-sm">group_add</span>
+              <h3 className="font-label text-[10px] uppercase tracking-widest text-zinc-400">User_Growth_Weekly</h3>
+            </div>
+            {Object.keys(analytics.weeklyGrowth).length === 0 ? (
+              <p className="text-zinc-600 text-xs font-label tracking-widest">NO_GROWTH_DATA</p>
+            ) : (
+              <div className="flex items-end gap-2 h-24">
+                {Object.entries(analytics.weeklyGrowth)
+                  .sort(([a], [b]) => a.localeCompare(b))
+                  .slice(-12)
+                  .map(([week, count]) => {
+                    const c = count as number;
+                    const maxWeekly = Math.max(...(Object.values(analytics.weeklyGrowth) as number[]), 1);
+                    return (
+                      <div key={week} className="flex-1 flex flex-col items-center group relative">
+                        <div className="absolute -top-5 bg-zinc-800 text-zinc-300 text-[8px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
+                          W{week.slice(5)} +{c}
+                        </div>
+                        <div
+                          className="w-full bg-secondary/60 hover:bg-secondary/80 transition-colors rounded-t-sm"
+                          style={{ height: `${(c / maxWeekly) * 100}%`, minHeight: '4px' }}
+                        ></div>
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
+          </section>
+
+          <section className="bg-surface-container-lowest border border-zinc-800 p-6 machined-edge">
+            <div className="flex items-center gap-3 mb-4">
+              <span className="material-symbols-outlined text-orange-500 text-sm">analytics</span>
+              <h3 className="font-label text-[10px] uppercase tracking-widest text-zinc-400">Quick_Metrics</h3>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <MetricRow label="Avg Plays/User" value={users.length > 0 ? (playEvents.length / users.length).toFixed(1) : '0'} />
+              <MetricRow label="Unique Tapes" value={new Set(playEvents.map(e => e.tapeId)).size.toString()} />
+            </div>
+          </section>
+
+          <section className="bg-surface-container-lowest border border-zinc-800 p-6 machined-edge mt-8">
+            <div className="flex items-center gap-3 mb-4">
+              <span className="material-symbols-outlined text-orange-500 text-sm">explore</span>
+              <h3 className="font-label text-[10px] uppercase tracking-widest text-zinc-400">Behavioral_Metrics</h3>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <MetricRow label="Avg Listen Time" value={formatSecs(analytics.avgListenSecs)} />
+              <MetricRow label="Max Vol Time" value={formatSecs(analytics.totalMacVolSecs)} />
+              <MetricRow label="0% Vol Time" value={formatSecs(analytics.totalZeroVolSecs)} />
+              <MetricRow label="Screws Tampered" value={analytics.totalScrews.toString()} />
+              <MetricRow label="Anxious Ejects" value={analytics.totalEjects.toString()} />
+              <MetricRow label="Highest Obsession" value={`${analytics.maxObsessionCount} plays`} title="Most times a single user played the same tape" />
+            </div>
+          </section>
+        </div>
       </div>
     </div>
   );
@@ -290,11 +490,19 @@ function KPICard({ label, value, icon, color }: { label: string; value: number; 
   );
 }
 
-function MetricRow({ label, value }: { label: string; value: string }) {
+function MetricRow({ label, value, title }: { label: string; value: string; title?: string }) {
   return (
-    <div className="flex items-center justify-between border-b border-zinc-800/50 pb-2">
+    <div className="flex items-center justify-between border-b border-zinc-800/50 pb-2" title={title}>
       <span className="font-label text-[9px] uppercase tracking-widest text-zinc-500">{label}</span>
       <span className="font-headline font-bold text-sm text-on-surface">{value}</span>
     </div>
   );
+}
+
+function formatSecs(secs: number) {
+  if (!secs) return '0s';
+  if (secs < 60) return `${Math.floor(secs)}s`;
+  const mins = Math.floor(secs / 60);
+  if (mins < 60) return `${mins}m`;
+  return `${(mins / 60).toFixed(1)}h`;
 }
