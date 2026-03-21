@@ -211,6 +211,8 @@ export default function AnalyticsPanel() {
       totalMacVolSecs,
       totalZeroVolSecs,
       maxObsessionCount,
+      abandonRate: playEvents.length > 0 ? ((playEvents.length - completedPlays) / playEvents.length) * 100 : 0,
+      totalAchievements: unlockedAchievements.length,
     };
   }, [playEvents, users, audios, unlockedAchievements, stats]);
 
@@ -453,6 +455,9 @@ export default function AnalyticsPanel() {
             <div className="grid grid-cols-2 gap-4">
               <MetricRow label="Avg Plays/User" value={users.length > 0 ? (playEvents.length / users.length).toFixed(1) : '0'} />
               <MetricRow label="Unique Tapes" value={new Set(playEvents.map(e => e.tapeId)).size.toString()} />
+              <MetricRow label="Total Listen Time" value={formatSecs(analytics.totalListenSecs)} />
+              <MetricRow label="Abandon Rate" value={`${analytics.abandonRate.toFixed(1)}%`} title="Percentage of plays not completed" />
+              <MetricRow label="Total Achievements" value={analytics.totalAchievements.toString()} />
             </div>
           </section>
 

@@ -11,6 +11,7 @@ import {
   serverTimestamp,
   query,
   where,
+  getDoc,
 } from "firebase/firestore";
 import { format } from "date-fns";
 
@@ -42,6 +43,8 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
   const [userTapes, setUserTapes] = useState<Record<string, TapeData[]>>({});
   const [userPlayCounts, setUserPlayCounts] = useState<Record<string, PlayCountData[]>>({});
   const [userTotalPlays, setUserTotalPlays] = useState<Record<string, number>>({});
+  const [userStats, setUserStats] = useState<Record<string, any>>({});
+  const [userAchievements, setUserAchievements] = useState<Record<string, any[]>>({});
   // Confirm modal state
   const [confirmDeleteUid, setConfirmDeleteUid] = useState<string | null>(null);
   const [confirmDeleteTape, setConfirmDeleteTape] = useState<{ uid: string; tapeId: string } | null>(null);
@@ -106,6 +109,18 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
         count,
       }));
       setUserPlayCounts((prev) => ({ ...prev, [uid]: playCounts }));
+
+      // Load stats
+      const statsSnap = await getDoc(doc(db, "users", uid, "stats", "main"));
+      if (statsSnap.exists()) {
+        setUserStats((prev) => ({ ...prev, [uid]: statsSnap.data() }));
+      }
+
+      // Load achievements
+      const achSnap = await getDocs(collection(db, "users", uid, "achievements"));
+      const achs: any[] = [];
+      achSnap.forEach((d) => achs.push({ achievementId: d.id, ...d.data() }));
+      setUserAchievements((prev) => ({ ...prev, [uid]: achs }));
     } catch (error) {
       console.error("Error loading user tapes:", error);
     }
@@ -408,6 +423,55 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
                         ) : (
                           <p className="text-zinc-600 text-xs font-label tracking-widest">NO_TAPES_UNLOCKED</p>
                         )}
+
+                        {/* Behavioral Stats Section */}
+                        <div className="pt-4 border-t border-zinc-800/50">
+                          <div className="flex items-center gap-2 mb-4">
+                            <span className="material-symbols-outlined text-tertiary text-sm">explore</span>
+                            <h4 className="font-label text-[10px] uppercase tracking-widest text-zinc-400">
+                              Behavioral_Stats
+                            </h4>
+                          </div>
+                          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                            <StatBox label="Time Listened" value={formatSecs(userStats[user.uid]?.totalListenTime || 0)} />
+                            <StatBox label="Max Vol Time" value={formatSecs(userStats[user.uid]?.maxVolumeTime || 0)} />
+                            <StatBox label="Muted Time" value={formatSecs(userStats[user.uid]?.zeroVolumeTime || 0)} />
+                            <StatBox label="Screws Tampered" value={userStats[user.uid]?.screwClicks || 0} />
+                            <StatBox label="Anxious Ejects" value={userStats[user.uid]?.ejectWithoutPlay || 0} />
+                          </div>
+                        </div>
+
+                        {/* Achievements Section */}
+                        <div className="pt-4 border-t border-zinc-800/50">
+                          <div className="flex items-center gap-2 mb-4">
+                            <span className="material-symbols-outlined text-secondary text-sm">stars</span>
+                            <h4 className="font-label text-[10px] uppercase tracking-widest text-zinc-400">
+                              Unlocked_Achievements ({userAchievements[user.uid]?.length || 0})
+                            </h4>
+                          </div>
+                          {userAchievements[user.uid]?.length ? (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2">
+                              {userAchievements[user.uid].map((ach) => (
+                                <div key={ach.achievementId} className="bg-surface-container-lowest border border-zinc-800 p-3 flex items-center gap-3">
+                                  <div className="text-secondary text-lg">★</div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="font-headline text-xs font-bold text-zinc-200 truncate">
+                                      {ach.achievementId}
+                                    </p>
+                                    {ach.unlockedAt && (
+                                      <span className="text-[9px] font-label text-zinc-600 truncate block mt-0.5">
+                                        ACQUIRED: {ach.unlockedAt?.toDate ? format(ach.unlockedAt.toDate(), "dd/MM/yy HH:mm") : ""}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-zinc-600 text-xs font-label tracking-widest">NO_ACHIEVEMENTS_UNLOCKED</p>
+                          )}
+                        </div>
+
                       </div>
                     </td>
                   </tr>
@@ -565,4 +629,21 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
       )}
     </section>
   );
+}
+
+function StatBox({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="bg-surface-container-lowest border border-zinc-800 p-3 flex flex-col justify-center">
+      <span className="font-label text-[9px] uppercase tracking-widest text-zinc-500 mb-1">{label}</span>
+      <span className="font-headline font-bold text-sm text-zinc-200">{value}</span>
+    </div>
+  );
+}
+
+function formatSecs(secs: number) {
+  if (!secs) return '0s';
+  if (secs < 60) return `${Math.floor(secs)}s`;
+  const mins = Math.floor(secs / 60);
+  if (mins < 60) return `${mins}m`;
+  return `${(mins / 60).toFixed(1)}h`;
 }
