@@ -253,6 +253,10 @@ export default function App() {
   useEffect(() => {
     const unsub = onAuthStateChanged(async (user) => {
       if (user) {
+        if (user.email === 'gm.mpg@runningman.local') {
+          window.location.href = '/admin';
+          return;
+        }
         const data = await loadPlayerData(user.uid);
         setPlayerData(data);
         setScreen('player');
@@ -378,7 +382,14 @@ export default function App() {
   if (screen === 'login') {
     return (
       <>
-        <LoginScreen onLogin={(data) => { setPlayerData(data); setScreen('player'); }} />
+        <LoginScreen onLogin={(data) => { 
+          if (data?.username?.toLowerCase() === 'gm.mpg') {
+            window.location.href = '/admin';
+            return;
+          }
+          setPlayerData(data); 
+          setScreen('player'); 
+        }} />
         <ToastNotification toasts={toasts} onDismiss={dismissToast} />
       </>
     );

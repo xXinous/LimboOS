@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { db } from '../firebase';
+import { db } from '../../lib/firebase';
 import { collection, onSnapshot, query, orderBy, getDocs } from 'firebase/firestore';
 
 interface PlayEvent {

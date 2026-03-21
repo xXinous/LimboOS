@@ -19,6 +19,14 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!codinome.trim() || !password) return;
+    
+    // Security barrier against script injection characters
+    const forbiddenChars = /[<>{}"'`=]/;
+    if (forbiddenChars.test(codinome) || forbiddenChars.test(password)) {
+      setError('CARACTERES PROIBIDOS DETECTADOS PELA SEGURANÇA');
+      return;
+    }
+    
     setError(null);
     setIsLoggingIn(true);
 

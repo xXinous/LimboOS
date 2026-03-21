@@ -1,10 +1,9 @@
 {
-  "projectId": "gen-lang-client-0158301261",
-  "appId": "1:369242987848:web:7b10f99263b8a1517ca77d",
-  "apiKey": "AIzaSyCZ4SWb1-OUVNcjDuC2JEGfCKXVT6ltVQA",
-  "authDomain": "gen-lang-client-0158301261.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-ff4fa100-c99d-433f-b967-10ee00355663",
-  "storageBucket": "gen-lang-client-0158301261.firebasestorage.app",
-  "messagingSenderId": "369242987848",
-  "measurementId": ""
+  "projectId": "hub-rpg-5f3e2",
+  "appId": "1:950673729343:web:97cfb6180d7effa304d58a",
+  "apiKey": "AIzaSyBJwoSbFc_CM9s5DE8viqtp-0QhvgkjW88",
+  "authDomain": "hub-rpg-5f3e2.firebaseapp.com",
+  "storageBucket": "hub-rpg-5f3e2.firebasestorage.app",
+  "messagingSenderId": "950673729343",
+  "measurementId": "G-0T3PDY35GG"
 }
