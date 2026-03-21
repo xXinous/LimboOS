@@ -4,11 +4,13 @@
 //   /users/{uid}                   — PlayerMeta document
 //   /users/{uid}/tapes/{tapeId}    — UnlockedTape sub-document
 //   /users/{uid}/achievements/{id} — UnlockedAchievement sub-document
+//   /playEvents/{autoId}           — Play event log
 
 import {
   doc,
   getDoc,
   setDoc,
+  addDoc,
   collection,
   getDocs,
   serverTimestamp,
@@ -81,4 +83,16 @@ export async function firestoreGrantAchievements(
       }),
     ),
   );
+}
+
+/** Record a play event (for achievements / analytics tracking). */
+export async function recordPlayEvent(
+  uid: string,
+  tapeId: string,
+): Promise<void> {
+  await addDoc(collection(db, 'playEvents'), {
+    uid,
+    tapeId,
+    playedAt: serverTimestamp(),
+  });
 }
