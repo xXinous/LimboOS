@@ -10,7 +10,7 @@ import type { Toast } from './components/ToastNotification';
 
 import { onAuthStateChanged, logout } from './store/profile';
 import type { PlayerData, PlayerStats } from './store/firestore';
-import { loadPlayerData, firestoreUnlockTape, firestoreGrantAchievements, recordPlayEvent, markPlayEventCompleted, firestoreUpdateStats } from './store/firestore';
+import { loadPlayerData, firestoreUnlockTape, firestoreGrantAchievements, recordPlayEvent, markPlayEventCompleted, firestoreUpdateStats, fetchAudioTapeById, resolveAllTapesAsync } from './store/firestore';
 import { getTapeByCode, resolveTapes } from './data/tapes';
 import type { Tape } from './data/tapes';
 import { checkNewAchievements } from './data/achievements';
@@ -312,6 +312,7 @@ export default function App() {
   const [toasts, setToasts]           = useState<Toast[]>([]);
   const [scanTimes, setScanTimes]     = useState<number[]>([]);
   const [activePlayEventId, setActivePlayEventId] = useState<string | null>(null);
+  const [ownedTapes, setOwnedTapes]   = useState<Tape[]>([]);
 
   const listenTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const hasPlayedCurrentTape = useRef(false);
@@ -424,7 +425,11 @@ export default function App() {
     if (!playerData || !localStats) return;
     setTapeState('empty');
 
-    const tape = getTapeByCode(code);
+    let tape = getTapeByCode(code);
+    if (!tape) {
+      tape = await fetchAudioTapeById(code);
+    }
+    
     if (!tape) {
       addToast({ type: 'error', title: 'Código Desconhecido', subtitle: `"${code}"`, icon: '❌' });
       return;
@@ -544,7 +549,15 @@ export default function App() {
     );
   }
 
-  const ownedTapes = playerData ? resolveTapes(playerData.unlockedTapeIds) : [];
+  useEffect(() => {
+    if (playerData) {
+      resolveAllTapesAsync(playerData.unlockedTapeIds)
+        .then(setOwnedTapes)
+        .catch(console.error);
+    } else {
+      setOwnedTapes([]);
+    }
+  }, [playerData?.unlockedTapeIds]);
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-stone-900 font-mono select-none overflow-hidden">

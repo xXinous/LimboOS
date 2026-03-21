@@ -17,6 +17,7 @@ import {
   Timestamp,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { Tape, resolveTapes } from '../data/tapes';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -129,4 +130,38 @@ export async function markPlayEventCompleted(eventId: string): Promise<void> {
 /** Partially update player stats in Firestore. */
 export async function firestoreUpdateStats(uid: string, statsDelta: Partial<PlayerStats>): Promise<void> {
   await setDoc(doc(db, 'users', uid, 'stats', 'main'), statsDelta, { merge: true });
+}
+
+// ── Remote Audios ────────────────────────────────────────────────────────────
+
+/** Fetch an uploaded audio from the 'audios' collection and map it to a Tape */
+export async function fetchAudioTapeById(audioId: string): Promise<Tape | null> {
+  const snap = await getDoc(doc(db, 'audios', audioId));
+  if (!snap.exists()) return null;
+  const data = snap.data();
+  return {
+    id: snap.id,
+    title: (data.originalName || 'Audio').replace(/\.[^/.]+$/, ""),
+    artist: data.ownerName || 'Admin',
+    npc: '',
+    chapter: 'Uploads',
+    description: 'Enviado via Terminal',
+    audioUrl: data.url,
+    duration: 0,
+  } as Tape;
+}
+
+/** Resolves an array of tape IDs by checking local MASTER_TAPES first, then Firestore */
+export async function resolveAllTapesAsync(ids: string[]): Promise<Tape[]> {
+  const localTapes = resolveTapes(ids);
+  const foundIds = localTapes.map(t => t.id);
+  const missingIds = ids.filter(id => !foundIds.includes(id));
+  
+  if (missingIds.length === 0) return localTapes;
+
+  const remoteTapes = await Promise.all(
+    missingIds.map(id => fetchAudioTapeById(id))
+  );
+
+  return [...localTapes, ...remoteTapes.filter((t): t is Tape => t !== null)];
 }
