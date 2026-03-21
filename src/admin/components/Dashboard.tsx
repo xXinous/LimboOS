@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { User } from 'firebase/auth';
-import { db } from '../firebase';
+import { db } from '../../lib/firebase';
 import { doc, getDoc, collection, onSnapshot, query } from 'firebase/firestore';
 import Sidebar from './Sidebar';
 import Header from './Header';

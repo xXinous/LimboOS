@@ -1,0 +1,18 @@
+{
+  "projects": {
+    "default": "hub-rpg-5f3e2"
+  },
+  "targets": {
+    "hub-rpg-5f3e2": {
+      "hosting": {
+        "main": [
+          "terminalhubrpg"
+        ],
+        "staging": [
+          "hub-rpg-5f3e2"
+        ]
+      }
+    }
+  },
+  "etags": {}
+}

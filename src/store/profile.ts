@@ -64,6 +64,9 @@ export async function loginOrCreate(
         if (createCode === 'auth/weak-password') {
           return { ok: false, error: 'wrong_password', message: 'Senha muito fraca (mínimo 6 caracteres).' };
         }
+        if (createCode === 'auth/email-already-in-use') {
+          return { ok: false, error: 'wrong_password', message: 'FALHA NA AUTENTICAÇÃO: SENHA INCORRETA' };
+        }
         return { ok: false, error: 'unknown', message: 'Erro ao criar perfil.' };
       }
     }
