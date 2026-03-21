@@ -24,6 +24,7 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
   const [isAdmin, setIsAdmin] = useState(false);
   const [activeTab, setActiveTab] = useState('users');
   const [stats, setStats] = useState<Stats>({ totalUsers: 0, totalAudios: 0, totalPlays: 0 });
+  const [sessionTime, setSessionTime] = useState(() => new Date().toISOString().substr(11, 8));
 
   useEffect(() => {
     const checkAdmin = async () => {
@@ -33,6 +34,13 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
     };
     checkAdmin();
   }, [user]);
+
+  // Real-time session clock — ticks every second
+  useEffect(() => {
+    const tick = () => setSessionTime(new Date().toISOString().substr(11, 8));
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, []);
 
   // Real-time stats
   useEffect(() => {
@@ -98,7 +106,7 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
             <div className="bg-surface-container-highest/80 backdrop-blur-xl border border-orange-500/20 p-5 flex flex-col justify-center machined-edge">
               <p className="font-label text-[10px] uppercase tracking-widest text-orange-500/70 mb-1">Session_Active</p>
               <p className="text-2xl font-headline font-bold text-on-surface tracking-tighter">
-                {new Date().toISOString().substr(11, 8)}
+                {sessionTime}
               </p>
               <p className="font-label text-[8px] uppercase tracking-widest text-zinc-600 mt-1">ADMIN_MODE</p>
             </div>

@@ -7,8 +7,17 @@ export default defineConfig(({mode}) => {
   const env = loadEnv(mode, '.', '');
   return {
     plugins: [react(), tailwindcss()],
-    define: {
-      'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
+    build: {
+      chunkSizeWarningLimit: 600,
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            'vendor-firebase': ['firebase/app', 'firebase/auth', 'firebase/firestore', 'firebase/storage', 'firebase/database'],
+            'vendor-ui': ['lucide-react', 'motion', 'clsx'],
+            'vendor-utils': ['date-fns', 'html5-qrcode'],
+          },
+        },
+      },
     },
     resolve: {
       alias: {

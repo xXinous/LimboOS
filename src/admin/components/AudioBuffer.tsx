@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { db } from '../../lib/firebase';
 import { collection, onSnapshot, doc, deleteDoc, addDoc, serverTimestamp, query, orderBy, where, getDocs } from 'firebase/firestore';
+import { storage } from '../../lib/firebase';
+import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import { User } from 'firebase/auth';
 
 interface AudioData {
@@ -11,6 +13,7 @@ interface AudioData {
   originalName: string;
   size: number;
   url: string;
+  storagePath?: string;
   createdAt: any;
 }
 
@@ -20,6 +23,7 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
   const [isDragOver, setIsDragOver] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [playCountMap, setPlayCountMap] = useState<Record<string, number>>({});
+  const [confirmDeleteAudio, setConfirmDeleteAudio] = useState<AudioData | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -64,24 +68,18 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
       return;
     }
 
-    const formData = new FormData();
-    formData.append('audio', file);
-
-    const response = await fetch('/api/upload', {
-      method: 'POST',
-      body: formData,
-    });
-
-    if (!response.ok) throw new Error('Upload failed');
-    const data = await response.json();
+    const storageRef = ref(storage, `audios/${Date.now()}_${file.name}`);
+    await uploadBytesResumable(storageRef, file);
+    const downloadURL = await getDownloadURL(storageRef);
 
     await addDoc(collection(db, 'audios'), {
       ownerUid: user.uid,
       ownerName: user.displayName || 'Admin',
-      filename: data.filename,
-      originalName: data.originalName,
-      size: data.size,
-      url: data.url,
+      filename: storageRef.name,
+      originalName: file.name,
+      size: file.size,
+      url: downloadURL,
+      storagePath: storageRef.fullPath,
       createdAt: serverTimestamp(),
     });
   };
@@ -92,7 +90,7 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
 
     setIsUploading(true);
     try {
-      for (const file of Array.from(files)) {
+      for (const file of Array.from(files) as File[]) {
         await uploadFile(file);
       }
     } catch (error) {
@@ -109,7 +107,7 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
     setIsDragOver(false);
     if (!user) return;
 
-    const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('audio/'));
+    const files = (Array.from(e.dataTransfer.files) as File[]).filter(f => f.type.startsWith('audio/'));
     if (files.length === 0) {
       alert("Please drop audio files only.");
       return;
@@ -128,19 +126,26 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
     }
   }, [user]);
 
-  const handleDelete = async (audio: AudioData) => {
+  const handleDelete = (audio: AudioData) => {
     if (!isAdmin && audio.ownerUid !== user?.uid) {
       return alert("Unauthorized to delete this file.");
     }
-    
-    if (confirm(`Delete ${audio.originalName}?`)) {
-      try {
-        await fetch(`/api/upload/${audio.filename}`, { method: 'DELETE' });
-        await deleteDoc(doc(db, 'audios', audio.id));
-      } catch (error) {
-        console.error("Delete error:", error);
-        alert("Failed to delete audio.");
+    setConfirmDeleteAudio(audio);
+  };
+
+  const executeDelete = async (audio: AudioData) => {
+    setConfirmDeleteAudio(null);
+    try {
+      if (audio.storagePath || audio.filename) {
+        const fileRef = ref(storage, audio.storagePath || `audios/${audio.filename}`);
+        await deleteObject(fileRef).catch(e => {
+          console.error("Storage delete error (might not exist):", e);
+        });
       }
+      await deleteDoc(doc(db, 'audios', audio.id));
+    } catch (error) {
+      console.error("Delete error:", error);
+      alert("Failed to delete audio.");
     }
   };
 
@@ -271,6 +276,36 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
           </div>
         )}
       </div>
+
+      {/* Confirm Delete Audio Modal */}
+      {confirmDeleteAudio && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+          <div className="bg-surface-container-low border border-error/40 p-6 w-full max-w-sm machined-edge">
+            <div className="flex items-center gap-3 mb-4">
+              <span className="material-symbols-outlined text-error text-xl">warning</span>
+              <h3 className="font-headline text-lg text-error">DELETE_AUDIO_FILE</h3>
+            </div>
+            <p className="font-body text-sm text-zinc-300 mb-6">
+              Remover permanentemente o arquivo de áudio{" "}
+              <span className="text-orange-400 font-bold">{confirmDeleteAudio.originalName}</span>?
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setConfirmDeleteAudio(null)}
+                className="px-4 py-2 text-xs font-label text-zinc-400 hover:text-white border border-zinc-700 hover:border-zinc-500 transition-colors"
+              >
+                CANCELAR
+              </button>
+              <button
+                onClick={() => executeDelete(confirmDeleteAudio)}
+                className="px-4 py-2 text-xs font-label bg-error text-white font-bold tracking-wider hover:brightness-110 transition-all"
+              >
+                CONFIRMAR_DELETE
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
