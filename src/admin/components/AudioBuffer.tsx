@@ -4,6 +4,7 @@ import { collection, onSnapshot, doc, deleteDoc, addDoc, serverTimestamp, query,
 import { storage } from '../../lib/firebase';
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import { User } from 'firebase/auth';
+import QRCode from 'react-qr-code';
 
 interface AudioData {
   id: string;
@@ -24,6 +25,7 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
   const [searchQuery, setSearchQuery] = useState('');
   const [playCountMap, setPlayCountMap] = useState<Record<string, number>>({});
   const [confirmDeleteAudio, setConfirmDeleteAudio] = useState<AudioData | null>(null);
+  const [qrCodeModal, setQrCodeModal] = useState<AudioData | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -255,6 +257,13 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
                   ))}
                 </div>
               </div>
+              <button 
+                onClick={() => setQrCodeModal(audio)}
+                className="material-symbols-outlined text-zinc-500 hover:text-orange-500 transition-colors"
+                title="Mostrar QR Code"
+              >
+                qr_code_2
+              </button>
               {(isAdmin || audio.ownerUid === user?.uid) && (
                 <button 
                   onClick={() => handleDelete(audio)}
@@ -303,6 +312,29 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
                 CONFIRMAR_DELETE
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* QR Code Modal */}
+      {qrCodeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+          <div className="bg-surface-container-low border border-zinc-700 p-6 w-full max-w-sm machined-edge flex flex-col items-center">
+            <h3 className="font-headline font-bold text-lg mb-4 text-orange-500 tracking-wider">
+              CÓDIGO DA FITA
+            </h3>
+            <div className="bg-white p-4 rounded mb-4">
+              <QRCode value={qrCodeModal.id} size={200} />
+            </div>
+            <p className="font-label text-xs text-zinc-400 mb-6 text-center tracking-widest break-all">
+              ID: {qrCodeModal.id}
+            </p>
+            <button
+              onClick={() => setQrCodeModal(null)}
+              className="px-6 py-2 text-xs font-label bg-zinc-800 text-white hover:bg-zinc-700 transition-colors machined-edge"
+            >
+              FECHAR
+            </button>
           </div>
         </div>
       )}
