@@ -141,13 +141,14 @@ export async function fetchAudioTapeById(audioId: string): Promise<Tape | null> 
   const data = snap.data();
   return {
     id: snap.id,
-    title: (data.originalName || 'Audio').replace(/\.[^/.]+$/, ""),
-    artist: data.ownerName || 'Admin',
-    npc: '',
-    chapter: 'Uploads',
-    description: 'Enviado via Terminal',
+    title: data.title || (data.originalName || 'Audio').replace(/\.[^/.]+$/, ""),
+    artist: data.artist || data.ownerName || 'Admin',
+    npc: data.npc || data.artist || '',
+    chapter: data.chapter || 'Uploads',
+    description: data.description || 'Enviado via Terminal',
     audioUrl: data.url,
-    duration: 0,
+    duration: data.duration || 0,
+    isSecret: Boolean(data.isSecret),
   } as Tape;
 }
 

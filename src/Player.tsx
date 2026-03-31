@@ -11,6 +11,8 @@ import type { Toast } from './components/ToastNotification';
 import { onAuthStateChanged, logout } from './store/profile';
 import type { PlayerData, PlayerStats } from './store/firestore';
 import { loadPlayerData, firestoreUnlockTape, firestoreGrantAchievements, recordPlayEvent, markPlayEventCompleted, firestoreUpdateStats, fetchAudioTapeById, resolveAllTapesAsync } from './store/firestore';
+import { collection, onSnapshot as firestoreOnSnapshot } from 'firebase/firestore';
+import { db } from './lib/firebase';
 import { getTapeByCode, resolveTapes } from './data/tapes';
 import type { Tape } from './data/tapes';
 import { checkNewAchievements } from './data/achievements';
@@ -316,6 +318,7 @@ export default function App() {
 
   const listenTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const hasPlayedCurrentTape = useRef(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const volumeRef = useRef(volume);
   volumeRef.current = volume;
 
@@ -346,6 +349,74 @@ export default function App() {
     });
     return unsub;
   }, []);
+
+  // ── Real-time tape listener (updates when admin adds/removes tapes) ───────
+  useEffect(() => {
+    if (!playerData?.uid) return;
+    const unsub = firestoreOnSnapshot(
+      collection(db, 'users', playerData.uid, 'tapes'),
+      (snapshot) => {
+        const tapeIds = snapshot.docs.map((d) => d.id);
+        setPlayerData((prev) => {
+          if (!prev) return prev;
+          // Only update if the list actually changed
+          const prevIds = prev.unlockedTapeIds.slice().sort().join(',');
+          const newIds = tapeIds.slice().sort().join(',');
+          if (prevIds === newIds) return prev;
+          return { ...prev, unlockedTapeIds: tapeIds };
+        });
+      }
+    );
+    return () => unsub();
+  }, [playerData?.uid]);
+
+  // ── Audio playback: load source when tape changes ─────────────────────────
+  useEffect(() => {
+    // Cleanup previous audio
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.src = '';
+      audioRef.current = null;
+    }
+
+    if (!currentTape?.audioUrl) return;
+
+    const audio = new Audio(currentTape.audioUrl);
+    audio.volume = volumeRef.current / 100;
+    audio.preload = 'auto';
+
+    // When track ends naturally
+    audio.addEventListener('ended', () => {
+      setIsPlaying(false);
+      if (activePlayEventId) {
+        markPlayEventCompleted(activePlayEventId).catch(console.error);
+      }
+    });
+
+    audioRef.current = audio;
+
+    return () => {
+      audio.pause();
+      audio.src = '';
+    };
+  }, [currentTape?.id]);
+
+  // ── Audio playback: sync play/pause ───────────────────────────────────────
+  useEffect(() => {
+    if (!audioRef.current) return;
+    if (isPlaying) {
+      audioRef.current.play().catch(console.error);
+    } else {
+      audioRef.current.pause();
+    }
+  }, [isPlaying, currentTape?.id]);
+
+  // ── Audio playback: sync volume ───────────────────────────────────────────
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.volume = volume / 100;
+    }
+  }, [volume]);
 
   // ── Achievement Checker ───────────────────────────────────────────────────
   useEffect(() => {
@@ -502,23 +573,16 @@ export default function App() {
     setActivePlayEventId(null);
   };
 
-  // ── Completion logic ──────────────────────────────────────────────────────
-  // We'll simulate completion based on time or if the audio element (if we had one) ends.
-  // Since this is a custom player without a standard <audio> ref shown yet, 
-  // I will assume for now that if they play for >80% of average duration or if we add an onEnded hook.
-  // Let's implement an effect that marks completion if they reach a certain time or if we add a manual "end" trigger.
-  // For now, I'll add a dummy "Completion" check at the end of the tape's likely duration.
+  // ── Resolve owned tapes (remote + local) ──────────────────────────────────
   useEffect(() => {
-    if (isPlaying && activePlayEventId && currentTape) {
-      // In a real app, we'd use <audio onEnded={...}>
-      // Here we'll just simulate it for the analytics demonstration if they play for 30s 
-      // (or however the user wants to define "completion" in this RPG context)
-      const timeout = setTimeout(() => {
-        markPlayEventCompleted(activePlayEventId).catch(console.error);
-      }, 30000); // 30 seconds as "completion" for now
-      return () => clearTimeout(timeout);
+    if (playerData) {
+      resolveAllTapesAsync(playerData.unlockedTapeIds)
+        .then(setOwnedTapes)
+        .catch(console.error);
+    } else {
+      setOwnedTapes([]);
     }
-  }, [isPlaying, activePlayEventId, currentTape]);
+  }, [playerData?.unlockedTapeIds]);
 
   // ── Loading state ─────────────────────────────────────────────────────────
   if (playerData === null) {
@@ -548,16 +612,6 @@ export default function App() {
       </>
     );
   }
-
-  useEffect(() => {
-    if (playerData) {
-      resolveAllTapesAsync(playerData.unlockedTapeIds)
-        .then(setOwnedTapes)
-        .catch(console.error);
-    } else {
-      setOwnedTapes([]);
-    }
-  }, [playerData?.unlockedTapeIds]);
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-stone-900 font-mono select-none overflow-hidden">

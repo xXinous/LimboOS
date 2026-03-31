@@ -1,5 +1,5 @@
 // ⚠️  ARQUIVO GERADO AUTOMATICAMENTE — NÃO EDITE MANUALMENTE
-// Gerado em: 2026-03-21T15:54:32.232Z
+// Gerado em: 2026-03-31T16:12:44.241Z
 // Para atualizar: adicione/edite os metadados dos arquivos em public/audio/
 //                 e rode:  npm run generate-tapes
 
@@ -33,7 +33,7 @@ const MASTER_TAPES: Tape[] = [
     title: 'TESTE PARA NIL <3',
     artist: 'Emily',
     npc: 'Emily',
-    chapter: '',
+    chapter: 'Circuitos da Emy',
     description: '',
     audioUrl: '/audio/TESTE%20PARA%20NIL%20_%3C3.mp3',
     duration: 78,
