@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { db } from '../../lib/firebase';
-import { collection, onSnapshot, doc, deleteDoc, addDoc, serverTimestamp, query, orderBy, where, getDocs } from 'firebase/firestore';
-import { storage } from '../../lib/firebase';
+import { db, storage } from '../../lib/firebase';
+import { collection, onSnapshot, doc, deleteDoc, addDoc, setDoc, serverTimestamp, query, orderBy, getDoc } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import { User } from 'firebase/auth';
+import { parseBlob } from 'music-metadata';
+import { useModal } from './ConfirmModal';
 import QRCode from 'react-qr-code';
 
 interface AudioData {
@@ -18,6 +19,13 @@ interface AudioData {
   createdAt: any;
 }
 
+interface UserData {
+  uid: string;
+  displayName: string;
+  username?: string;
+  email: string;
+}
+
 export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAdmin: boolean }) {
   const [audios, setAudios] = useState<AudioData[]>([]);
   const [isUploading, setIsUploading] = useState(false);
@@ -27,6 +35,16 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
   const [confirmDeleteAudio, setConfirmDeleteAudio] = useState<AudioData | null>(null);
   const [qrCodeModal, setQrCodeModal] = useState<AudioData | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { showAlert, modal } = useModal();
+
+  // Manage Access state
+  const [manageAccessAudio, setManageAccessAudio] = useState<AudioData | null>(null);
+  const [allUsers, setAllUsers] = useState<UserData[]>([]);
+  const [selectedUserUids, setSelectedUserUids] = useState<Set<string>>(new Set());
+  const [usersWithAccess, setUsersWithAccess] = useState<Set<string>>(new Set());
+  const [accessSearchQuery, setAccessSearchQuery] = useState('');
+  const [accessLoading, setAccessLoading] = useState(false);
+  const [accessActionFeedback, setAccessActionFeedback] = useState<string | null>(null);
 
   useEffect(() => {
     const q = query(collection(db, 'audios'), orderBy('createdAt', 'desc'));
@@ -36,6 +54,18 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
         audioData.push({ id: doc.id, ...doc.data() } as AudioData);
       });
       setAudios(audioData);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // Load all users for the manage access modal
+  useEffect(() => {
+    const unsubscribe = onSnapshot(collection(db, 'users'), (snapshot) => {
+      const usersData: UserData[] = [];
+      snapshot.forEach((doc) => {
+        usersData.push(doc.data() as UserData);
+      });
+      setAllUsers(usersData);
     });
     return () => unsubscribe();
   }, []);
@@ -55,9 +85,100 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
     return () => unsubscribe();
   }, []);
 
+  // When opening manage access modal, load which users already have this tape
+  const openManageAccess = async (audio: AudioData) => {
+    setManageAccessAudio(audio);
+    setSelectedUserUids(new Set());
+    setAccessSearchQuery('');
+    setAccessActionFeedback(null);
+
+    // Query each user's tapes subcollection for this audio id
+    const withAccess = new Set<string>();
+    await Promise.all(
+      allUsers.map(async (u) => {
+        const tapeDoc = await getDoc(doc(db, 'users', u.uid, 'tapes', audio.id));
+        if (tapeDoc.exists()) {
+          withAccess.add(u.uid);
+        }
+      })
+    );
+    setUsersWithAccess(withAccess);
+  };
+
+  const handleGrantAccess = async () => {
+    if (!manageAccessAudio || selectedUserUids.size === 0) return;
+    setAccessLoading(true);
+    try {
+      await Promise.all(
+        Array.from(selectedUserUids).map((uid: string) =>
+          setDoc(doc(db, 'users', uid, 'tapes', manageAccessAudio.id), {
+            tapeId: manageAccessAudio.id,
+            unlockedAt: serverTimestamp(),
+          })
+        )
+      );
+      // Update local state
+      setUsersWithAccess((prev) => {
+        const next = new Set(prev);
+        selectedUserUids.forEach((uid) => next.add(uid));
+        return next;
+      });
+      setSelectedUserUids(new Set());
+      setAccessActionFeedback(`Acesso concedido para ${selectedUserUids.size} usuário(s).`);
+    } catch (error) {
+      console.error('Error granting access:', error);
+      setAccessActionFeedback('Erro ao conceder acesso.');
+    } finally {
+      setAccessLoading(false);
+    }
+  };
+
+  const handleRevokeAccess = async () => {
+    if (!manageAccessAudio || selectedUserUids.size === 0) return;
+    setAccessLoading(true);
+    try {
+      await Promise.all(
+        Array.from(selectedUserUids).map((uid: string) =>
+          deleteDoc(doc(db, 'users', uid, 'tapes', manageAccessAudio.id))
+        )
+      );
+      // Update local state
+      setUsersWithAccess((prev) => {
+        const next = new Set(prev);
+        selectedUserUids.forEach((uid) => next.delete(uid));
+        return next;
+      });
+      setSelectedUserUids(new Set());
+      setAccessActionFeedback(`Acesso revogado de ${selectedUserUids.size} usuário(s).`);
+    } catch (error) {
+      console.error('Error revoking access:', error);
+      setAccessActionFeedback('Erro ao revogar acesso.');
+    } finally {
+      setAccessLoading(false);
+    }
+  };
+
+  const toggleUserSelection = (uid: string) => {
+    setSelectedUserUids((prev) => {
+      const next = new Set(prev);
+      if (next.has(uid)) next.delete(uid);
+      else next.add(uid);
+      return next;
+    });
+  };
+
+  const selectAllFiltered = () => {
+    const filteredUids = filteredAccessUsers.map((u) => u.uid);
+    setSelectedUserUids(new Set(filteredUids));
+  };
+
+  const deselectAll = () => {
+    setSelectedUserUids(new Set());
+  };
+
   const handleUploadClick = () => {
     if (!user) {
-      alert("Please login to upload audio.");
+      showAlert('Login Necessário', 'Você precisa estar logado para fazer upload.');
       return;
     }
     fileInputRef.current?.click();
@@ -66,8 +187,44 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
   const uploadFile = async (file: File) => {
     if (!user) return;
     if (file.size > 50 * 1024 * 1024) {
-      alert(`File "${file.name}" too large. Max 50MB.`);
+      showAlert('Arquivo muito grande', `O arquivo "${file.name}" excede o limite de 50MB.`);
       return;
+    }
+
+    // Parse ID3 metadata in browser
+    let parsedTitle = file.name.replace(/\.[^/.]+$/, "");
+    let parsedArtist = '';
+    let parsedChapter = '';
+    let parsedDescription = '';
+    let parsedIsSecret = false;
+    let parsedDuration = 0;
+
+    try {
+      const meta = await parseBlob(file);
+      const common = meta.common;
+      const format = meta.format;
+
+      if (common.title) parsedTitle = common.title;
+      if (common.artist) parsedArtist = common.artist;
+      if (common.album) parsedChapter = common.album;
+      
+      const rawComment = common.comment;
+      if (Array.isArray(rawComment)) {
+        for (const c of rawComment) {
+          const text = typeof c === 'string' ? c : ((c as any).text ?? '');
+          if (text && !/^\s*([0-9A-Fa-f]{8}\s*){2,}/.test(text)) {
+            parsedDescription = text.trim();
+            break;
+          }
+        }
+      } else if (typeof rawComment === 'string' && !/^\s*([0-9A-Fa-f]{8}\s*){2,}/.test(rawComment as string)) {
+        parsedDescription = (rawComment as string).trim();
+      }
+
+      if (format.duration) parsedDuration = Math.round(format.duration);
+      parsedIsSecret = (common.genre?.[0] ?? '').trim().toLowerCase() === 'secret';
+    } catch (err) {
+      console.warn('ID3 parse in browser failed:', err);
     }
 
     const storageRef = ref(storage, `audios/${Date.now()}_${file.name}`);
@@ -83,6 +240,12 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
       url: downloadURL,
       storagePath: storageRef.fullPath,
       createdAt: serverTimestamp(),
+      title: parsedTitle,
+      artist: parsedArtist,
+      chapter: parsedChapter,
+      description: parsedDescription,
+      duration: parsedDuration,
+      isSecret: parsedIsSecret,
     });
   };
 
@@ -97,7 +260,7 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
       }
     } catch (error) {
       console.error("Upload error:", error);
-      alert("Failed to upload audio.");
+      showAlert('Erro de Upload', 'Falha ao fazer upload do arquivo de áudio.');
     } finally {
       setIsUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -111,7 +274,7 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
 
     const files = (Array.from(e.dataTransfer.files) as File[]).filter(f => f.type.startsWith('audio/'));
     if (files.length === 0) {
-      alert("Please drop audio files only.");
+      showAlert('Formato inválido', 'Apenas arquivos de áudio são aceitos.');
       return;
     }
 
@@ -122,7 +285,7 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
       }
     } catch (error) {
       console.error("Upload error:", error);
-      alert("Failed to upload audio.");
+      showAlert('Erro de Upload', 'Falha ao fazer upload do áudio.');
     } finally {
       setIsUploading(false);
     }
@@ -130,7 +293,8 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
 
   const handleDelete = (audio: AudioData) => {
     if (!isAdmin && audio.ownerUid !== user?.uid) {
-      return alert("Unauthorized to delete this file.");
+      showAlert('Não Autorizado', 'Você não tem permissão para deletar este arquivo.');
+      return;
     }
     setConfirmDeleteAudio(audio);
   };
@@ -147,7 +311,7 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
       await deleteDoc(doc(db, 'audios', audio.id));
     } catch (error) {
       console.error("Delete error:", error);
-      alert("Failed to delete audio.");
+      showAlert('Erro ao Deletar', 'Falha ao deletar o arquivo de áudio.');
     }
   };
 
@@ -161,10 +325,18 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
     a.ownerName.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const filteredAccessUsers = allUsers
+    .filter((u) =>
+      (u.displayName || u.username || '').toLowerCase().includes(accessSearchQuery.toLowerCase()) ||
+      (u.email || '').toLowerCase().includes(accessSearchQuery.toLowerCase())
+    )
+    .sort((a, b) => (a.displayName || a.username || '').localeCompare(b.displayName || b.username || ''));
+
   const totalSize = audios.reduce((acc, a) => acc + a.size, 0);
 
   return (
     <section className="space-y-4">
+      {modal}
       {/* Header */}
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-4">
@@ -257,6 +429,15 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
                   ))}
                 </div>
               </div>
+              {isAdmin && (
+                <button 
+                  onClick={() => openManageAccess(audio)}
+                  className="material-symbols-outlined text-zinc-500 hover:text-blue-400 transition-colors"
+                  title="Gerenciar Acesso"
+                >
+                  group_add
+                </button>
+              )}
               <button 
                 onClick={() => setQrCodeModal(audio)}
                 className="material-symbols-outlined text-zinc-500 hover:text-orange-500 transition-colors"
@@ -335,6 +516,133 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
             >
               FECHAR
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Manage Access Modal */}
+      {manageAccessAudio && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+          <div className="bg-surface-container-low border border-blue-500/30 p-6 w-full max-w-lg machined-edge max-h-[85vh] flex flex-col">
+            {/* Modal Header */}
+            <div className="flex items-center gap-3 mb-1">
+              <span className="material-symbols-outlined text-blue-400 text-xl">group_add</span>
+              <h3 className="font-headline text-lg text-zinc-200">GERENCIAR_ACESSO</h3>
+            </div>
+            <p className="font-body text-xs text-zinc-500 mb-4 truncate">
+              Áudio: <span className="text-orange-400 font-bold">{manageAccessAudio.originalName}</span>
+            </p>
+
+            {/* Search + Select All */}
+            <div className="flex items-center gap-2 mb-3">
+              <input
+                type="text"
+                placeholder="BUSCAR_USUARIO..."
+                value={accessSearchQuery}
+                onChange={(e) => setAccessSearchQuery(e.target.value)}
+                className="flex-1 bg-surface-container-lowest border border-zinc-800 text-[10px] font-label uppercase tracking-widest focus:ring-1 focus:ring-blue-500 focus:border-blue-500 placeholder:text-zinc-700 text-zinc-300 px-3 py-2"
+              />
+              <button
+                onClick={selectAllFiltered}
+                className="text-[9px] font-label uppercase tracking-wider text-blue-400 hover:text-blue-300 transition-colors whitespace-nowrap px-2 py-2 border border-zinc-800 hover:border-blue-500/30"
+              >
+                SEL_ALL
+              </button>
+              <button
+                onClick={deselectAll}
+                className="text-[9px] font-label uppercase tracking-wider text-zinc-500 hover:text-zinc-300 transition-colors whitespace-nowrap px-2 py-2 border border-zinc-800 hover:border-zinc-600"
+              >
+                LIMPAR
+              </button>
+            </div>
+
+            {/* User List */}
+            <div className="flex-1 overflow-y-auto border border-zinc-800 mb-4 min-h-0" style={{ maxHeight: '340px' }}>
+              {filteredAccessUsers.length === 0 ? (
+                <div className="p-6 text-center text-zinc-600 font-label text-xs tracking-widest">
+                  NO_USERS_FOUND
+                </div>
+              ) : (
+                filteredAccessUsers.map((u) => {
+                  const hasAccess = usersWithAccess.has(u.uid);
+                  const isSelected = selectedUserUids.has(u.uid);
+                  return (
+                    <div
+                      key={u.uid}
+                      onClick={() => toggleUserSelection(u.uid)}
+                      className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-all border-b border-zinc-800/50 last:border-b-0 ${
+                        isSelected
+                          ? 'bg-blue-500/10 border-l-2 border-l-blue-500'
+                          : 'hover:bg-zinc-800/40 border-l-2 border-l-transparent'
+                      }`}
+                    >
+                      {/* Checkbox */}
+                      <div className={`w-4 h-4 border flex items-center justify-center shrink-0 transition-colors ${
+                        isSelected ? 'bg-blue-500 border-blue-500' : 'border-zinc-600'
+                      }`}>
+                        {isSelected && (
+                          <span className="material-symbols-outlined text-white text-xs">check</span>
+                        )}
+                      </div>
+
+                      {/* User Info */}
+                      <div className="flex-1 min-w-0">
+                        <p className="font-headline text-xs font-bold text-zinc-200 truncate">
+                          {u.displayName || u.username || 'UNKNOWN'}
+                        </p>
+                        <p className="text-[9px] font-label text-zinc-600 truncate">{u.email}</p>
+                      </div>
+
+                      {/* Access Badge */}
+                      {hasAccess && (
+                        <span className="text-[8px] font-label uppercase tracking-wider px-2 py-0.5 border border-emerald-500/30 text-emerald-500 shrink-0">
+                          HAS_ACCESS
+                        </span>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Feedback message */}
+            {accessActionFeedback && (
+              <p className="text-[10px] font-label text-emerald-400 mb-3 tracking-wider text-center">
+                ✓ {accessActionFeedback}
+              </p>
+            )}
+
+            {/* Selected count + Actions */}
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-label text-zinc-500 tracking-wider">
+                {selectedUserUids.size} SELECIONADO(S) • {usersWithAccess.size} COM_ACESSO
+              </span>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    setManageAccessAudio(null);
+                    setAccessActionFeedback(null);
+                  }}
+                  className="px-4 py-2 text-xs font-label text-zinc-400 hover:text-white border border-zinc-700 hover:border-zinc-500 transition-colors"
+                >
+                  FECHAR
+                </button>
+                <button
+                  onClick={handleRevokeAccess}
+                  disabled={selectedUserUids.size === 0 || accessLoading}
+                  className="px-4 py-2 text-xs font-label bg-red-900/60 text-red-300 font-bold tracking-wider hover:bg-red-800/60 transition-all disabled:opacity-30 disabled:cursor-not-allowed border border-red-700/30"
+                >
+                  REVOGAR
+                </button>
+                <button
+                  onClick={handleGrantAccess}
+                  disabled={selectedUserUids.size === 0 || accessLoading}
+                  className="px-4 py-2 text-xs font-label bg-blue-900/60 text-blue-300 font-bold tracking-wider hover:bg-blue-800/60 transition-all disabled:opacity-30 disabled:cursor-not-allowed border border-blue-700/30"
+                >
+                  CONCEDER
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

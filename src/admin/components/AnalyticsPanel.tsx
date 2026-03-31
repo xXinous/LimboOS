@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '../../lib/firebase';
-import { collection, onSnapshot, query, orderBy, getDocs, collectionGroup } from 'firebase/firestore';
+import { useModal } from './ConfirmModal';
+import { collection, onSnapshot, getDocs, collectionGroup, writeBatch, doc } from 'firebase/firestore';
 import { ALL_ACHIEVEMENTS } from '../../data/achievements';
+import { resolveTapes } from '../../data/tapes';
 
 interface PlayEvent {
   uid: string;
@@ -11,7 +13,10 @@ interface PlayEvent {
 }
 
 interface AudioMetadata {
+  id: string;
   size: number;
+  title?: string;
+  originalName?: string;
 }
 
 interface UserAchievement {
@@ -41,6 +46,64 @@ export default function AnalyticsPanel() {
   const [audios, setAudios] = useState<AudioMetadata[]>([]);
   const [unlockedAchievements, setUnlockedAchievements] = useState<UserAchievement[]>([]);
   const [stats, setStats] = useState<PlayerStats[]>([]);
+  const [isResetting, setIsResetting] = useState(false);
+  const { showConfirm, showAlert, modal } = useModal();
+
+  const handleReset = async () => {
+    const ok = await showConfirm(
+      'Zerar Painel BI',
+      'Todos os logs de play e as estatísticas de uso (tempo, cliques, etc.) de TODOS os jogadores serão apagados permanentemente. Deseja continuar?',
+      'Sim, Zerar Tudo'
+    );
+    if (!ok) return;
+    
+    setIsResetting(true);
+    try {
+      // 1. Apagar playEvents
+      const playEventsSnap = await getDocs(collection(db, 'playEvents'));
+      let batch = writeBatch(db);
+      let count = 0;
+      
+      playEventsSnap.docs.forEach((docSnap) => {
+        batch.delete(docSnap.ref);
+        count++;
+        // Firestore batch max limit is 500
+        if (count % 400 === 0) {
+          batch.commit();
+          batch = writeBatch(db);
+        }
+      });
+      await batch.commit();
+
+      // 2. Zerar stats (tempo escutado, cliques, etc.)
+      const usersSnap = await getDocs(collection(db, 'users'));
+      batch = writeBatch(db);
+      count = 0;
+      usersSnap.docs.forEach((userDoc) => {
+        const statsRef = doc(db, 'users', userDoc.id, 'stats', 'main');
+        batch.set(statsRef, {
+          totalListenTime: 0,
+          screwClicks: 0,
+          ejectWithoutPlay: 0,
+          maxVolumeTime: 0,
+          zeroVolumeTime: 0,
+        }, { merge: true });
+        count++;
+        if (count % 400 === 0) {
+          batch.commit();
+          batch = writeBatch(db);
+        }
+      });
+      await batch.commit();
+      
+      await showAlert('Reset Concluído', '✅ Painel de BI resetado com sucesso!');
+    } catch (e) {
+      console.error('Falha ao resetar BI', e);
+      await showAlert('Erro', 'Falha ao resetar os dados. Verifique o console.');
+    } finally {
+      setIsResetting(false);
+    }
+  };
 
   useEffect(() => {
     const unsubs: (() => void)[] = [];
@@ -59,7 +122,7 @@ export default function AnalyticsPanel() {
 
     unsubs.push(onSnapshot(collection(db, 'audios'), (snap) => {
       const a: AudioMetadata[] = [];
-      snap.forEach(d => a.push(d.data() as AudioMetadata));
+      snap.forEach(d => a.push({ id: d.id, ...(d.data() as any) }));
       setAudios(a);
     }));
 
@@ -218,6 +281,22 @@ export default function AnalyticsPanel() {
 
   return (
     <div className="space-y-8">
+      {modal}
+      {/* Header with Reset Action */}
+      <div className="flex items-center justify-between mb-4">
+        <div>
+           {/* If you already have a title rendered outside, this space can just right-align the button */}
+        </div>
+        <button
+          onClick={handleReset}
+          disabled={isResetting}
+          className={`px-4 py-2 ${isResetting ? 'bg-zinc-800 text-zinc-500' : 'bg-red-900/20 text-red-500 hover:bg-red-900/50 hover:text-red-400'} border border-red-500/20 text-[10px] font-label font-bold uppercase tracking-widest transition-colors flex items-center gap-2`}
+        >
+          <span className="material-symbols-outlined text-sm">delete_forever</span>
+          {isResetting ? 'Aplicando Reset...' : 'Zerar Painel BI'}
+        </button>
+      </div>
+
       {/* KPIs */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <KPICard label="Total_Users" value={users.length} icon="group" color="text-primary" />
@@ -325,6 +404,11 @@ export default function AnalyticsPanel() {
             ) : (
               analytics.mostPlayed.map(([tapeId, count], idx) => {
                 const maxCount = analytics.mostPlayed[0][1] as number;
+                
+                const localTape = resolveTapes([tapeId])[0];
+                const remoteTape = audios.find((a) => a.id === tapeId);
+                const tapeName = localTape?.title || remoteTape?.title || remoteTape?.originalName || tapeId;
+
                 return (
                   <div key={tapeId} className="flex items-center gap-3">
                     <span className={`font-headline font-bold text-sm w-6 text-right ${idx < 3 ? 'text-orange-500' : 'text-zinc-500'}`}>
@@ -332,7 +416,7 @@ export default function AnalyticsPanel() {
                     </span>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between mb-1">
-                        <span className="font-headline text-xs font-bold text-zinc-200 truncate">{tapeId}</span>
+                        <span className="font-headline text-xs font-bold text-zinc-200 truncate">{tapeName}</span>
                         <span className="font-label text-[10px] text-orange-500 ml-2">{count}×</span>
                       </div>
                       <div className="h-1.5 w-full bg-zinc-800 rounded">

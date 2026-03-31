@@ -12,8 +12,15 @@ import {
   query,
   where,
   getDoc,
+  writeBatch,
 } from "firebase/firestore";
+import { initializeApp, deleteApp } from "firebase/app";
+import {
+  getAuth,
+  createUserWithEmailAndPassword,
+} from "firebase/auth";
 import { format } from "date-fns";
+import { useModal } from './ConfirmModal';
 
 interface UserData {
   uid: string;
@@ -35,8 +42,14 @@ interface PlayCountData {
   count: number;
 }
 
+interface AudioData {
+  id: string;
+  originalName: string;
+}
+
 export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
   const [users, setUsers] = useState<UserData[]>([]);
+  const { showAlert, modal } = useModal();
   const [searchQuery, setSearchQuery] = useState("");
   const [editingUser, setEditingUser] = useState<UserData | null>(null);
   const [expandedUser, setExpandedUser] = useState<string | null>(null);
@@ -48,6 +61,26 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
   // Confirm modal state
   const [confirmDeleteUid, setConfirmDeleteUid] = useState<string | null>(null);
   const [confirmDeleteTape, setConfirmDeleteTape] = useState<{ uid: string; tapeId: string } | null>(null);
+
+  // Audio library for the add-tape dropdown
+  const [availableAudios, setAvailableAudios] = useState<AudioData[]>([]);
+  // Add tape modal state
+  const [addTapeModal, setAddTapeModal] = useState<string | null>(null); // uid of target user
+  const [selectedAudioId, setSelectedAudioId] = useState<string>("");
+
+  // Create user modal state
+  const [showCreateUser, setShowCreateUser] = useState(false);
+  const [newUserCodinome, setNewUserCodinome] = useState("");
+  const [newUserPassword, setNewUserPassword] = useState("");
+  const [newUserRole, setNewUserRole] = useState("member");
+  const [createUserLoading, setCreateUserLoading] = useState(false);
+  const [createUserFeedback, setCreateUserFeedback] = useState<string | null>(null);
+
+  // Transfer data modal state
+  const [transferModal, setTransferModal] = useState<string | null>(null); // source uid
+  const [transferTargetUid, setTransferTargetUid] = useState<string>("");
+  const [transferLoading, setTransferLoading] = useState(false);
+  const [transferFeedback, setTransferFeedback] = useState<string | null>(null);
 
 
   useEffect(() => {
@@ -83,6 +116,18 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
         setUserTotalPlays(counts);
       }
     );
+    return () => unsubscribe();
+  }, []);
+
+  // Fetch available audios for the tape picker
+  useEffect(() => {
+    const unsubscribe = onSnapshot(collection(db, "audios"), (snapshot) => {
+      const audios: AudioData[] = [];
+      snapshot.forEach((d) => {
+        audios.push({ id: d.id, originalName: d.data().originalName || d.id });
+      });
+      setAvailableAudios(audios);
+    });
     return () => unsubscribe();
   }, []);
 
@@ -193,7 +238,7 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
       URL.revokeObjectURL(url);
     } catch (error) {
       console.error("Error creating backup:", error);
-      alert("Failed to create backup.");
+      showAlert('Erro de Backup', 'Falha ao criar o backup. Verifique o console.');
     }
   };
 
@@ -209,7 +254,7 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
       setEditingUser(null);
     } catch (error) {
       console.error("Error updating user:", error);
-      alert("Failed to update user.");
+      showAlert('Erro ao Atualizar', 'Falha ao atualizar dados do usuário.');
     }
   };
 
@@ -228,17 +273,156 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
     }
   };
 
-  const handleAddTape = async (uid: string) => {
-    const tapeId = prompt("ID da tape para adicionar:");
-    if (!tapeId) return;
+  // ── Add Tape via Modal ─────────────────────────────────────────────────────
+  const openAddTapeModal = (uid: string) => {
+    setAddTapeModal(uid);
+    setSelectedAudioId("");
+  };
+
+  const executeAddTape = async () => {
+    if (!addTapeModal || !selectedAudioId) return;
     try {
-      await setDoc(doc(db, "users", uid, "tapes", tapeId.trim()), {
-        tapeId: tapeId.trim(),
+      await setDoc(doc(db, "users", addTapeModal, "tapes", selectedAudioId), {
+        tapeId: selectedAudioId,
         unlockedAt: serverTimestamp(),
       });
-      loadUserTapes(uid);
+      loadUserTapes(addTapeModal);
+      setAddTapeModal(null);
+      setSelectedAudioId("");
     } catch (error) {
       console.error("Error adding tape:", error);
+    }
+  };
+
+  // ── Create New User ────────────────────────────────────────────────────────
+  const handleCreateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newUserCodinome.trim() || !newUserPassword.trim()) return;
+    setCreateUserLoading(true);
+    setCreateUserFeedback(null);
+
+    try {
+      // Create a secondary Firebase app to avoid logging out the current admin
+      const secondaryApp = initializeApp(
+        {
+          apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+          authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+          projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+          storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+          messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+          appId: import.meta.env.VITE_FIREBASE_APP_ID,
+        },
+        "secondaryApp_" + Date.now()
+      );
+      const secondaryAuth = getAuth(secondaryApp);
+
+      // Build synthetic email
+      const slug = newUserCodinome.trim().toLowerCase().replace(/[^a-z0-9._-]/g, '_');
+      const email = `${slug}@runningman.local`;
+
+      const { user: newUser } = await createUserWithEmailAndPassword(
+        secondaryAuth,
+        email,
+        newUserPassword
+      );
+
+      // Create user document in Firestore
+      await setDoc(doc(db, "users", newUser.uid), {
+        uid: newUser.uid,
+        displayName: newUserCodinome.trim(),
+        username: newUserCodinome.trim(),
+        email: email,
+        role: newUserRole,
+        createdAt: serverTimestamp(),
+      });
+
+      // Sign out of secondary app and delete it
+      await secondaryAuth.signOut();
+      await deleteApp(secondaryApp);
+
+      setCreateUserFeedback(`Usuário "${newUserCodinome.trim()}" criado com sucesso! (UID: ${newUser.uid.slice(0, 8)}...)`);
+      setNewUserCodinome("");
+      setNewUserPassword("");
+      setNewUserRole("member");
+    } catch (error: any) {
+      console.error("Error creating user:", error);
+      const code = error?.code || "";
+      if (code === "auth/email-already-in-use") {
+        setCreateUserFeedback("ERRO: Codinome já existe no sistema.");
+      } else if (code === "auth/weak-password") {
+        setCreateUserFeedback("ERRO: Senha muito fraca (mínimo 6 caracteres).");
+      } else {
+        setCreateUserFeedback(`ERRO: ${error.message || "Falha ao criar usuário."}`);
+      }
+    } finally {
+      setCreateUserLoading(false);
+    }
+  };
+
+  // ── Transfer Data Between Users ────────────────────────────────────────────
+  const openTransferModal = (sourceUid: string) => {
+    setTransferModal(sourceUid);
+    setTransferTargetUid("");
+    setTransferFeedback(null);
+  };
+
+  const executeTransfer = async () => {
+    if (!transferModal || !transferTargetUid || transferModal === transferTargetUid) {
+      setTransferFeedback("ERRO: Selecione um usuário destino diferente.");
+      return;
+    }
+
+    setTransferLoading(true);
+    setTransferFeedback(null);
+
+    try {
+      const sourceUid = transferModal;
+      const targetUid = transferTargetUid;
+
+      // 1. Transfer tapes
+      const tapesSnap = await getDocs(collection(db, "users", sourceUid, "tapes"));
+      for (const tapeDoc of tapesSnap.docs) {
+        await setDoc(doc(db, "users", targetUid, "tapes", tapeDoc.id), tapeDoc.data());
+        await deleteDoc(tapeDoc.ref);
+      }
+
+      // 2. Transfer achievements
+      const achSnap = await getDocs(collection(db, "users", sourceUid, "achievements"));
+      for (const achDoc of achSnap.docs) {
+        await setDoc(doc(db, "users", targetUid, "achievements", achDoc.id), achDoc.data());
+        await deleteDoc(achDoc.ref);
+      }
+
+      // 3. Transfer stats
+      const statsSnap = await getDoc(doc(db, "users", sourceUid, "stats", "main"));
+      if (statsSnap.exists()) {
+        await setDoc(doc(db, "users", targetUid, "stats", "main"), statsSnap.data(), { merge: true });
+        await deleteDoc(doc(db, "users", sourceUid, "stats", "main"));
+      }
+
+      // 4. Re-point playEvents
+      const eventsSnap = await getDocs(
+        query(collection(db, "playEvents"), where("uid", "==", sourceUid))
+      );
+      const batch = writeBatch(db);
+      eventsSnap.docs.forEach((eventDoc) => {
+        batch.update(eventDoc.ref, { uid: targetUid });
+      });
+      await batch.commit();
+
+      setTransferFeedback(
+        `✓ Transferência concluída! ${tapesSnap.size} tapes, ${achSnap.size} achievements e ${eventsSnap.size} play events migrados.`
+      );
+
+      // Reload expanded user data if needed
+      if (expandedUser === sourceUid) loadUserTapes(sourceUid);
+      if (expandedUser === targetUid) loadUserTapes(targetUid);
+
+    } catch (error) {
+      console.error("Error transferring data:", error);
+      setTransferFeedback("ERRO: Falha ao transferir dados. Verifique o console.");
+    } finally {
+      setTransferLoading(false);
     }
   };
 
@@ -249,8 +433,11 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
       u.email?.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
+  const sourceUser = transferModal ? users.find((u) => u.uid === transferModal) : null;
+
   return (
     <section className="bg-surface border border-zinc-800 relative">
+      {modal}
       <div className="flex items-center justify-between p-6 border-b border-zinc-800 bg-zinc-900/30">
         <div className="flex items-center gap-4">
           <div className="w-2 h-6 bg-orange-600"></div>
@@ -260,6 +447,21 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
           <span className="text-[10px] font-label text-zinc-500 tracking-wider">{users.length} REGISTERED</span>
         </div>
         <div className="flex gap-2">
+          {isAdmin && (
+            <button
+              onClick={() => {
+                setShowCreateUser(true);
+                setCreateUserFeedback(null);
+                setNewUserCodinome("");
+                setNewUserPassword("");
+                setNewUserRole("member");
+              }}
+              className="flex items-center gap-1.5 bg-emerald-900/40 text-emerald-400 px-4 py-2 rounded-sm font-label text-[10px] font-bold tracking-widest hover:bg-emerald-800/40 transition-all machined-edge border border-emerald-700/30"
+            >
+              <span className="material-symbols-outlined text-xs">person_add</span>
+              ADD_USER
+            </button>
+          )}
           <input
             type="text"
             placeholder="QUERY_NAME..."
@@ -335,6 +537,13 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
                         edit
                       </button>
                       <button
+                        onClick={() => openTransferModal(user.uid)}
+                        className="material-symbols-outlined text-sm text-zinc-500 hover:text-purple-400 transition-colors"
+                        title="Transfer Data"
+                      >
+                        sync_alt
+                      </button>
+                      <button
                         onClick={() => handleBackup(user)}
                         className="material-symbols-outlined text-sm text-zinc-500 hover:text-blue-400 transition-colors"
                         title="Backup User"
@@ -372,7 +581,7 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
                             </h4>
                           </div>
                           <button
-                            onClick={() => handleAddTape(user.uid)}
+                            onClick={() => openAddTapeModal(user.uid)}
                             className="flex items-center gap-1 text-[10px] font-label uppercase tracking-wider text-orange-500 hover:text-orange-400 transition-colors"
                           >
                             <span className="material-symbols-outlined text-xs">add</span>
@@ -386,6 +595,8 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
                               const playCount = userPlayCounts[user.uid]?.find(
                                 (p) => p.tapeId === tape.tapeId
                               )?.count || 0;
+                              // Find audio name from available audios
+                              const audioInfo = availableAudios.find((a) => a.id === tape.tapeId);
                               return (
                                 <div
                                   key={tape.tapeId}
@@ -393,7 +604,7 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
                                 >
                                   <div className="flex-1 min-w-0">
                                     <p className="font-headline text-xs font-bold text-zinc-200 truncate">
-                                      {tape.tapeId}
+                                      {audioInfo?.originalName || tape.tapeId}
                                     </p>
                                     <div className="flex items-center gap-3 mt-1">
                                       <span className="text-[9px] font-label text-zinc-500">
@@ -408,6 +619,11 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
                                         </span>
                                       )}
                                     </div>
+                                    {audioInfo && (
+                                      <p className="text-[8px] font-label text-zinc-700 mt-0.5 truncate">
+                                        ID: {tape.tapeId}
+                                      </p>
+                                    )}
                                   </div>
                                   <button
                                     onClick={() => handleDeleteTape(user.uid, tape.tapeId)}
@@ -622,6 +838,221 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
                 className="px-4 py-2 text-xs font-label bg-orange-600 text-white font-bold tracking-wider hover:brightness-110 transition-all"
               >
                 CONFIRMAR
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Tape Modal (with dropdown) */}
+      {addTapeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+          <div className="bg-surface-container-low border border-orange-500/30 p-6 w-full max-w-md machined-edge">
+            <div className="flex items-center gap-3 mb-4">
+              <span className="material-symbols-outlined text-orange-500 text-xl">album</span>
+              <h3 className="font-headline text-lg text-zinc-200">ADICIONAR_TAPE</h3>
+            </div>
+            <p className="font-body text-xs text-zinc-500 mb-4">
+              Selecione um áudio da biblioteca para adicionar ao jogador:
+            </p>
+            <select
+              value={selectedAudioId}
+              onChange={(e) => setSelectedAudioId(e.target.value)}
+              className="w-full bg-zinc-900 border border-zinc-700 text-zinc-200 px-3 py-3 text-sm focus:border-orange-500 outline-none mb-4"
+            >
+              <option value="">-- SELECIONAR_AUDIO --</option>
+              {availableAudios.map((audio) => (
+                <option key={audio.id} value={audio.id}>
+                  {audio.originalName}
+                </option>
+              ))}
+            </select>
+            {selectedAudioId && (
+              <p className="text-[9px] font-label text-zinc-600 mb-4 break-all">
+                ID: {selectedAudioId}
+              </p>
+            )}
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setAddTapeModal(null)}
+                className="px-4 py-2 text-xs font-label text-zinc-400 hover:text-white border border-zinc-700 hover:border-zinc-500 transition-colors"
+              >
+                CANCELAR
+              </button>
+              <button
+                onClick={executeAddTape}
+                disabled={!selectedAudioId}
+                className="px-4 py-2 text-xs font-label bg-orange-600 text-white font-bold tracking-wider hover:brightness-110 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                ADICIONAR
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create New User Modal */}
+      {showCreateUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+          <div className="bg-surface-container-low border border-emerald-500/30 p-6 w-full max-w-md machined-edge">
+            <div className="flex items-center gap-3 mb-4">
+              <span className="material-symbols-outlined text-emerald-400 text-xl">person_add</span>
+              <h3 className="font-headline text-lg text-zinc-200">CRIAR_NOVO_USUARIO</h3>
+            </div>
+            <form onSubmit={handleCreateUser} className="space-y-4">
+              <div>
+                <label className="block font-label text-[10px] text-zinc-400 mb-1">
+                  CODINOME (será usado como login)
+                </label>
+                <input
+                  type="text"
+                  value={newUserCodinome}
+                  onChange={(e) => setNewUserCodinome(e.target.value)}
+                  placeholder="ex: agente_silva"
+                  className="w-full bg-zinc-900 border border-zinc-700 text-zinc-200 px-3 py-2 text-sm focus:border-emerald-500 outline-none placeholder:text-zinc-700"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block font-label text-[10px] text-zinc-400 mb-1">
+                  SENHA (mínimo 6 caracteres)
+                </label>
+                <input
+                  type="password"
+                  value={newUserPassword}
+                  onChange={(e) => setNewUserPassword(e.target.value)}
+                  placeholder="••••••"
+                  className="w-full bg-zinc-900 border border-zinc-700 text-zinc-200 px-3 py-2 text-sm focus:border-emerald-500 outline-none placeholder:text-zinc-700"
+                  required
+                  minLength={6}
+                />
+              </div>
+              <div>
+                <label className="block font-label text-[10px] text-zinc-400 mb-1">
+                  ACCESS_LEVEL
+                </label>
+                <select
+                  value={newUserRole}
+                  onChange={(e) => setNewUserRole(e.target.value)}
+                  className="w-full bg-zinc-900 border border-zinc-700 text-zinc-200 px-3 py-2 text-sm focus:border-emerald-500 outline-none"
+                >
+                  <option value="member">MEMBER</option>
+                  <option value="premium">PREMIUM</option>
+                  <option value="admin">ADMIN</option>
+                </select>
+              </div>
+
+              {createUserFeedback && (
+                <p className={`text-[10px] font-label tracking-wider ${createUserFeedback.startsWith('ERRO') ? 'text-red-400' : 'text-emerald-400'}`}>
+                  {createUserFeedback}
+                </p>
+              )}
+
+              <div className="pt-2 flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowCreateUser(false)}
+                  className="px-4 py-2 text-xs font-label text-zinc-400 hover:text-white border border-zinc-700 hover:border-zinc-500 transition-colors"
+                >
+                  CANCELAR
+                </button>
+                <button
+                  type="submit"
+                  disabled={createUserLoading}
+                  className="px-4 py-2 text-xs font-label bg-emerald-700 text-white font-bold tracking-wider hover:brightness-110 transition-all disabled:opacity-50"
+                >
+                  {createUserLoading ? 'CRIANDO...' : 'CRIAR_USUARIO'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Transfer Data Modal */}
+      {transferModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+          <div className="bg-surface-container-low border border-purple-500/30 p-6 w-full max-w-lg machined-edge">
+            <div className="flex items-center gap-3 mb-4">
+              <span className="material-symbols-outlined text-purple-400 text-xl">sync_alt</span>
+              <h3 className="font-headline text-lg text-zinc-200">TRANSFERIR_DADOS</h3>
+            </div>
+
+            <p className="font-body text-xs text-zinc-500 mb-5">
+              Migrar todas as tapes, achievements, stats e play events de um jogador para outro.
+            </p>
+
+            {/* Source */}
+            <div className="mb-4">
+              <label className="block font-label text-[10px] text-zinc-400 mb-1">ORIGEM</label>
+              <div className="bg-zinc-900 border border-purple-500/20 p-3 flex items-center gap-3">
+                <span className="material-symbols-outlined text-purple-400 text-sm">person</span>
+                <div>
+                  <p className="font-headline text-sm font-bold text-zinc-200">
+                    {sourceUser?.displayName || sourceUser?.username || 'UNKNOWN'}
+                  </p>
+                  <p className="text-[9px] font-label text-zinc-600">{sourceUser?.email} • {transferModal}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Arrow */}
+            <div className="flex justify-center mb-4">
+              <span className="material-symbols-outlined text-purple-500 text-2xl">arrow_downward</span>
+            </div>
+
+            {/* Target */}
+            <div className="mb-4">
+              <label className="block font-label text-[10px] text-zinc-400 mb-1">DESTINO</label>
+              <select
+                value={transferTargetUid}
+                onChange={(e) => setTransferTargetUid(e.target.value)}
+                className="w-full bg-zinc-900 border border-zinc-700 text-zinc-200 px-3 py-3 text-sm focus:border-purple-500 outline-none"
+              >
+                <option value="">-- SELECIONAR_DESTINO --</option>
+                {users
+                  .filter((u) => u.uid !== transferModal)
+                  .sort((a, b) => (a.displayName || '').localeCompare(b.displayName || ''))
+                  .map((u) => (
+                    <option key={u.uid} value={u.uid}>
+                      {u.displayName || u.username || 'UNKNOWN'} ({u.email})
+                    </option>
+                  ))}
+              </select>
+            </div>
+
+            {/* Warning */}
+            <div className="bg-yellow-900/20 border border-yellow-700/30 p-3 mb-4">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="material-symbols-outlined text-yellow-500 text-sm">warning</span>
+                <span className="font-label text-[10px] text-yellow-500 uppercase tracking-wider">ATENÇÃO</span>
+              </div>
+              <p className="text-[10px] font-body text-yellow-600">
+                Esta ação irá mover TODOS os dados do jogador de origem para o destino.
+                Os dados de origem serão removidos. Esta operação não pode ser desfeita facilmente.
+                Recomendamos fazer um backup antes.
+              </p>
+            </div>
+
+            {transferFeedback && (
+              <p className={`text-[10px] font-label tracking-wider mb-3 ${transferFeedback.startsWith('ERRO') ? 'text-red-400' : 'text-emerald-400'}`}>
+                {transferFeedback}
+              </p>
+            )}
+
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setTransferModal(null)}
+                className="px-4 py-2 text-xs font-label text-zinc-400 hover:text-white border border-zinc-700 hover:border-zinc-500 transition-colors"
+              >
+                CANCELAR
+              </button>
+              <button
+                onClick={executeTransfer}
+                disabled={!transferTargetUid || transferLoading}
+                className="px-4 py-2 text-xs font-label bg-purple-700 text-white font-bold tracking-wider hover:brightness-110 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                {transferLoading ? 'TRANSFERINDO...' : 'EXECUTAR_TRANSFER'}
               </button>
             </div>
           </div>
