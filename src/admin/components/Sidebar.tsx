@@ -10,7 +10,9 @@ export default function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
   const navItems = [
     { id: 'users', label: 'User Registry', icon: 'group' },
     { id: 'audio', label: 'Audio Library', icon: 'library_music' },
+    { id: 'achievements', label: 'Achievements', icon: 'stars' },
     { id: 'analytics', label: 'Analytics / BI', icon: 'insights' },
+    { id: 'terminals', label: 'Controle de Sistemas', icon: 'terminal' },
     { id: 'settings', label: 'System Config', icon: 'settings_suggest' },
   ];
 
@@ -45,10 +47,10 @@ export default function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
             <span className="font-label uppercase text-[10px] tracking-widest">Logs</span>
             <span className="material-symbols-outlined text-sm">list_alt</span>
           </a>
-          <a href="#" className="text-zinc-500 flex items-center justify-between px-2 py-1 hover:text-orange-400 transition-colors">
+          <button onClick={() => setActiveTab('terminals')} className="w-full text-zinc-500 flex items-center justify-between px-2 py-1 hover:text-orange-400 transition-colors">
             <span className="font-label uppercase text-[10px] tracking-widest">Terminal</span>
             <span className="material-symbols-outlined text-sm">keyboard_arrow_right</span>
-          </a>
+          </button>
         </div>
       </div>
     </aside>

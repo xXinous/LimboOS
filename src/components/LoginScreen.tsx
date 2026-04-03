@@ -44,7 +44,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 overflow-hidden relative bg-surface">
+    <div className="w-full h-full flex items-center justify-center p-4 overflow-hidden relative">
       <div className="noise-overlay" />
       <div className="scanlines" />
 

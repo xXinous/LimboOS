@@ -1,5 +1,5 @@
 // ⚠️  ARQUIVO GERADO AUTOMATICAMENTE — NÃO EDITE MANUALMENTE
-// Gerado em: 2026-03-31T16:12:44.241Z
+// Gerado em: 2026-04-03T08:52:36.647Z
 // Para atualizar: adicione/edite os metadados dos arquivos em public/audio/
 //                 e rode:  npm run generate-tapes
 

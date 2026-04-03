@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>DOS Simulator - Macrohard Edition</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Estilo de fonte do LIMBO_01 */
+        :root {
+            --dos-green: #33FF33;
+            --dos-green-glow: rgba(51, 255, 51, 0.4);
+            --dos-bg: #050505;
+            --font-terminal: "Terminal", "Fixedsys", "Lucida Console", "Courier New", Courier, monospace;
+        }
+
+        * {
+            box-sizing: border-box;
+            touch-action: manipulation;
+            -webkit-font-smoothing: none;
+            font-smooth: never;
+        }
+
+        body {
+            background-color: #000;
+            color: var(--dos-green);
+            font-family: var(--font-terminal);
+            margin: 0;
+            overflow: hidden;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Efeito de Cintilação CRT */
+        @keyframes flicker {
+            0% { opacity: 0.98; }
+            5% { opacity: 0.95; }
+            10% { opacity: 0.99; }
+            15% { opacity: 0.97; }
+            30% { opacity: 0.99; }
+            50% { opacity: 0.98; }
+            80% { opacity: 0.99; }
+            100% { opacity: 1.0; }
+        }
+
+        .crt-screen {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: var(--dos-bg);
+            position: relative;
+            overflow: hidden;
+            animation: flicker 0.15s infinite;
+        }
+
+        /* Linhas de scan do sistema */
+        .crt-screen::before {
+            content: " ";
+            display: block;
+            position: absolute;
+            top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.2) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+            z-index: 10;
+            background-size: 100% 2px, 3px 100%;
+            pointer-events: none;
+        }
+
+        /* Vinheta */
+        .crt-screen::after {
+            content: " ";
+            display: block;
+            position: absolute;
+            top: 0; left: 0; bottom: 0; right: 0;
+            background: radial-gradient(circle, transparent 75%, rgba(0,0,0,0.45) 100%);
+            z-index: 11;
+            pointer-events: none;
+        }
+
+        .terminal-area {
+            flex: 1;
+            padding: 20px;
+            font-size: 18px;
+            line-height: 1.2;
+            overflow-y: auto;
+            scrollbar-width: none;
+            text-shadow: 0 0 5px var(--dos-green);
+        }
+
+        .cursor {
+            display: inline-block;
+            width: 10px;
+            height: 18px;
+            background-color: var(--dos-green);
+            animation: blinker 1s linear infinite;
+            vertical-align: middle;
+            margin-left: 2px;
+            box-shadow: 0 0 8px var(--dos-green);
+        }
+
+        @keyframes blinker { 50% { opacity: 0; } }
+
+        /* Teclado Integrado Estilo LIMBO_01 */
+        .integrated-keyboard {
+            background: transparent;
+            padding: 10px 5px 35px 5px; 
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            z-index: 5;
+        }
+
+        .key-row {
+            display: flex;
+            justify-content: center;
+            gap: 4px;
+        }
+
+        .key {
+            background: transparent;
+            color: var(--dos-green);
+            border: 1px solid var(--dos-green);
+            flex: 1;
+            max-width: 44px;
+            height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            font-family: var(--font-terminal);
+            text-shadow: 0 0 3px var(--dos-green);
+            border-radius: 0;
+            transition: all 0.05s;
+        }
+
+        .key:active {
+            background-color: var(--dos-green);
+            color: var(--dos-bg);
+            box-shadow: 0 0 15px var(--dos-green);
+        }
+
+        .key-wide { flex: 1.6; max-width: 75px; }
+        .key-space { flex: 6; max-width: 260px; }
+
+        .terminal-area::-webkit-scrollbar { display: none; }
+
+        /* Scanline animada sutil */
+        .scanline-anim {
+            width: 100%;
+            height: 100%;
+            z-index: 12;
+            background: linear-gradient(0deg, rgba(51, 255, 51, 0) 0%, rgba(51, 255, 51, 0.04) 50%, rgba(51, 255, 51, 0) 100%);
+            position: absolute;
+            top: -100%;
+            pointer-events: none;
+            animation: scanlineMove 12s linear infinite;
+        }
+
+        @keyframes scanlineMove {
+            0% { top: -100%; }
+            100% { top: 100%; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="crt-screen">
+        <div class="scanline-anim"></div>
+        
+        <div class="terminal-area" id="terminal">
+            <div>MH-BIOS (C) 1994 Macrohard System Corp.</div>
+            <div>CPU: Macrohard 80486DX-50 at 50MHz</div>
+            <div>Memory Test: 640K OK</div>
+            <br>
+            <div>MH-DOS Version 6.22</div>
+            <div>(C) Copyright Macrohard Corp 1981-1994.</div>
+            <br>
+            <div id="history"></div>
+            <div id="input-line">
+                <span>C:\></span><span id="current-input"></span><span class="cursor"></span>
+            </div>
+        </div>
+
+        <div class="integrated-keyboard" id="keyboard">
+            <div class="key-row">
+                <div class="key" data-key="1">1</div>
+                <div class="key" data-key="2">2</div>
+                <div class="key" data-key="3">3</div>
+                <div class="key" data-key="4">4</div>
+                <div class="key" data-key="5">5</div>
+                <div class="key" data-key="6">6</div>
+                <div class="key" data-key="7">7</div>
+                <div class="key" data-key="8">8</div>
+                <div class="key" data-key="9">9</div>
+                <div class="key" data-key="0">0</div>
+            </div>
+            <div class="key-row">
+                <div class="key" data-key="Q">Q</div>
+                <div class="key" data-key="W">W</div>
+                <div class="key" data-key="E">E</div>
+                <div class="key" data-key="R">R</div>
+                <div class="key" data-key="T">T</div>
+                <div class="key" data-key="Y">Y</div>
+                <div class="key" data-key="U">U</div>
+                <div class="key" data-key="I">I</div>
+                <div class="key" data-key="O">O</div>
+                <div class="key" data-key="P">P</div>
+            </div>
+            <div class="key-row">
+                <div class="key" data-key="A">A</div>
+                <div class="key" data-key="S">S</div>
+                <div class="key" data-key="D">D</div>
+                <div class="key" data-key="F">F</div>
+                <div class="key" data-key="G">G</div>
+                <div class="key" data-key="H">H</div>
+                <div class="key" data-key="J">J</div>
+                <div class="key" data-key="K">K</div>
+                <div class="key" data-key="L">L</div>
+                <div class="key key-wide" data-key="Backspace">DEL</div>
+            </div>
+            <div class="key-row">
+                <div class="key" data-key="Z">Z</div>
+                <div class="key" data-key="X">X</div>
+                <div class="key" data-key="C">C</div>
+                <div class="key" data-key="V">V</div>
+                <div class="key" data-key="B">B</div>
+                <div class="key" data-key="N">N</div>
+                <div class="key" data-key="M">M</div>
+                <div class="key" data-key=".">.</div>
+                <div class="key key-wide" data-key="Enter">EXE</div>
+            </div>
+            <div class="key-row">
+                <div class="key key-space" data-key=" ">ESPAÇO</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const terminal = document.getElementById('terminal');
+        const historyDiv = document.getElementById('history');
+        const currentInputSpan = document.getElementById('current-input');
+        const keyboard = document.getElementById('keyboard');
+
+        let currentLine = "";
+
+        function processCommand(cmd) {
+            const cleanCmd = cmd.toLowerCase().trim();
+            
+            const line = document.createElement('div');
+            line.textContent = `C:\\>${cmd}`;
+            historyDiv.appendChild(line);
+
+            const response = document.createElement('div');
+            
+            switch(cleanCmd) {
+                case 'dir':
+                    response.innerHTML = `
+                        Volume in drive C is MACROHARD_C<br>
+                        Directory of C:\\<br><br>
+                        COMMAND  COM    54.645 05-31-94<br>
+                        CONFIG   SYS       256 01-01-94<br>
+                        AUTOEXEC BAT       128 01-01-94<br>
+                        LIMBO    EXE    88.000 12-31-99<br>
+                        4 file(s)    143.029 bytes
+                    `;
+                    break;
+                case 'cls':
+                    historyDiv.innerHTML = '';
+                    response.textContent = '';
+                    break;
+                case 'ver':
+                    response.textContent = 'MH-DOS Version 6.22 [Parody Edition]';
+                    break;
+                case 'help':
+                    response.textContent = 'COMMANDS: DIR, CLS, VER, HELP, TIME, MEM';
+                    break;
+                case 'time':
+                    response.textContent = new Date().toLocaleTimeString();
+                    break;
+                case 'mem':
+                    response.textContent = 'Total Memory: 640KB. Available: 512KB.';
+                    break;
+                case '':
+                    break;
+                default:
+                    response.textContent = 'Bad command or file name.';
+            }
+            
+            historyDiv.appendChild(response);
+            currentLine = "";
+            currentInputSpan.textContent = "";
+            
+            terminal.scrollTop = terminal.scrollHeight;
+        }
+
+        function handleKeyInput(key) {
+            if (navigator.vibrate) navigator.vibrate(10);
+
+            if (key === "Enter") {
+                processCommand(currentLine);
+            } else if (key === "Backspace" || key === "DEL") {
+                currentLine = currentLine.slice(0, -1);
+                currentInputSpan.textContent = currentLine;
+            } else if (key.length === 1) {
+                if (currentLine.length < 32) {
+                    currentLine += key;
+                    currentInputSpan.textContent = currentLine;
+                }
+            }
+        }
+
+        keyboard.addEventListener('pointerdown', (e) => {
+            const keyElement = e.target.closest('.key');
+            if (keyElement) {
+                const key = keyElement.getAttribute('data-key');
+                handleKeyInput(key);
+                e.preventDefault();
+            }
+        });
+
+        window.addEventListener('keydown', (e) => {
+            if (e.key === " ") e.preventDefault();
+            if (e.key === "Enter") handleKeyInput("Enter");
+            else if (e.key === "Backspace") handleKeyInput("Backspace");
+            else if (e.key.length === 1) handleKeyInput(e.key.toUpperCase());
+        });
+
+        document.addEventListener('touchstart', (e) => {
+            if (e.touches.length > 1) e.preventDefault();
+        }, { passive: false });
+    </script>
+</body>
+</html>

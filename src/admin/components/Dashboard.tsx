@@ -8,6 +8,8 @@ import UserRegistry from './UserRegistry';
 import AudioBuffer from './AudioBuffer';
 import AnalyticsPanel from './AnalyticsPanel';
 import TechSpecs from './TechSpecs';
+import AchievementsPanel from './AchievementsPanel';
+import TerminalPanel from './TerminalPanel';
 
 interface DashboardProps {
   user: User | null;
@@ -117,7 +119,9 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
           {activeTab === 'audio' && (
             <AudioBuffer user={user} isAdmin={isAdmin} />
           )}
+          {activeTab === 'achievements' && <AchievementsPanel />}
           {activeTab === 'analytics' && <AnalyticsPanel />}
+          {activeTab === 'terminals' && <TerminalPanel />}
           {activeTab === 'settings' && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               <div className="lg:col-span-2">
