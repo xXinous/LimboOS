@@ -9,6 +9,7 @@ interface ProfileData {
   username: string;
   unlockedTapeIds: string[];
   achievementIds: string[];
+  achievementsRevealed?: boolean;
 }
 
 interface ProfileScreenProps {
@@ -33,7 +34,7 @@ export default function ProfileScreen({ profile, onBack, onLogout }: ProfileScre
       animate={{ x: 0, opacity: 1 }}
       exit={{ x: '100%', opacity: 0 }}
       transition={{ type: 'spring', damping: 24, stiffness: 200 }}
-      className="absolute inset-0 bg-[#1e1e1e] rounded-[36px] flex flex-col overflow-hidden z-50"
+      className="relative w-full max-w-sm h-full max-h-[750px] bg-[#1e1e1e] rounded-[32px] border-8 border-[#1a1a1a] flex flex-col overflow-hidden z-50"
     >
       {/* Header */}
       <div className="flex items-center justify-between px-4 pt-5 pb-3 border-b border-[#333] shrink-0">
@@ -122,21 +123,28 @@ export default function ProfileScreen({ profile, onBack, onLogout }: ProfileScre
           <div className="grid grid-cols-2 gap-2">
             {ALL_ACHIEVEMENTS.map((ach) => {
               const earned = earnedIds.has(ach.id);
+              const isRevealed = profile.achievementsRevealed;
+              
+              const title = earned || isRevealed ? ach.title : 'Conquista Bloqueada';
+              const description = earned 
+                ? (isRevealed ? `${ach.description} (${ach.unlockCondition})` : ach.description)
+                : (isRevealed ? `Como desbloquear: ${ach.unlockCondition}` : 'Permaneça atento e explore mais.');
+
               return (
                 <div
                   key={ach.id}
                   className={`rounded-lg p-3 border flex flex-col gap-1 transition-all ${
                     earned
                       ? 'bg-orange-900/20 border-orange-800/50'
-                      : 'bg-[#1a1a1a] border-[#2a2a2a] opacity-50'
+                      : 'bg-[#1a1a1a] border-surface-container-high opacity-50'
                   }`}
                 >
                   <span className="text-xl">{earned ? ach.icon : '🔒'}</span>
-                  <p className={`text-[11px] font-bold leading-tight ${earned ? 'text-orange-400' : 'text-gray-600'}`}>
-                    {earned ? ach.title : '???'}
+                  <p className={`text-[11px] font-bold leading-tight wrap-break-word min-w-0 ${earned ? 'text-orange-400' : 'text-gray-600'}`}>
+                    {title}
                   </p>
-                  <p className="text-[9px] text-gray-500 leading-tight">
-                    {earned ? ach.description : ach.hint}
+                  <p className="text-[9px] text-gray-500 leading-tight wrap-break-word min-w-0">
+                    {description}
                   </p>
                 </div>
               );

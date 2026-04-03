@@ -15,6 +15,7 @@ import {
   getDocs,
   serverTimestamp,
   Timestamp,
+  deleteDoc,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { Tape, resolveTapes } from '../data/tapes';
@@ -25,11 +26,21 @@ export interface PlayerMeta {
   uid: string;
   username: string;
   createdAt: Timestamp | null;
+  achievementsRevealed?: boolean;
+  forceTerminalOpen?: boolean;
+  hasTerminalAccess?: boolean;
+}
+
+export interface LimboGlobalState {
+  seized: boolean;
+  seizedBy?: string;
+  seizedAt?: Timestamp;
 }
 
 export interface PlayerStats {
   totalListenTime: number; // in seconds
   screwClicks: number;
+  fidgetClicks: number;
   ejectWithoutPlay: number;
   maxVolumeTime: number; // in seconds
   zeroVolumeTime: number; // in seconds
@@ -48,7 +59,7 @@ export async function loadPlayerData(uid: string): Promise<PlayerData> {
   const metaSnap = await getDoc(doc(db, 'users', uid));
   const meta = metaSnap.exists()
     ? (metaSnap.data() as PlayerMeta)
-    : { uid, username: uid, createdAt: null };
+    : { uid, username: uid, createdAt: null, achievementsRevealed: false, forceTerminalOpen: false, hasTerminalAccess: false };
 
   const tapesSnap = await getDocs(collection(db, 'users', uid, 'tapes'));
   const achievementsSnap = await getDocs(collection(db, 'users', uid, 'achievements'));
@@ -57,6 +68,7 @@ export async function loadPlayerData(uid: string): Promise<PlayerData> {
   const defaultStats: PlayerStats = {
     totalListenTime: 0,
     screwClicks: 0,
+    fidgetClicks: 0,
     ejectWithoutPlay: 0,
     maxVolumeTime: 0,
     zeroVolumeTime: 0,
@@ -106,6 +118,11 @@ export async function firestoreGrantAchievements(
   );
 }
 
+/** Revoke an achievement. */
+export async function firestoreRevokeAchievement(uid: string, achievementId: string): Promise<void> {
+  await deleteDoc(doc(db, 'users', uid, 'achievements', achievementId));
+}
+
 /** Record a play event (for achievements / analytics tracking). Returns the event ID. */
 export async function recordPlayEvent(
   uid: string,
@@ -130,6 +147,44 @@ export async function markPlayEventCompleted(eventId: string): Promise<void> {
 /** Partially update player stats in Firestore. */
 export async function firestoreUpdateStats(uid: string, statsDelta: Partial<PlayerStats>): Promise<void> {
   await setDoc(doc(db, 'users', uid, 'stats', 'main'), statsDelta, { merge: true });
+}
+
+// ── Terminal / Limbo Controls ────────────────────────────────────────────────
+
+export async function setTerminalStateForUsers(uids: string[], forceTerminalOpen: boolean, grantAccess: boolean): Promise<void> {
+  await Promise.all(
+    uids.map(uid =>
+      setDoc(doc(db, 'users', uid), {
+        forceTerminalOpen,
+        hasTerminalAccess: grantAccess
+      }, { merge: true })
+    )
+  );
+}
+
+export async function checkTerminalClosed(uid: string): Promise<void> {
+  await setDoc(doc(db, 'users', uid), { forceTerminalOpen: false }, { merge: true });
+}
+
+export async function fetchLimboGlobalState(): Promise<LimboGlobalState> {
+  const snap = await getDoc(doc(db, 'system', 'limboState'));
+  return snap.exists() ? (snap.data() as LimboGlobalState) : { seized: false };
+}
+
+export async function setLimboSeized(uid: string): Promise<void> {
+  await setDoc(doc(db, 'system', 'limboState'), {
+    seized: true,
+    seizedBy: uid,
+    seizedAt: serverTimestamp()
+  }, { merge: true });
+}
+
+export async function resetLimboSeized(): Promise<void> {
+  await setDoc(doc(db, 'system', 'limboState'), {
+    seized: false,
+    seizedBy: null,
+    seizedAt: null
+  }, { merge: true });
 }
 
 // ── Remote Audios ────────────────────────────────────────────────────────────

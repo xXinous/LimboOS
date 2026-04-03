@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>LIMBO_01 - BBS Gateway</title>
+    <style>
+        body {
+            background-color: #050505;
+            color: #33FF33;
+            font-family: "Terminal", "Fixedsys", "Lucida Console", "Courier New", Courier, monospace;
+            padding: 20px;
+            margin: 0;
+            overflow-x: hidden;
+            -webkit-font-smoothing: none;
+            font-smooth: never;
+        }
+
+        a { color: #33FF33; text-decoration: underline; cursor: pointer; }
+        a:hover { background-color: #33FF33; color: #050505; }
+
+        .piscar { animation: blinker 1s linear infinite; }
+        @keyframes blinker { 50% { opacity: 0; } }
+
+        .glitch-text {
+            animation: glitch-anim 0.1s linear infinite;
+            color: #FF0000;
+            text-shadow: 2px 0 #00FF00, -2px 0 #0000FF;
+        }
+        @keyframes glitch-anim {
+            0% { transform: translate(0) }
+            20% { transform: translate(-3px, 2px) }
+            40% { transform: translate(-1px, -1px) }
+            60% { transform: translate(3px, 1px) }
+            80% { transform: translate(1px, -1px) }
+            100% { transform: translate(0) }
+        }
+
+        #intro-view {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #050505;
+            z-index: 9999;
+            padding: 20px;
+            box-sizing: border-box;
+            overflow: hidden;
+            display: block;
+        }
+        #matrix-text {
+            font-size: 14px;
+            line-height: 1.2;
+            word-wrap: break-word;
+            opacity: 0.7;
+            color: #00FF41;
+        }
+        #intro-final {
+            display: none;
+            font-size: 1.5em;
+            font-weight: bold;
+            margin-top: 100px;
+            text-align: center;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            border: 2px solid #33FF33;
+            padding: 20px;
+            display: none;
+        }
+
+        .header-ascii { text-align: center; font-size: 14px; margin-bottom: 20px; }
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px dashed #33FF33; padding: 8px; text-align: left; }
+        th { background-color: #33FF33; color: #050505; }
+
+        .post {
+            border: 1px solid #33FF33;
+            margin-top: 15px;
+            padding: 10px;
+            background-color: #0a140a;
+        }
+        .post-header {
+            border-bottom: 1px dashed #33FF33;
+            padding-bottom: 5px;
+            margin-bottom: 10px;
+            font-size: 0.9em;
+        }
+        .malware-post {
+            border-color: #FF0000;
+            color: #FF5555;
+            background-color: #1a0505;
+        }
+        .sysop-text { color: #FFFF00; }
+
+        #forum-view { display: block; }
+        .thread-view { display: none; margin-top: 20px; }
+        #military-view { display: none; text-align: center; margin-top: 50px; color: #FF0000; }
+        
+        .lido { color: #228822; text-decoration: none; }
+    </style>
+</head>
+<body id="main-body">
+
+<script type="text/template" id="raw-glitch-data">
+ˇÿˇ‡�JFIF���H�H��ˇ·�LExif��MM�*����ái������������†�������†������†�������«����ˇÌ�8Photoshop 3.0�8BIM������8BIM%�����‘åŸè�≤ÈÄ	òÏ¯B~ˇ¿��«"�ˇƒ�����������	
+ˇƒ�µ���}�!1AQa"q2Åë°#B±¡R—$3brÇ	
+%&'()*456789:CDEFGHIJSTUVWXYZcdefghijstuvwxyzÉÑÖÜáàâäíìîïñóòôö¢£§•¶ß®©™≤≥¥µ∂∑∏π∫¬√ƒ≈∆«»… “”‘’÷◊ÿŸ⁄·‚„‰ÂÊÁËÈÍÒÚÛÙıˆ˜¯˘˙ˇƒ��������	
+ˇƒ�µ��w�!1AQaq"2ÅBë°±¡	#3Rbr—
+$4·%Ò&'()*56789:CDEFGHIJSTUVWXYZcdefghijstuvwxyzÇÉÑÖÜáàâäíìîïñóòôö¢£§•¶ß®©™≤≥¥µ∂∑∏π∫¬√ƒ≈∆«»… “”‘’÷◊ÿŸ⁄‚„‰ÂÊÁËÈÍÚÛÙıˆ˜¯˘˙ˇ€�C�ˇ€�Cˇ›��1ˇ⁄���?�˛(¢äÛŒÄ¢ºø„G≈Ø¸
+¯_¨|YÒòúÈ∫-≤‹\%≤áïÃí$Q¢@‹ÚH™2@…Æ'ˆc˝§¸˚U|0_ä>∑ø¥∂”i∑öí¢œ
+ƒî˘o"0)"2ê‹Ü‰ë@X˙ä+Ê_€;¿û	¯è˚(|Døƒ
+#M÷Ù◊nØp÷µ¥wpy÷ˆìKæ\™ $ÜTY#p7#®e!Ä4>ö¢øîè¯&è¡/Ÿk‚œÏÁ˚4¯?Z˝ûßÔâ5KO'∆∏t=NºmS¬3&´m=æ©lnµÉ®Mh™Àw^m±ì?6Mü¸WÒ¡æø√?
+K„H›G	“!‘mt∆∞b“˘˜eb¬£fw‹t4¢Ó6z]p˜ü~iﬁ:≥¯]®xáCÉƒ⁄ç¥∑∫áfø∑MNÍﬁ∫Ya¥iƒ±F]—
+®ÍEyg¬âˇ�|m‚9Ùøä_.ºaã‹C™OØÈ∫™Àp$çVﬂ…≥vïK#;˘Ñm0ya_òø∂ïóè ˇ�Ç∫~œZá¡€_ˇ�¬Qs◊‚<◊^"ÛíÃyqi€‡⁄∆◊§;ÿ¨*…ùƒ	$”`ë˚ã\™xÔ¡x≠|≥•6∏ˆsÍ)£-‹&˘≠-•Ü	Á€¸„3\Cí⁄è"+YA¯´˛	◊˚W|H˝´>¯¬Oå˙Fç£¯œ·◊ƒﬂ|+Ò\^yüI∏‘tÉ}Õó⁄YÁ[yí·
+¨¨ÃrkÂ+O¯%œçmøoÀØ⁄é_i7Z˙ıßåd”Ætı∂µñÙÍ7≥Àm˝ô•…¶¬om-‡—‰É[Ωñˆ{ãòd{òú%≤¬ÆÏgä¸[·_xvÛ∆8‘Ù˝I”·7˙¶´q••¥C´Õ<ÃëDÉ#,Ïe|?¯ïÎ‚œÜ£Òü¬ΩDÒ6è,“€≈´x~˙
+FÕÂÅÃr¢œm$ë3≈"îu
+ï`A¡Ø»è¯/à>7¯kˆ?Ê´Qº8ì≈Òw¿Û_˝©¢ë‡÷-¶”ëR€£:¨vØsºˇ�«∫HLÖ
+˝ÒŒãü|Q·üáR¸<¬ÿ¯éﬂ^Ò7ƒ/x.xtΩ&«ƒRO Fô>Î˚ŸµáöY%π.ÃØ2ﬁ/®X˙“ä¸vˇ�Çœx·oà˛
+|8ÒWƒ?iﬁ$m/„ß√»9Ù®µK«±º◊Ï‚æ≥Ç&äI%[Ë3ñ úå≠ê+ä≥Òˇ�Ï√˚=ﬁx√ˆâ˝õ>ØÇ|ag‚=‡>è·≈—·Ö∑ä5I†‹Èìﬂ€%åSGï≈˛—r‹[íBbT.?etèx'ƒ%’¸†ÎUÓ±†5≤Î∫M•‹3^i¶ˆ/:ÿ]¿ée∂7˛Ú/5WÃOôr9Æ¶ø0¸„øäˇ�æ6kø≥?à¥Ø7ã|y·çw‚øÖºQ¢[Ívô´jˆ7ñ⁄ùÆ≠ÕÓß{ÁZã›?…û+óY-Aç!µX#à¸˝‡ü€cˆÙÒ¸G_˝ø5}'·UøóÅ~ ¯sHUyÍŒ÷[ÕAØUe∂Ú«V—Ld\)ö„.¬2·cˆˆä¸ü”?i_€v˜„ñì˚>Io∫+Ô|/π¯â‡ÕuÌıYmÙ◊“Á”-Ôlµ+e∫çıÕ™B–Õñ*~Pï
+˘öÌÒÒ£ƒø≥ü¡/è6⁄?ÜlßÒ∑≈À_Ö;—&éÍ‡ApuÎø›\ÈwKs≈ÜÎOô„[àfÛD…RáÃ.+´$Ò/á<°]x£≈˙Öñï¶X¬n/uJxÌ≠m‚^Ø,“≤GÏÃ�•ﬂâ<;„?ÿx√¡˜ˆZÆì™ŸA©iz¶õ<wVóñóQ¨∞\[œ<SA4NØà≈]He$kÛ ˜„oƒo¸A˝•fÔâ6ﬁπ“|‡}+W–/4€Y‡ö‚À≈ZÎ{¯Á∫∫äImFúâÊƒ#IrœÂ¶B/˚5¸MÒÁ√?¯&oÏÁ}·+èhV7?ºπ„o^§6Ånû≥h•í€ÌVS_ÕqqÂ√	sn†3»Û.≈Iç#ıé∏Ø¸J¯u£√Õ‚ÔäZ˛â·≠%%HT◊Ô†”ÌY3±˜Gw¡⁄ª≤{WŒ?∞7Ì1®~ÿ?≤oÖhMZ
+6Ωiµ[K°£4çßÀ6ë™^Èo=°ïû_≥\µôöÏÃ¿bHÕ~Q¡C>6¸}˝ßˇ�‡ùˇ�~-¸>∂Uß√KMrÔ√zuÜ≥iwqÆÍ∂∫øów´C{‰vvÌ÷ó-il÷W
+,
+é”Dœ±Na—˘ë˚C˛‹ZüÖ~>kﬂ≥ß√¿>÷<'·M/ƒ˙Æ°Òª´[˚çj[≈≤”-c≤ª≥í›ºù>YnoÃ!¿ﬁmœ≥ÎèŸˇ�‚¶ã˚T˛Õæ¯Ø´h3iˆ~5ÃöóÜu»Dèlo"€ucs±®ïcs$/∫0$Qí∏8¢‡{˝q^¯ïÁ≈û(÷|·mD‘ıØ˝ü˛
+OæÇ‚˜L˚gõˆ∂[«#MkÁ˘˘^jÆˇ�-ˆÁkc˘sGÏ„√S˝ê˛)¯7ˆo¯erün˛8|F”˛¯≥¿˛ìMπ–ß±Ò]‘œ‚k{hm4À
+>8}º˜™^⁄?.(_*µ˙„=_√ﬂQO⁄BÈmìT’£¯cñ{à¨ÑVßPæé?¥»…m3†U28
+0`RLm™WÂ◊Ï˜˚m|E¯Ö˚a]˛ ~8º¯o®Í-∫OàSYxÚ[Ÿ|3®ZÍ6∫uŒã™]}™xÔ%WºGKàÌÏÿÑ|€ÄQõÁ≠3ˆı˝µÙoŸ˜W˝®<k•|2∏–|Ò{U¯}„-KèS[˚ù;OÒG¸#Øw¶\Àr!ÜkpD˛]ƒ2˝†+`,±´∏X˝ Æ*?â_f¯Äˇ�	·◊ÙFÒLzckO·•æÄÍ´ß§ëD◊fÃIˆël≤œå{HäNYA¯Ô‚g«⁄/«<scˆH∂rÍü4].ˇ�[ªÒ¥7wPj:¶≥◊VöM¨vWñMh~…
+I5Ùœ"∆n"o √‚ãü¥Ø¬/€«·ﬂ∆ﬂç:t^
+Ò6∑˚,ÎZ{¯y¸ùZ‚/Í˛&t6ö24€E®H∫ç«Ÿ—ÖÃ0∞›!ö∑H•¡+ü∫5≈xˇ�‚W√ØÖo|R◊ÙO
+i)*@˙¶ø}üh≤…ùàg∏í8Éæ’›ì⁄∏èŸ˛O⁄Á·µ¶°˚Mè
+√‚´üﬂ›i˛ÜÊ;e]∂Ê[´´ó∫ôLì'óN’VÊ?‚_¸3„o«ﬂ⁄˛	ﬂÒg‚ﬂ√ÎoZ|4¥◊.¸7ßXk6ówÓ´k†ÎÈwz¥7±ﬁGg`>›ir÷ñÕep“¿®Ì4L˚lGÙAE~u~ﬂ_µW≈oŸs·˛øÒ¬≥|=–tÕ¡˙óâmı/ﬁ3S”£3çM±∂º≥πœoõ≤“˘n—Ñµú€ˆÖæ+Ëö◊¡
+;„ñ∞ßO”n¸+o‚À•r€[Kh∑é	d‰˜≈0=Vä¸#˝üˇ�‡≠û)¯¡‚œÖ,Úº©x?‚ˆª>ÅÜº<ó“¯£¬
+p.õK∫’Ó|È¨n·∏6Ò¡z±€⁄ã9ÊP≤‹(˘º£Yˇ�Ç†˛ﬂö'ÏÎÒªˆõ>¯O>ô/„V∑‡/h›ÍÕu{§hﬂŸ0 t˚ñXc˚JKy,ˇ�i∏à,®vhŸõ<»v?£:+Ú_ˆïˇ�ÇåØÉˇ�hΩ#ˆX¯U≠x#√:ÂÔ√CÒBÔƒ?°ºπ”V÷{¥≥∞”¢∂∞πµò›]?õ$”4‡[D™Î¡}ãÛﬁπˇ�H˝©|m·/Ÿ∑ƒüæ¯fﬁÎ„mÓΩ†j∫'ãoomÆ¥˝wD∂Ω›∞∑åE¶´Q+^2M;⁄ü›Zô
+>d?{+üÒã|)·?∞ˇ�¬U©È˙gˆû°ì¶ˇ�h\«oˆªÎçﬁM¥c/õq.÷Ÿe€�‡◊‰W≈o€Wˆ∏ƒXg}[˛7Ü<g·ˇ�Å2¸]Òàu»ı;œjW÷˜2⁄M¶Ë±õ›.Í;h^ñ{ÀâfíÂàv9'Áﬂà_µ«Ø~Œü≤«é~
+¯]‚_¯[_¸ºz¶ãym?Ñ◊_XÂ≥üN≥πª‘Ív±%˙¶¶◊qm•ØŒÎÃ?°z+Òõ˛
+Uˇ�¯«˚¯oƒ_m¥œ�XË~}
+k
+≈:™M‚¡®_Gi®ç ŒÚ9lNIQ≈≈‘s˘§Hë<√˙Q˚I|{óÏ≈˚?xøˆâÒºsœ§¯C√˜z˝’µÆ—=¿∂å∫AÚ®%ùˆƒõàòd‚ãÖéÁ\¯ù◊√>.“~¯ìƒ:üØkÌ"ËZ%ı˝º˙âÖ$ñAim$ã5…é(§vÚë∂™3öÓ+˘∏¯ü¨~’6ˇ�ÇÖ˛ƒ_ˇ�hõáˆxÜ˚∆ïéù·[{—®Èq·áõ˚>ˆˆÍ‚D‘i)>t6ˆÀÊ^6ªzé°ˇ�é‘µ
+CQ¯•‡_¯Cu?Ë·ﬁ°‡®£æü∆◊Zl7–Èó:˝¥–L÷HêŒÔv∫{Z9í…<∆∫âÿ¢Æ`±˚ÌE|ˇ�2˝¶>)~∆ˇ�±üãiøÑñö£®xAlÔÆtœ≈q%Ω›§˜1Z…5µ≈ª√2Ω¬HÆwÆê¶X:sW?µw∆M/˛
+#°~…óVπœä>_¸C“Ô#K®5;{Õ>‚“—≠gîœ5ºêI,Õ ë-’ïHR¨T≥ªÖè—™+˘»”ø‡™∑6ôs˛7≈^¯[?ÜÙ⁄
+Î‡ﬂã4ù>ÔU[Ù∑]J&+ãâD|´á‹ÚMôÉdCGËßÏ±˚U|ÒßÌwÒ_ˆD˝£¥è	ZÍ~	“Ù¯wWlóçk{§køiQ ^±ën≠•Ä#:I2HD�nj¸O¯Ÿg‡éôµÒ£≈ﬁÖù‘è≠ﬂä5KM*û5.Îór¬é»Ä≥$Ö‰ÒZæ,¯ü◊¿:üâºu‚E”uÀ];O‘5k˚{;k´ªˆk2Õ"G,◊,B√“Çkˇ�ˆ“∑˝£ºSˇ�á¯G◊¬6ﬂ
+ı	Îˇ�<g£ﬁÈ^4∂æøéÁKªö≈µÿÁ∑à§◊+Ñ6ÈÛ!åOÁnà-|J˝´<{Ò¬ø?j?Ö>�©œˆVÒûµa•Ë˙ºM[SπçëÉ[‘tÜ∂ôtΩ4X⁄Muög≥ªi6±€u.`±˚ﬂE~¯Îˆ™˝µ>+¡H~¯?ˆ`◊º
+m”∆Ó>&ÈZâ-Ø¶kÎ{∑≥
+=ÁÿÊÑ˝™5ûf©+¬®ÛÂ
+˚ãøo⁄W∆◊~ ~Ã~eÔÉ>�Í˙ááuÀ_Ω·’ºQ´Ë6I¨⁄ÈÛ⁄Ã∂⁄XµéTÜ	'ÜÏÕ6C$K»|¡cˆä¸dÒ¸'„˜ƒøèﬂº˚0i>ˇ�ÑW„w¬ÌW‚ç™x∫{„o5ùïΩ √uöyQ$Ú Ò«,è+£ßô�P_Èø¯'WÌaÒ#ˆÆ¯_„>3È6è„?á?ºA´≈qxqÊ}&„R–
+˜6_hgùmÊKÑ*≤≥09…¢‡—˜Ö÷≠•Y^€ió∑6‹ﬁ≥•ùº≤*I;D•‹DÑÜê¢Ã($Ò_,¸U˝ºøcØÅˇ�õ·?≈øàû–<J˚PπÚÓ …Ã•c⁄Y≥´¸π¬êMx∑¡_^|Yˇ�Çê|iø÷‰i≠~x{¬ûÕªpñì¯Ü–Î⁄‘ ;ΩÍ6ì?˜mBè‚ØÕø⁄‚óƒÔ¡k5?à|/ƒ;/ŸØ‡õ˝´IÉV¥“ZÀ_Òpñ·•ÛÓÚôõF^≈R¸g¶i6	≥	ˇ�n?Ÿ„ßƒ£·ƒk˛%[56–Ï.w^Hä´Ãb*≠Â©u∫r+Í∫¸Ÿ˝ï¨#¯”Ø¸)˝§˛7ﬂZ¡Òz€‡’Ìˆ´·ãXbç¨¥øﬂi∫Ñ"p®≤(”€GkrƒyÑ\±˚ç}ßÒS∆ü|¶Zﬁ|=mˇ�åÁös≈••Ü°aßµºaI3ﬂœné|ªPñÁ8≈4ı:+„—ÒÁˆò=~¯å‹À·œ˛X◊”˛’µÕw√6Zøâ4©Ù;˚àDóZMÃ\Àj˘9ç•∂íX$#Æcr9ßqQs˚O¸≥¯˜m˚.‹xö¡|yc&ßo·åJnﬁ÷(ºÁó"3¢≈Û\u©�˚’;~$¸k◊‡´æ>¸(∑ßˆÏÎ*jöœåeπm>“ˇ�UWÒ%‚€€⁄Ïí[©Ï‡Ü	ßÛ—-cBY%gT?L|Vˇ�Çá¸t≤˝úˇ�fé<3·∏5è>#üáØ|7‚&ªö‚…ºOo—ö—≠ö%Ωùºw2…,€rÇ#¥+SÃ;±ÙWƒ>˝™¸CÒˆ÷ˇ�eáz]ïˇ�Ü|
+‡®uè¯§»ÂÏ<C™ŒüŸz4AuÁµÇMyp%cx∞T‰7’üºy·ÔÖüuÔâﬁ.ë¢“º9£^Î⁄ú®d¥”‡í‚f�ïà„b {ä°ï˘q·Ô⁄ˇ�ˆâ∆É´„g«
+#¬væ¯ªØhû¥—tdª]o¬Û¯•hÜ˙Ú{ô-5O:fÇ÷ÏCkg‰K01õÖSü,ÒwÌ}˚vZ…˚FÍ>”æI¿çoŒ∑”Ô£’ZMgHOYxÉÏ¬e∏Ömu	 ∫)ˆñI!a<ç™eup?f“42HB™ÇYâ¿�u$˙
+„¸Ò·Ô≈
+¸G”^—ºEßGw5Ñó˙ÏˆÎsn€&Ö•∑yK|≤!;î@5Òv±˚U|D¯´„ﬂ¸˝ö‡–ÙÌg≈?
+‚¯≠™Îû0∂üP≤—ÙKßÇ(EçùÂÑ˜ó∑ó2»™>’q«o+ñv⁄áÛ◊ˆe˝©Æ?cﬂŸ∆>#¯î<5e‚o~÷~0¯dKm·¯5ΩcƒW1ºßñ∏∞≈qr"_ﬁ∫D# ñﬁ•«c˙
+Ø¯ç˚O¸¯IÒ3√?˛#xö√JÒGåÆ◊√,‚V∏‘%ëÃj±ç◊ñR	b†`íp	Ø˝êøjü¸lÒÔé>¯æÔ√∫ÌﬂÑWJ‘l<c‡Î;ªX”ıuπãows|ˆ◊÷SZHóPã…◊dê»yÖ·Ô€2Û„∆ü¯+w¿ÔÉ_-4;πæx'ƒ?u€è…7ˆ]ÑöÓt->‚xmÒ5›ƒ]√[⁄§∞≥4æcJ®Ñ–ÿè›*Â|]„Ø|?”‡’ºy¨ÈZ%•’˝∂ïms´›√g◊∑≤,6÷—ºŒä˜2«JK»‰*ÇHÚø¸Ûˆ¶÷?løŸwG¯ıØiñzeÕˆ©≠È/˝ô#Àß›ˇ�cjwzpº≤y@î⁄›}óÕ@„rPñ€∏˛{¸ˇ�ÇÉ¯O[Òüäæ xz?Î∂�~"‹È‡ΩRÎøj⁄ûõhêj∑öC€›-ï•ı¨w˜6÷OevÛ≤?Ô-|¿Ap±˚µEyœƒè¯Ø@¯e©¯ø·¶ìàuh¥Ê∫“4ª´ÿÙÀ{ôYAèœªôYm†\ÔñMé Åä£∂¸c˚˛ÿöﬂÌÒ∑‚◊¡oY/ä√Ü’Õøâæô≥Æ"ÒΩÏ¶“Uí˜PÓ¬[Yp≤CÂƒ€£Wp±˙)E|3Ò3„ó«_|sÒÏÂ˚,/ÑmµØxOKÒGàıØ[›ﬁÿ˘˙Ù◊—Èöd÷7vS	&èLπñÊÈÊ+nçXg20N/⁄wˆñÒ◊å¸
+˚;¯s√^GƒΩ_·¿¯è„¯¸RœØiæÄOäYCõ{d⁄ï≈’˘ôbê]√Cπ.ÿéï¿˝¢ø<u˚~˛–¸+—uoh~∑Ò^è˚FË_æ$i˙ú˜rŸ,∫é´ß⁄}ßJí %XÔlµk®öÂ≠“lÊd˘˝«·ÁÌEÒˇ�√ü˛,|¯È¢hˆª‡_iø|3'Ä!ª∂ﬁô©∂Ø
+X5≠Â≈‰ëj›i-
+≤ …7ò¨<m%«cÙjä¸Ä¯E˚c¸˝°ˇ�gü¸Y¯A‚ﬂÉ˙€€¸?∫÷,$—mØ„ªáâ°àH⁄>ªß‹Í7-
+Ã—X3<$=™´≠zÏùÒsˆ∫ºˇ�Ç|x„Oƒ9¸‚œkﬁûµg+…°[[[Í:u¨˜öéªuss:J÷Î#\Oˆ8¢ÛXH„
+∫2·cÙ˙ä¸ç¯y˚x|Z¯Ö˚8˛–û6m◊√üxè‡Œ©©⁄Ëû!—>‘æ◊m-t[-j)åqﬁﬂ\$ãÃ∂“§Wr#K+"´ªˇ�?kO⁄zâﬂ¥èç>πﬂ«/
+ ˙lûé˙KH÷¨Ù◊ùnd∏ù‡ª¥ª∑∑∏	Â¡@·PôAﬂE¬«Íù¯ª˚>~‘üµÇ‡˝•˛6~‘!¶©‡_Ñü|S⁄vè¶]E©¡ßhæ—ı+{]>WΩ˛_ó?ÃìBÚÀrÚ∑ò—S”?gè€√∆æ6x+·œãØ|
+‚à~Ω’mÅaø¯_R±∂äÙÈ˙ú˜‹A®Aqn”ào„KÀœ≥ d9Ç«Íµq^¯ïÎ‚uçﬁß◊_—<CmßÍÈ7˜ÙÒ[_@®“€LˆÚH±‹F≤#<LC®e$ä˘∑„ü«oâ?¸)˚,¸ãCOxè√˙øåusƒ–O{¶h∫è-ù£L÷V∑VSﬁ›]_j¡�∫∑]ã4ç(1™?Ê/Ï€˚HÎˇ�≤'¿è~?¯ßo·∆Ò5ﬂÌ]©x> -9•≤–‰’µ„†XZ‹øòfû⁄≈<Òytª•ï"Ióp	.?†+‡ŸKˆ±Ò≈øå>-¯‚˚ˇ�¯ñ]F”|M§x”¡6WñEıû£=›¥∂S[››j
+o©iÚ⁄´J´y*À
+ƒ2åÓJ˚˛öb
+(¢Ä
+(¢Ä
+(¢Ä
+(¢Ä?ˇ–˛(¢äÛŒÉõÒÉ¸1„ˇ�ﬁ¯7∆ñ6˙ñó®¬mÔlnó|SFH8aÏ@ éA�ék·ü¬øáø¸+Ç>ÈV∫6ïØ2Y⁄€ÊIçÓKff¿À1'äÙ
+(�Ø˝†~¯€‚∑¡ü¸3¯≠iæ‘µ˝&ÁG]cV“‰÷ ∂ÜÚ6Üg˚W˙cI'îÌÂìr™ØÜeu±Q@èˇ�`€;‡ˇ�Ïœ·oŸN¯Û·ïoáa≥“¶‘tèá˜zoâÓ¥h.YÏ£‘«åg∂¥í‚ﬂ}∞∫é¿À∂ÒóèÈØ≈Éø
+~8¯Xx+‚∂ï≥•ã®ÔEúÔ$kÁD#Ê'ç≤°€æ9È^óE$ÜŸÛß¬Ÿ+ˆv¯‚I¸]è¬ˆö&•sb˙l˜VÛ\Hœm$ë —ë,“.ê£d¸Ωz◊à¸Y˝è˛$|F˝πæ˛ÿZGç¥]3O¯y¢Í˙^∏‰◊ìﬂAØ,K|Õ©.∑l∞…∂˛ŒEì»b‚P¿æh¢¿ô/Ï+˚|C˝ë&¯†˛5ÒÆè„¯óÒ;W¯©*ÈûõB:~•ÆàÖÂ∫ôuù[œ¥ﬁ≥©	$x}ÚKπv}ıEƒ|%ˇ�˝ê¸q˚k|”æxC∆:gÇ„¥ÒFì‚ã´˚˝]yÊìE∫äÚ÷(„M[J©û%ÛYöB…ï]áÊØè¡Ê¯Å·?Í7≤MK–Ô¨º[·ù?AémwS∏ˇ�fæÜ‚{ªªÕ6;3€mñiƒÇ\I!(	ˆÍ)X.|I˚m˛Àﬂˇ�jü¯S√�Òûâ‡¯¸5„ç«íK™¯vmyÓØ|9}°e˘Z÷í∞¿”¬‡â”Öhœ5ﬂ¸w˝ú€ˆä¯"ü
+|w¨GeØ€j:Oâtﬂh?f>!–Æ‡ø”Ø‡≥∏∏º Cumkyn$Û"›pp˙rä,>—fã∫á≈[œ⁄‚áåº;™¯‚”¡WûsÈû∏≤–tk]F‚´Îô,%÷ÓÓÔnØf≥µﬁ¥!X‚Öbå“À'ìxkˆ¯£†ˇ�¡4Ô?‡û¥)Ãﬁ∏¯ui„¨Ò˘Z=’´Ÿ»“iÁƒÊﬁàdm≥-‹qÜ¡0ê?ßîQa‹¸˘”dOç6_¥√ﬂè7>Ã≤x·¶ßÚM1<'tã~uG”¶ñJ|F∆ﬂl⁄]±H6KÚy™d%’£Úç˛	…ÒG˝êtÔŸ Î‚.ó/à|/Ò4¸Uoå-<3-µΩû≠ˇ�	«âW∫lö›—Ω∂7Ws€∞K∏	∑eÎ{~Æ—EÇÁÊÓá˚|{¥¯ãÒ[‚∆µÒ#√ìÎ_<£xFˆ	Môas£G}Wê@⁄˚›<f-FpmûÏù‰9õn#_Öˇ�‡üº¢¸>¯ã·´Ω[‡gÑ'-ªÎæûÔH‘¥˘-t˚8ØSOOE5é≥ooß"-⁄^∫≤À2à—$+_™‘Q`πÚ/Ï]˚7¯√ˆQ¯Qws_Ò5óâÙ»<OØk^∫áJm6ˆMwTº’§Ç˘˛€s
+‹Ò‹_H´40⁄°@£ ŒM|o‚ˇ�¯&á≈€ÔÅøødﬂ|Q“¥øÖ˛7’µ-sF”/¸,◊∫◊ág÷5?ÌkÀk}A5ã[[ç<_<“≈∂pYL~x⁄Ø_∞TQ`πåøeéóˆê¯ÒEÔã5Ø
+iûÒ˝øàº3&µ°Î—ÈO%ïÚY€kU’çı©ΩªT+{$O¢7C∞=}ü¶È^-”¸öD⁄ºW⁄‚X4_€W∂k‰Ω·CâûŒﬁ[pa|Ñô†€ÊÓ˝Âu¥S∞Æ|/˚˛À?em+ƒﬁÒœé<=‚˝7ƒ^1Òéiæ∏–Æ≠µj
+®\'ù&Ω™«%¨RÀ2∆ûJ…Ü\»v‹ça?àæ<¯óÒ€≈˙óƒ[m?L¯Ÿ˛√¿"”C–f¥’4(¥®5XlÓ°‘[Yô.%W∏3Øÿ·a∞K~ìQJ√π˘ï´ˆ(¯Ò˜„7Ä>4ﬁxÎ¿Õs·áöó√ÌET˙fós£]‹È◊êIi
+¯ÇV≤ΩéÎNC+óñ›‚rë€ƒ√ÃnQˇ�Çp|h‘ˇ�d?~ÀS|P“Õ„à˙áƒ	ºBûπi˝©Æ\⁄%ôÒ9Û?”∂§SÅ≤�U£w"E˝t¢ãœœ?˛»ˇ�4èèóﬂ¥wÏ˝Ò'Cæπ‚ÌH—>$iö◊Ö§÷¥]Z„FIcµ‘¨m”Z∞∫”o"éi"
+˜ó14^Xê;Gπ±~-¡?n˛;|w≤¯ÉÒèƒ˙?â¸!ˇ�
+£P¯QÆ¯SXÈ7˙≠Æ©u¶ﬂ‹_∂ßm™Z€⁄ﬂÌ.ﬁhﬂMEÉÊÚ¿pí'È5X.|˘˚3|(¯°K·uø√/âﬁ7õ‚i3=Æâ‚
+CO˚™tî¿¥áSônÆ#‘o†ålñ˘#∂Û·nv¯≈ˇ�Mã∑ﬂ~#~…æ¯£•i¸o´jZÊç¶_¯YØuØœ¨j⁄◊ñ÷˙Çk∂∑xæy•ä)l<‡≤ò¸Òµ^ø`®¢¿ô˘èÒ3ˆ
+¯•Ò‚üçºv> ËÎiÒ+·m∑√O¶£·Éy®Y•ΩΩÙ\hCVÇ=.;”®<◊≥Awñ4lûﬂ^|¯G‚O˛Œ∫¿Ôã⁄ñï‚{ç7√qxcPø“ÙÈt´K€H`´õYoo›Ì‘,ßÌ3ÓeT"˚ÂXGÊOÏè˚~—ü≤Uéó{@¯Õ˝Øõ√S |3·õÔ€¬AobeíXt€çmØdä{87.∫|sº"K’5Û‰ﬂIˇ�åóˇ�≤Ô«øŸ´T¯µ·∑_è_5/àz¶≥Ç.c:T˙€€æ°monﬁ)êK}é‹ZºíÜÑ	<œ<∫˘_∑4Q ;üñû>˝Å>4œÒ[¡¥ﬂ¡?ä:oÑæ(x¿P¸6ÒF•/ÖŒ£·ﬂË∞N.cItâ5xÓ-%Ç‰º±K¢Ó3Âñ€W˛9~√ø¥7∆à˛'GÒgDMg·´®¯ÖÓuø’÷u=R≠¶
+éΩ§«ic
+¨∆hdôB´Ks3Ó-˙yEüœˇ�¸¡æ4~ÿ6öä%¯ã‡m¡ﬁ∑è¡>#“>/≈Ø
+Î˜∫´âı	%”óG’óGø”⁄“#öa≤£1äH–∞ì“/dè€{ˆŒ¯¢Oèû9–</‚/Ü°¯ù•ﬂj
+gª◊≠º9s:ËjmØà,°“Ó⁄WöˆŒ7íUn∑í9Qøn(¢¡sˇ�„∑¸'«ˇ�,øh/¬”≤¥ﬂ«´õfın¸./u›+Q”çõ€[≈™V5óFäK$+d÷°’¨sF€ûO“_äø≥ß¸4OÏ£≠~Ãﬂ¥´©'ä<-/áºE≠ËVŸäÛÕ”wik,˜ﬂg1À∂X£y¶
+TfÙ›X.~;xW˛	ª˚HÕ‚œÅ^,¯ΩÒ≤Àƒ?ı˜–Ó,<ü>©ß›ÿG¶/öMVÌ
+ÀZ+â.cD7omz¬ÿ'„∑Ï„ÒƒV≥Ô∆°|.ÒGãoºgu‡õˇ�€jZ¶óy™J'æÉI’ÂºHmÌÆ&.Ëó:}»á8PÃYÎı"ä,>g˝±ˇ�f~ÿˇ�≥åˇ�f__œ•Ÿ¯øGm4Ív—âd¥ôdI†úF^1(äxëÃe‘8wÊæF¯y˚˛–ögÌ1‡o⁄ß‚∑≈Ω7_ÒÉ~_|>ñﬂNöÈ÷zîì$‚iUµ[©ctí(öS£Õ`vy
+Jü’(∞Æ~]ˇ�¡"~5^˛Ãˇ�Ï›7∆
+c_¯–~3M≠/Å.CEx˙Çjèd∂ˇ�ïê`7±FVC&·Ë»f"E˚[·ÏÒK¿ˇ�∑7å?lèx„A‘Ìºe·'¬wû≤Õ≈ã€«£yè—_æªv4”J“+ZP™©R•€Ô˙(Âœœüäˇ�±Á≈è~›^˝≤<9„ΩJ≤?áı
+E·Kﬂ‹_Àyg¨4-~œ®¶øh±ŒﬁB}ô≈ôXπﬁìg„~5ˇ�Çh¯÷ÁC¯≠s·?ƒx<3«„gàµxÎ√ÛË⁄Õ≠∆ºë«ÆE¢Íü⁄VˆˆPÍ»çπn¥˚œ≥≥ªEç¿/ÎUX.~g¸Rˇ�Çxé„„ﬂ¬øéﬂ≥GçÌ˛œﬂ¡W?
+d”/45◊mÔ<59∂1¡ô{iˆ[´sjæ\Œ&\ï/)'=„ø¯'oƒ©|\–>¸FµwÉæ:^\j~>—Ø<<umF”P‘m«Sº–ØÜßeî∫ï¨h≤ªK’äQÊ≈∑ÓWÍçrÖœÃ_¯wé±·Ø⁄S‡ß≈ÔÖ>.“4?	|M◊Ä¥/]¯~{˚´Ω2˙⁄ﬁ“s.™5´`ìà≠!Ú_Ï/µ√¥Ç]‹wˇ�∞ßÏyÒˆCõ‚ã¯◊∆∫?å‚_ƒÌ_‚§´¶xvmÈ˙û∫"ñÍe÷uo>–x~Œ§$ë·˜….ÂŸ˜›X.|+¡Oâøl¸W¯l÷ÈaÒg¡}•÷ßylo-Ù/xZ;ò,.nmÊŒ[ª=B Ù,àìƒ¡¨?5<ıd˘[‡W¸◊ˆ’˝üæ)¸O¯Õ·éo|AÒk^∂◊¸Oy´¸0æõÀ{(^KkAéaÚÌ-bëñ$óÕaû\◊ÏùX.|m˚"˛Ã>=¯'å|mÒØ«OÒ'«~9◊#‘uü&=¥˚(Dvïia’‚[ŸiÍ”<cŒfy'ñG%›â˜oäü˛|m”mtäzD≈µîÊÊ÷)§ñ1¨ªKëìï8‰ë^ßE1ˇ�√˛»Ù$ÿ‡EÁˇ�$W”ﬁáÜ¸·õ/¯B’,tÕ>ogifX£ù†πf<ì‘ì]%˘K≠ˇ�¡2$ÒÏ’˚B|ΩÒ›‘:◊«ˇ�kﬁ*‘ºYmß�˙eæ§÷ÒYÈÀnnâπµ≥±µKY34fUyqÂÓÊ¸Yˇ�Ω¯É„]o·/â/~0Í˙Eﬂ√MOƒ:‰øÿZ,
+ó∫›å]¢iÍW:ï∂çg°È—4|·ﬁté”w˝~¢ó(Ó|W´¸–ˇ�døŸ∆>˝ñÏµK-uÙç[P“ÔÌ#:÷π©¯ØQâí
+BÓK’∏˛–øπæhZYØwD�iHÏˆÔ
+xƒﬁ/˝û¥ﬂÜﬂ¥[⁄k:Œ©‡À}«rY†Ç÷˙ˆÊ≈`’$è8gï•(´Ä™¿ïÏ‘S˘≈·?ÿw‚∞¯oﬂ‚øè≠<G‡OÑ⁄æõ≠xSKÉB6Õı∆ÉC¢ùkQ:çƒcN%&÷∆–‹\Eè¥+F˘“~√ﬂ%∑˝°‚?¸7ø„œ(„¬78–I—≠t«¸$Èˇ�Ò.µR9∑ˇ�H&Nc˝Õ~óQJ¡sÛN˝Ö˛5x]¯iÒO·_ƒ}NÒ◊Ç>EØƒ˙óÖ&º–|G·Ë&Ükq&òöÙñWñíEÊ≈4zõ©wê2yoµqtÔ¯&ÁâO¬/x\¯ã'ˆ›ˇ�∆ãˇ�é>	Ò>ô¢Eo/ÜıÎùJ]F0÷Ú›O£nWÜh‹≈ÊC$âï ≤˛©—Eásƒæxc„ÁáÙ˚©˛?¯ª@ÒF£7ï≤¯_√ÚxN∑é-˘&ÁS÷.•∏ú∞2ª]àÄE¬á{IÛÊì˚…mÒ«„ø«=G≈wM©¸c˛ë·M)ÏÌD3x_L“tπ¨’m•i§ÛÊñˆÍ{÷b±®mã∑Â$˝·E;œÜ`_ÿÔY˝ã~Y|)◊ºZ˛*}?L”4;µ≥ìJ”-,4ò<òÖæû˜ó¬+´π^kÀ˚è8µ≈ÃÏpë$Q«Ö§˛…_˛|XÒâ?goâ:_áº!„ˇ�À‚ﬂxk\«ˆ’ÂÜØwQﬂ]hóÎ™X≈j◊æJ —_Yﬂ√Â§T*Õ˝¢ïÖsÂœ€ˆt‘jüŸ˚S¯/•kˇ�é›^_iZîåˆCR≥íM&˛⁄˝mØÏL÷¬˜Oªka
+’øùí'e›éõ|˝ó>0¸/˝•¸M˚B¯ß∆>’"Ò∑Ñ|=†¯ìA“º5>ôWûmEl•”%}f⁄⁄ò5Y≠ÓÈŸ–2K-~Ï¢ãœÉ>,˛…ˇ�Ê˝§%˝®ˇ�f/Èæ◊ıØ
+Y¯K∆Z_â<>ﬁ"—ıã-6yÁ”ÓD0ÍzEÕ∂°cˆÀîIVÂ£í9<.ÍﬁÒüÏøÒOâ^¯ˇ�œ∆ñ∂ü4o
+\x+Z’<K£
+KM◊¥´ô‚º+qcey§µ¥ˆˆ±y÷≤€‹(çdñ7ICÂ~’¢ãÁÂüå?‡ù^3’>È^
+èèÙÎ?7∆ç?„ßå|K´¯mı÷ºCßj6∫îQAg≥ßç>≈Z ﬁ’c3\:⁄ƒâÊJﬁï‚Ÿ„>≥˚Hx˜ˆÄ“˛$ÿhØ„/Ü6_l “<9"j4öd∫ï’ñ•
+Ï⁄ÃO4Wö§≤<2Y‰çR?óÌ˙E°s‡èáü±ñÆü<UÒÀ„v±·ΩKƒ˛+"¸=‘ßFÅ'ÜÌÆ,L≤À-’⁄O©j≥]ﬂ;8XdyÇ€ƒh≠πùº*/¯'ü«πødø˛Õz˜≈
+Í5œ_¯2ˆ_»∫]Óù·HZ⁄“«ƒkk≤LMç‰íõ0ì√©‰%ø[(¢¬π˘âÏ7ÒŒ+Oè‚7Ü
+|s”b7≤øÑnI“ug—lÙπ‡EÒ	lö Ã5Ω¨èÊ«+É%ƒ Öd÷_ÿó„'ˆèÏÛ©7ƒ/
+Ô¯ì,†xJ‰
+xÕ£›hG¸TÒ/∆õtƒÙüÙê$ˇ�W˚ë˙KEœŒ›7ˆ◊∆¸5Ø¯´N‘~¸mª‘uox6MD÷`ø’Ù[MÙA≠
+Hƒ∂íCfì$gN2§áP™w˙wÏﬂ[ˆ°¯Im¶¯C‚øƒ˝#∆^˝Çi∫:€x[˚+[ºäÑ0∂Ø~⁄≠ÌµÀƒÄlÏlåí(vm•¢o±(¢¡s‚Ø⁄ˆ]Ò˜è~8x;ˆö¯‚Î¯€¬öVß·{ñ◊4f◊tçc√˙º∂≥‹Y]⁄√•‹´√ugÕ¥–ﬁ!WRÆÆÆq‡÷ˇ�MÔjˇ�
+>&x«ûkˇ�|P∑¯√·ΩwD—c±∏øâÏ§±∏µ∏Å&ªºK»bπ”≠ﬂ…õncﬂ;2WÍuX.x?¡O	˛—ÇÊ⁄∆~ÒM—DÇ ?xrOŸ∆àNeö;ùWYûkô8…I·ÖG !'ÁØx¢äb
+(¢Ä
+(¢Ä
+(¢Ä
+(¢Ä?ˇ—˛(¢äÛŒÄ¢ä(�Ø˝¢≈K;≈wæ◊ıj÷Z
+Ó°a≠iPÿ‹\[ÕkÃòãQ¥æ¥uf@Æ$Å≤§Ì*ÿaÏ’„?¥Cx©æxÆÀ¡£‚}Z˜AΩ”Ï4]*k{ãâÆ°xP	uÀDUgÊI◊
+–ÕÖ éø?hØ⁄ß¡?ˇ�eOçzÔƒΩK«⁄ó«;ˇ�È>+?à4›
+—ç∑â4ﬂµÍzéã&ã•È7êcn˚Lühí‚1n§3*ÕÙøÏCÒœ˛øÏ∑„|a◊|O‚!£|nÒˇ�Ñ4ôu	ÆıÌfÓ;OÍvóaÛ5ƒÚ“8b\ÑDò§jÃ;/¯'¿ñ¯I˚6¯#˛o¬H¸Ò3¬ˇ�4Î˙Ω‘~π’5g—¥€k&ÍZe˝ÎÀj~»ã›M`*�8˘W¿^
+˝ºæ~À˙ﬁá‡ﬂ�¯ßC’5⁄'ƒ~.ÒïßÍæ:˝˜Å<KÆÍzúﬂÿ◊#Uπ”†‘“+õdïn.-‰UÛÖºÇ_.A(¶}Ìe˚v|9ü‡ÔƒœãzáÜ¸ke?¬=BÛLÒ∑Ñe±∂ü^∂ö“Œ€P&≠/nlÓ"ñ∆Óò•éÏ∆c$≥)Vó¬œ€Á·«ƒœà~
+¯q}·üxfàæ>#F©‚=:+}7YXl“˙Í÷⁄XÓ•ô.Ìmú»Ò‹Aëû#"
+’ØÅ>˛–?¸˚XxC¯]„âb¯°d⁄ﬂÅSÒ&ë´]]Õ©¯_O—^∆Úˇ�QÒ◊˛ﬁˆ	•∏iÁí›a\Cq'Óë˝|2˝§π˚ÍG·èâ|/éÎ˛u?ÁH3¯SP‚Éˇ�œÙº]\•¡˚'ú>Õœ˙Ô‹—p±ı7ç?‡†üº‚_≤]Ë˛/Ωƒ3É·ÓßÒM∞Ü
+i˛!πªä¡,ÁõÌKz·5	“ kõ{9≠`π›”$àÍø2¸5˝§ß˝û>&~”öøƒø¯øH˜≈ﬂË˛¸7ø⁄⁄åG\÷Öwˆ
+&⁄˛Ú·Ôo%h¨≠X»w.6 ◊S˚'Ëˇ�µgÏª˝©˚+Îo<M°'èºEØxc‚eÆµ§√£æç‚-fÎZ-™√=–÷b‘¨§‘%Ö£ÉOπYﬁ5eïT≥ØÀ∫«Ï£˚_\˛’ükˇ�Öﬁ‘¥Ëˇ�m|[Í«ƒ⁄Æì&É„
+º7£h:æïqûß}&ô{{˝ñÚX_Àoc0I'å-F¨~„¡„≠>”·Û|GÒ¥¯^ŒﬂKìW’a◊‰∑éM6ﬁ⁄Yç€¡=≈≤y1©i
+LÍ†õä˘˚·oÌã‡âæ>“>›x≈˛∏ÒFÖ7âºw‚õ(-mºE¶€ylå7w3A41‹√#ŸÍZ^ﬂxÄ™πM?é_
+¸I˚X˛∆˛1¯E´Ÿ_x'V¯Åˇ�VÏ∂:¨∂◊E÷≠c5∂€â4˚ãªYÑ/(Û<â‰G@@<◊»±◊¡mRœƒﬁø¯≠/ƒÒgÅÙπ-%Òñµ‚¯u›ne≤6w†¢kZçÏ©z≠Ç.Ï,vBNÊ2†ç™‰ü•?¸w√/j>;∫”u}^-6%öM?A∑w“°uF1B^0˚oòaèj¸%ˇ�Ç-¯jo⁄ƒ:Ô¸É«≤¸Pá≈ﬁ:è]É…◊fh¸'s°_k∑3iKß¬≈Ã≥i÷vë@•YbÜ7*ª?°ˇ�S_⁄;¬?≥ˇ�ÏcÒ:ÍMkM¥ÒU◊√ù|¯[FíÍ$‘o.•ÄX√%µ©q=¬Cy{l$1©⁄]A ∞Øp˝ç>øÏÔ˚%¸5¯qé„¬û—tK‡1Û^ZŸƒóNq∆d∏9«4uÖœå¥üÖæ¯≥F¯ke§k˛.Ò~øiw©i~úV≤Í/ßÿñÍˆWΩª±≤µ¥ÜI‚ãÕππà<≤,qÔs∂º≤€Á‡ ¯k¡~/±∞Ò-÷ü„/GΩﬁ+Hcõ@Ò<ó_b˛œ÷mßπäÍ“Uπåcäe]õâ€$-'9Òs·˜≈/á∂vì˚\x√:óçÙõØÜ˜5ÌCπ±ÉU∞xı$‘ÏÔÌìSº∞¥û	O⁄îò!’dU`ü¯£ˆI˝§,˛jÙˇ�Ôj¥Óï˚CÕÍ€Q≥È∂7∫|GIäˆY‚”¥ø≤ÏEƒå'Õv“" ÍD¨6#ÙÔ·èÌ!·_âˇ�¸}”I◊¥ù{·ﬂˆL∫∏’‚∂[kª]sÌ¶¬Í [k´ë,3•Ñ≠âR&B∫+ÓUÂ>.~ÿ~~–ﬂøfØi^(õ\¯ô5≈øÜoÙ˚óKil‚ö{§öÂßå∆ˆ÷ô•
+éV6C¸U·?≥GÜ>:7Ì√Òo„éº´¯W√:wÅÌt{ùcP“gªÜÛ√√W[õ[õ}>˛¯$ÑjJ ÒI,8\yõ…UÒœ⁄ü‡èÌ£„ˇ�¯)Åæ4¸«á.<5‡/Ö⁄÷õ·Ø¯≥UHl4ÔxûÈ-Ôn[OµÛµ+¡k§ZÆ!	nìº¢?¥ƒ°›Kå˝_Ì#œ‚«œ˛Œ>íˆÁƒ¨4kÔJ∞∞⁄æª”Z[}£8k£oúÒm˘cëNH0~Ÿø¥Ñ”J÷æ⁄œÒ!4ˇ�M§xè‚ûΩ∆4[≠D◊∆	Ó“˛ÀPÄ›Al$∫]&;ªÙ∞fabx¶Ì˚'~À˝ï¸	®h∂∫ïÁà¸K‚]jÁ≈>9Òû™™∑˙˛πyè:ÍTL«(™∞⁄⁄«˚ªx#\êÃﬂü?eØx/ˆµ¯´„¸*ÒG≈|\π“5[[Ø
+x¶ﬂJìIª¥“-¥{À
+Z∆ˇ�\—aö∆XÏcö;ò>–·$hZ#µM∞GÎ›ˇ�é¸§xOâ7zç∏–!“ˇ�∂®åfÖ¨ºØ4LåõöUhÀ∞1|ç†í+¿~~◊û¯”Ò;P¯Em°x≥√ö’ßÜ4ﬂX€¯¶ ?Ì=UíhmÔ≠ñ+´âcQ4÷˜ë€]B¯BªÜS„'Üæ6¯ˆ4’|˚ ÈöNó„ù¡1Èû—ﬁtö∆ŒÓ÷ﬁ8†∂ä{»÷(û]ºóQ¨l ÜeXW√ﬂ≥á¬/å˝ª¨øhˇ�áüÏ¥/| ã¡˙Œ±„Øiz÷´ßkv´>°æ˛(ı€ÿÌÌ.b∏€oîØÀø6–'4Ó#•ˇ�ÇÖ¸wÒÖøhèÇø≥•ûçÒOQ“<u/äÓ5v¯cp˙eÏÕ¶hÛ5¥+©E®i≤ƒºçtb™∑îå€ˆÑoV∑Ì∑‡è|g∫˝äÙœ|]ÒOàºÑ4MG]õJ∆Í€]VÒÎWóæl*m ˚K®^:GΩ‹˘ C™«˚SxW„F©˚d|¯â‡kﬁ&˜Ço<Q{‚}cKæ—-“—u≠"}6›GV±∫ù÷fY%Ú¢eXéUôÚîﬂÉæ¯—·ˇ�¯(ø∆â> ªg‡Ôx_¡Zá‚«æ—$¥íè=À……m≠&ßSùR∑&œq`ﬁb∆£4
+õk˚r|*∫Ò~ï§¶ï‚a·≠w≈3xF¯àm≠èÜÆ¸A
+ƒ∂aIVÏﬂ©ñˆ¥ÇÍK%≥ûp#äwfP|ÎˆÑˇ�Çì|.¯·ø¯‚¸@Òßá˛Ãˆ~7ÒÉ,¨.4˝.ˆ$ÜImÔu+nf∑Y„˚Q≥äxÌâ+;∆  >-˝ì?bç[‡ñó¢~Ãüæxá≈1xW∆rÎ'ƒ÷ÒäK·{õ8ıyuKN‚¬„Z:ïæ≠iΩŸc“%çÆ£≥$MÊ'ó˛”û˝†?gÿ?ˆ∞¯„OÍöüáµ°Ò'«~¯óßÍ:SiRiæ({≠T¡®¡5Ù:ƒzç§◊RZÌä∆xÊÿå$D$¢mÇGÏú_µOÜß¯ﬂy˚=€¯wƒÚxé�7ƒm1R;i´i©,ÌúÔ|Ån≈’¬¡Â›ãeê¯wâøkáøødm3«øo|e·È~#ÎWûﬁü¶€Aãß‘,ÔÔ,µ+;7âoi|∞ióÓóØt±Y«ªvÃ¯€¬?|˚b¸;˝¶¸‡Ω[«^ª¯C}Á[∑ıÊóm}•]\j^•izÈ™Í:tSŸ»êMûLç,lÑ`ÿØÜ¸3˚˛”∞˛Ã_	5xÍÔƒ	>0x€≈7˛∂Ò-ΩÑ˛ –<[wØÉ.ü®€^A
+Ωı¥‘sC‹ˆ¬O&H§hƒò¶ÿ$}ô·Ø€k·◊Ï”˚#Î>7Ò¥|D~¯®x/ƒ.µd∑ﬁ0—fΩö4˚mba}uÍ≈ggçUnÁ˚\/•Êô‹∑‘ˇ�kø¸I¯€¨˛œöÜÅ‚Ô
+xõJ—ä-m|Yc§z∂àg«P∞xnnC¡√$r«?ì<L $âr+ÛﬂˆÉ˝û¸m‚ﬂÿÉ‚Ö˚>¸ÒFá‚øÎûû„@’ºC£\k∑ÉIª±îﬂjW7Z˝Œü≈ig‰@ëÍW´GOsÒÁ√_çoÌ‚;¯ƒ∫wÉo>¯è·Óß‚c°Ü”5Oj6†à–E¨=ÎõXÙ˘¢ñ[xeA9O-§åôB‘g≠xc˛
+É≈^=óÖ≠4oA°|@‘n¥¸@π∞Ñxk_æµÜÊÁ…¥ù.§ΩQqmg<÷ì‹ZCowo∑ñEe'è˝ûˇ�jøÜq|(¯ÉÒWP‘>%^⁄X¸\÷¸7˝ó„;8Ê÷b’LˆÆè§ÿÿ≈ÊãÁêGe€•D‹Û:†,ºˇ�Ï#s˚W¸%¯S‡oŸ/„¬õã6¯y°Y¯Nàv⁄Œì'á5-;E∑˚ùÊüWRkkº∑Ü6k[ç>›",˚¶¿Pˇ�2¯k¬?∑ßÄæ|A¯{‚›
+„ƒ?¥û°„=V∆«V«ˆˆ•‡jVkØÏi∆Øucm™'ïën¶∑uâﬂÏÚ˘€]¿˚kY˝†5O⁄C‡'≈æ	«‚/xˇ�·Œ•q¶œ§¯Ü(Ó”^“m≠5õ8n∆ÚÓ⁄ÔM‘°ñ›dÚnYf∂öD æB˝!˚7¸h—ˇ�hÔŸ˚¡?¥Mµßå¸+•¯öFq#[h€Gp–3�<Ê682û+Ú◊‡∂ùÒˆ4ÉˆóÒﬂä¸
+„
+#DÒ%Ìáç¸}≠kVæ#º‘/Ót'GÉEñS¨jZú˙‹˙ƒFÛ≠ÿÿ»âÀ)å7÷≤√èå≤w¿_Ä≤≈øÑW”¥Ô
++‚ä°’Ì°ã√⁄ïÜü†%§Äœ©G®Í/<÷Ï
+°ﬂ*Eéw˛
+õÒ„¡ˇ�Ÿûäü|u´xP±ÒèÖtkªù:œFºä‚Àƒˆó•\ôóX”5F∑∑ªñH^?,,ú»$Q∂πœÉ_˛,iﬂ∑Y˝ù¥àoÒ¡-‡+˝wƒ∫Ωı∂è˝°·-r÷˙⁄ﬁŒŒ‚Û@±”l6ÍPÀpRŒ{ct>Ã“Ú√gc˛
+Ωª‚ü«oŸ\¸¯U˛ˇ�‚
+∆Ø‚øj:ñù÷ãmhöváÆÈöù‰wCY‘¨#ïn≠meä8„YC1€&ƒ;è+«‡7≈œŸS„ÚøÏÒ‡ãÖ¯/Ò\-˜ã¸
+ß›È:mÁ√üÀqÀ™YD/RŒ]6ˆ ø⁄z|”ºW1ÌVQ#F√‹¢¸3˚r¸*Ò?å<?£[i^'∑˜å5õØ¯?‚Õµ∑¸#z÷©iˆímm¶éÓKÿ¸Òi9¥∏π¥Ü⁄ ˚4“Ôèåj_TèÖ⁄NÖ„ø‹¯‚ƒö√Oﬂx?∆˙Ω∂ÖëiŸˆV7”j3≈ˆ—t˙xÜ˘[6Õ:∆ÜY!Hö7ò?bØÿÎ_¯5·ﬂ~Œü˛Îöµˇ�√mR“M/‚qÒlS¯J‚="·⁄√VÉO}jMF€QÚUXYcàíbSŒHXIXü
+<IÒü^’øl_Åü	˛j~!∏ÒO∆-oK”|Q%ˆïo†Xﬁj~Âî£S[ã‰‘V$ÚÆ$ˆ7ts`∫∏Q6;v|Sˇ�Çå|.¯kÒf«‡Óè·?à~3‘ıè�øƒM_h√SÉX”÷Í¬ÿG`ˇ�hàM./“wwŸq)ﬂ(vD~”‚/ÌœØ·∂Ø¨ii>'øÔÖukm∆˛6”-≠•–¸7{uàı{∏ØY`äÍªñŒ÷Ê+@„ÌoÃ_˛¸]¯˚h|$O
+¯/ƒÁÄ¸˚=Õr„∆∞ﬂh±√ˆ…oº;,7ks´«©¥€ËÚõÜ[g}Ï¢5ó%´ƒ-ˇ�co¿_>.x‚¡Ø|U«≈/jû7“|E¶x¬;8u¯‡˚VõØÈ◊ö’î∞Cg4n[Ò-±@"2)B]à˝!¯ô˚c¯7·ﬂçµüiﬁÒóäèÖ#”¶Ò∂£·[K[´oE™©íŸÆ„ûˆ⁄Ú‡òÌ&üow$Pë$ä™Àöˇ�mˇ�Üu¡§x£Y—¸mˇ�·bx£@µ∑π“¸(∑0-ﬁÌGÃªÜÓO" HÓÓV∆⁄ÈÌ≠‰éYï‘üâˇ�i?ŸÀ„/å>?ﬂ¯Û‡oÅ¸W‡øàvéÅc·_ã~Ò
+ïøá5[ã6ûﬂ≈zd˙í‹_≠âkÿ
+•‹HË!kyósàpuˇ�Ÿ+ƒ˛	˝†~/i˛8¯E‚Oã>¯π‚¯JtÌ[√ﬁ*∑”mlˇ�¥4´-3P“µÌ:˜[“Å¥O∞‚⁄”%ºﬁKGπ26¿˚w‚Ì◊·O|t‘ˇ�gù¿ˇ�<Y‚;¡p¯Í%∆ôo5∂£ßÕp∂Í,n.ommÂur€ÃíFô]àœ!	^3Òw˛
+w·ø
+¸$¯=Òó‡ßÇ|Y„Ω#‚Áé,¸!ltË!∑∏“›Âû;®Æ`π∏ÄçA$¥∏Å .±¨±HdêmTóWE¯}Òw¬?P¯æ"È_µï.õ&⁄kvñç%ßˆï•˚j)k7¨õEÂm∂éy≠#lŸe¯3ˆ{˝´¸5˚¸4“Ô>Îk‚üÜü¥mˇ�≈ˇ�ùW@kÌSCøÒà5"l."’‰”çÃVZ‘d√suibtÜÍ≈€¬ˇ�
+¸=m©xK«:ñ≥'Ön|i·-"∆÷mWL“,∂}¶{÷íˆ:'âüj¿∑è4ÏÆ-íbè∑ËØá^=«≈_á⁄≈‹}ØFÒ&çeØiX+ÁYjGqo&#|R+`ÙÕ~]˛“æ˝¨æ=|Aº/â<„¯Vﬁ)¯[ˆ-/Kœât›˚'≈wç}‚¯¢Ê”Wµ‘'µé÷KEç4…ÔmN'
+
+√«’_∞èÖ<·œÿw·∑¬èã>’¸!Ø¯k·˛ç‡ÕcLæπ±öt∏“t¯,%û	ÙÎÀÿ2º-%ªyã&¬•„F˘iÖéG√_QøÄ˛)Òßá4[≈·Ø¯ûÔ¡^
+¯è=ú¬⁄ﬁød˜1ΩÖ≠ ]=ÿyd≥∏KYÊ¥ä÷È£"ﬁiN3·^'ˇ�Ç»˛œ—¸}‚´ø|\∏—>x∏¯G∆öΩØÖÂÚt…#éíˆ·&öc≤O=A%>—Ä_»Ú ;¸Y˚~¿ﬂ>x¡ü≤««èÄÚ¯ú|:Òê÷¥ãc∆¿xfHmı9Ô≠5x¥w‘eæ¥’≠“VZ¶õ±¶t–«#:€æ˝õølMSˆ}˝∂<>¯ñS„WâımK·˝¥∫œÖˇ�”-ı]:
+5gO4v¶Äœ2  |¶_ô&cv4ë˚ÒSˆº¯wÁSÔÖ|5ßkﬁ:Òã4kØËTV◊:ç÷çd∞¥˙â7óv6ê⁄'⁄!DyÆÕ$ã+$ám|Á„œ¯+7Ï´‡_áü
+>(y~-’4èäzƒ⁄Ö>ô¢\ m/ÌT∫≥øR√®A-ºƒ∑RÕ$Q8˘á¬_do⁄KM¯ï;ˆÆÉ·vø„–~C{‚√+ŸËZ˛ó%¥–]E®Ÿ]⁄ÍÈó†‹B…,#Q¢1∂“Îà˙üçü≥∆-G˝úc˝û~jöNõ‡èç‚üä¸1¢xìC∫ìMµxØ"ôd∏’5ãπ’.§ªGm$ˆ·Éè¥±¡vÿYyœˇ�ØÖ¥¿_µx£¬wﬁ:_ái£[ÿ¯óK–tÎëg5Óßm©_ÿ¡j
+¡≈⁄‚f E∑Ú«≈/¯(ø¬øåˇ�≥7√üé÷±|já¸eÒ[√:OÉı?A¶ùl\\[˘k}=Ω÷ßge£]K+€]Eu,e†í1	e(ﬁ{˚{ÀÒ'‚?Ì¡·ù7ˆC—©Ò#¬ﬂ
+/¢¯Åk§¯∫¯ñ?
+¯ÜÊcbów⁄vØ§›Zµ≈•‘“à°{ãyíé‚ÿH¶oÒ^ÅÒˆç˝Ä˛¸˝ìæxáD?æ;hZvØ·ËvˆﬁªÇÚ˙K}ZÛV≥ÉU˚KŒ—$—33]$Î?ñTí6¡#ı≥ˆúˇ�Çà|˝ñà?·,±ÒVæû
+”Ï5èM·=9o¢Óü©M‰€‹_…,ˆÈÛêd6ˆÌ5–ày¶,Ü?cÎ~7üá<wÒ#[ø∑∑–¨4©uªÕQ€˜XA	ûKÇ¿›¨*\êøüü€Ûˆ{˝øˇ�kò>>|ÒÉºU™xoZ∂ü/¡#£¯ßN—|;k5Ω¥Wñ∫›¨•µÌˆ©=¸f8Ö‹wöxmò0DÁıÎMè‚ûΩ˚˝ÇoBæ.ì·¸ñ·ﬂão-õ‘≥h?≥Ø.¨¶ª¥Xo
+˘m"HÍâ&\d2Üòö8ˇ�á∑◊¬ﬂYK‚_x∆^
+”xâ∫_å<eekk¢Í^µÕ5ÙW◊∑ojcéÚ	Z⁄˛;[Ø-˜˘8
+ä?‡°ﬂ˛,¯ﬂ¬æ∫—<k·)> iw:œ√ãˇ�iiß⁄x™““Ó%m9í‚yRam ∏[[ÿ≠Æ^dXä◊Â'Äø‡ôü|O‡_ãˇ�~Ÿ|B¯Cã«Ó¸;¶|<¯ï‚-vﬂLÒ≠≈“À
+∆ê∫nß¨=ûçºM
+–í‰=«ùîâïèßm>˛‘ø¥èƒøŸ∆âøÔæiønèâº[´_j∫M‹zÆØk•6⁄«B]2˛Ó‚[)‰ôÁökÿ¨¿ÖV3ê≤"ªë⁄^ˇ�¡ifù/¡)¯•©¯G‚ƒOƒKØÜ˛.Òûí;]ˆ—lDó:Ç…4s€[}¢˘ ÿbkîu˝‰áåøŸøl_á_º}°¸!”4Øxﬂ∆û!“n<EßxG¿ˆ÷˜∫Ä—≠#õRùÆn¨Ì-¨Ñ≤,q…5¬§>\"GkÒR˝îømMoˆ	˝∞>	¬†Ò%øâ~2¸jÒ'ç¸ß\k^"m+ƒriÌ‹Màil◊Ocu99ñ!	õ˜û_€©èˆÜ¯K˚^¯Sˆ‰–~xÉƒ÷Zø¿õ?Ö^,5Ü°°ßàÙCOøÖµƒMu´A§\⁄ÃdíÑ∑‘IF0Û`•ÿXˆﬂà_UOŸg·ˇ�¿
+˛“ﬁ$‘º=‚œ¡‡àçÜó(õI÷$∫˚$ˆ˙»õ M-Ïß≥§Ï$;ííúg£è˛
+-¬„¿Z_ä≠ºÒC˚o\MjÔH¯w·◊∞ÒM∆ü°|˝AÏØ¶∂éŒ dãÃµíÚx·—L§∆?(¸˚~ÿ˝ê¨¥¿óû&ÒØç?jœ¯hø¯oA÷4hÌ|7e&≠†˙j›jzñõƒ…o"˝î<Mpd%ÇbG˚«ˆ§—?lÔä¥WÑ¸=k·?\¸◊˛\[ÎöGÖ<IßxwW“¸ew8ÿ⁄ıÂ∂´my&ìibJºz=Â¬ºæfR‰yHÂÿ;°?≥˜«èá¥◊¡?
+¸¯Sq=◊á|S•«´ií‹DbúF˘í«ñŸ,N≠ä	√)�ö¸Áªˇ�Ç–˛Œ	ÒW≈ø|]_
+¯«˜ø|a‚·iE∂âw`ñfk≠B7ô.mÌV[¡	O)Æcd&X#Våø¶¡!˛|i¯	˚¯+‡«œ
+]¯Sƒ^é˜CπÇ‚ˆ¬˙+‰sŒóñ“X]\®∑ïfDﬁ\ªï≤õv≥~B|≥¯ÛÒØ‡ˇ�Ìª˚"|¯¨øƒ⁄[‚Wá"Ò’≈˛ïo·ÌjÎce}%˙M~∫©óO∂≈ÃKka?ûÓàÖJ»»6?x„˝∑>ﬁ˛—ì~Ã.ì‚]GƒOÂ˛)hwVP⁄>õÆËhBütoT4Ú\\,(óñã ªx&πˇ�l˝öt/Ÿ«ˆ–π“¸mˇ�µˇ�ä§j€∂îÂÆ£˚ÈÆoòN÷ñ6ÀwS4˜
+@PŒ á∆¸G˚3¸z˝õmˇ�É?>
+x:ˇ�‚/Ñº;)˛kCO‘tÌ>ˇ�M6˜vw6∫î´©ﬁ€,H∂€eXûIWÖv*≠ı˜Ïi˚rŸˇ�¡&&˝ñW·eÌ˜ç'¯Œﬁ.∑”¥›{BÚ∆í<N5Ûq4˜öçåQóÑcâYÂ.T»ëÇ€F¡$~–È?∑Ô¬›c¡öoâ‚œƒK]Kƒ>$ø◊Ñ|!™x~m;ƒ¸ö|~{ﬁYY]º^ô%∏ÛRˆÒÌ°è1ëôT˚Ïµ˚M|7˝Ø>iﬂ˛.•ô®\ﬂXIc≠[ã]B ÛM∫ñŒÍ⁄ÍíUéhgÅ‘Öë‘å2≥)æ=˝≠Óˇ�lÔ¸E¯KqÎ¬6ó·ñ°®~*xc¬zˆè°¯∂ﬁÓX¢ZK®
+^› 	|÷π˛…’V8˝„®˘?HÅ?ˇ�eﬂŸ”^˝ü>2xFÛ√rh^?Òﬁã®K™ZÍ∂∫æõ™jvÛ€M‘˜•R'EvæéôéJñﬂá}Ec“≠ˇ�j9øioå~&Òˆ∫æ¯s√∫vï´;»¬⁄ÔW÷,°÷ÔØ.vå»tÌ<Ÿ[⁄BÅõÃ∏π·ù£Îˇ�
+ˇ�kˇ�xÎ«V_
+|K·üx'[÷¥kü¯^√∆VVˆ≤k∫}üïˆô,æÀyxˆ‚xök+ü"ˆ5pÕ�PH¸Ë¯≠˚.¯«∆æ8˝©øeΩ{}2˜‚ËÔ≈ÔáwZâae}u§[È6Zù¥“ gÚ°‘Ùõ%ºM≠≤ﬂPàÖp≈kÍØ|q˝¢øiœÖ<]‡
+s¿:O¬ãok7∞kzéëuy´Î:÷ò⁄TVL‘o#{(bûyÂ∏∫í‹<ãn3˚√∏3?Aˇ�Ç©|’º+oÒSgƒ›'¬««wıoÍö40ÿhö¥Øˆ*çO˝4‹C∫Üÿºÿaôb.¢sÓE˜œé¥«Ñ|5‚S‡ÜÉ†¯Á∆:Ù>«àl~¨˚C“ÔL—Au5Õ≈˛û∞O9ÜvµÇﬁY/%ÚY¢ÖÇÊø.5œÄüµÆ•ˇ�Î¯≥Vﬂ·?âGã|WÒ´]Ònâ¢>Ø·Ä“È:«ãœàb∏{ÅØõH¸õ1ÂKL$Ûÿ*#¶ÈÏËﬂ¥W¡o€O«_Ïækﬁ)ó∆'¬óãs¶jZ$7ﬁ’t[,n,µXo5;uíÕ£)8üNñÛlæj™IΩù˝ÄiÎΩ7˛	√C«?n|S„?xÀAÇ⁄¬ŸÍöÓµ~∆y…5‘…˘p∆Zk´Àò†å�U É˜áÏÌÒˇ�¡¥œ¬€oäﬁ∑‘Ïm§‘5=ÛK÷·K}GO‘t{ŸÙ˚ÎK®£ñx÷k{ª[õyï^)†ï$F*òè i~|o¯ø˚9¯«ø5è
+j_≥ıÔ≈=6m_ƒ∑ZœÜ<Aa}qoÿuS*Í⁄_ÑÛV⁄Idå5¨à�Ö⁄6–Gƒà⁄áã?aI‚ØÀ/ƒÕk„;f’n_O◊xÛVé{ª3)µñÈo«üˆëïé≥@øßﬂgÖ?	WXó√W∑wæ!X£◊ıj7∫Óß®«nç1\^ÍwW2[¬é‚+0C˜ÿãΩ≥‡æ
+ˇ�Ço˛»ˇ�Ô|#{·Õ^ˇ�äSìVDﬁ(◊Ô≠Ùeâ†1È‹Ír≈ii‰;GˆHïm ‡4gj·XgÊ˜ä<=˚B|s¯õÆx]W‚Ãû5≥˝†ˇ�≥u{ü
+¯ã[—¸g–\≈9∂kù&ˆ”L∑Ωû2—´Æ±˝§Í«˜D˝2˝º¸	e©ˇ�¡?~*¯*CZ≤Ü”·~π‰ﬂX_Õ°˛Å¶Õ${Æ˜üÃ0®ü{9K,õïÿœmc˛	ÅÒ#«±¯í?àæ¯^|uØﬁj∑Ì	·˝{[—ºTØu,ød‘Nãa¶ZD/¥Ë)[Ú¢Ã¥gˆÚˇ�¬∫F∑·	º‚d:≠Öﬁö˙V°˛$7ñÚƒaîMÄ°º‰,�ì¿§êáü⁄~4¯˚=~Àˇ�>^¯Û[µ¯µw¶€xÜÊo 5Qiß¯J„Tvõ™_›ƒtµΩ∏≤âqo,N!¨&taü˚LÈ?µø√Oÿ7‚ÿÒn∑„üŸhæ3ˆ°œS«©xôtKÎù&⁄˜N‘ı(ûÍk∏cΩû˜ iÁíi-ﬁ$ñGÿA˝&±ˇ�Ç}~ ñ‚˝ùn4=[P≠•˝û••[jﬁ"÷ÔÔtõç8*ÿæï®‹Í2Í:WÿQBZãàD+êòﬁ˚Øxìˆ˝õºi^Ô‡çlºQ¨xwQø∑‘µV‘|]‚9µMB‚—ï‡7ö±’µnbÜDWé	nöeR®6ÆQ‹¯Çˇ�·7é5€K‚WÏÆøæ+C·çK·áÒ/NxºIr∫ÜìØ\jö÷ù+ŸﬁÇ.¢≥ëm!îÿ,ãiΩHÚ∂É∆·¯•Ò„èÏÈ˚|RÒ'é<W£Í_5˝#EÒ°˝¯”·÷˜Ñı´π•πDèkŒ˜v…X›Ÿ£UêFÈ˙≈/Ïkoâ˜ˇ�‰∑ÒG¸$˙üÑb-ÓÆæ.ÒÀ&â�.ÿ(’Dh»ÚI2Œä≥â‰y¸œ9Ÿœ¬ﬂ¥ˇ�¸G˛oá>˛Õ˙&ìÄ~|C¥Ò€iæ!ÒœâtÌFßY_ZŸ€ÈzÑ6⁄æ°j÷≥ﬁ%‹-‹K@®©µ…Q†MÒS„'«ˇ�ŸR¯˚?·˜å¸G‚
+'LÉ·m◊ÑºM„¶◊5œÒ[∏–uñˆ…=‰VQ@∫çö‹˘¬&`≤oç±_`ﬂi^+¯˚bxˆvüã¸m´¯k‚∑Åºb⁄Ã>!÷ÆuùKI‘º:∫c√¨i˜óœ<÷bq©I–'˙* mÃ0«µÅ˚√ﬂ≤∑¿ù·ﬂà˛]x~-SLÒßßô'åóƒ7W:›Œ∑$–GlÌ{®KqwvV“º…1hâEUU£‡OŸ#‡ü√ΩKR◊Ù(<Cq´jö/¸#rÎ⁄◊â5≠[W∂“≤XYÿÍ7⁄Ö≈Óü�r$≈§–ñëVV&EWÑ~]˛ƒW~!/¸Œ/⁄Û„'∆ü«®j‘tg’ºG3Î⁄~ñ«[∏∂µª∂“Dm%˛≥4€$ïßíi•*º∏’ød|I≥˝±~-|◊ü‚4á·áÉº[¶iü5Xı]EoØÆ5˚;ÀÎ.˙¸X[Íc5âhDRFJ€¿a˙ˇ�@˝Åˇ�e
+˛ŒZóÏïa†j3¸=’P•«áu]Z‘÷/ÙèµÜµ∏æ‘n.Ïù.ˇ�“Ì¶âí`$R£~¡ﬂ≥ŒÖ‚ˇ�¯X+„CØI·fmˆµ/ç|J˜˙Üóæi;Îì´Ø%∑{ôç¥”;KoÊ T⁄Yç>ßÑ¡-¸‡ˇ�ˇ�¡3>…‚≠:÷˝≠æi€õî‹cK€≥‹*˙	†vç˝Të_s|Yº’º3ƒ◊ˇ�Ìﬂhæ‘f–¨a˘Tœgg#Zƒü›—zT>|0˝ö~Èü>
+Ÿ^iæ—b˚>ïß^jW˙©µÑ}ÿbõQπª∏XP$^fƒ(ÎÆâ"‰ïÅ§dzÇ=
+4&~˛ÕZæ±¨¸˝ådœk∫∆â·?|πÒ∑äµçÚm3S’ß—Ù≠OÏËuwKÀ3sy¨Õyw$EpE∏UïCKüºˇ�cOxﬁãﬂˇ�fÔÍ˙èàÙüÜ~.“-<3ÆÎ35ﬁ£ˆ{E≤’õNºªrdªõNöÂ’&î¥Õo$"Ww«°'Ï1ø√ﬂ	ÙﬂÇ>&YÔt?xéÛT¯c{¶]›È:œÜÏ.DÜKmF∆{{∏æ∆óW1¥R®ñ¿G‚Oﬁ˙;·¡Üˇ�<7?ÖæiÔgoy®O´Í7WWÖı˝˝—kª€Î…Æ//n§⁄°¶∏öG⁄™π⁄™H¯ÂÒ{¬|[˚G˛÷ö=üƒﬂÏöÜõi≠».tÊEÑ…ßœ&ã$…*oñ⁄XÄ\Àiß~ﬁüæx#„≤˛“˙>á®¯ì‡µ˛ìªx$Mgc‚(ºKgm>çQ_Os-ïÃ◊w"Œey•U`$RTÖ¢·cÙÜÎ‚O√´Z|/æ◊ÙX|Mg.£c·Ÿo†MN‚÷â'ä–».$Ü3˜‰T*ΩÕvµ¯π≠X˛“P¡Pg€Ô⁄_\5◊Ä~$ΩâuçÌ§ñí˘~3Ÿ‹Myyto£Ñ≤nQ-∑ñì6Ò‡nı_ã∂ˇ�≈Ñ¥∑Äæ¯£˛˝ùáç>&E˛/ã„{„”ØlnÆ,¸@ÔÁŸÌmﬁÊ‘£Ÿ…g'ÓùÌBC‰—q≥ı:ä(¶ ¢ä(�¢ä(�¢ä(�¢ä(�¢ä(�¢ä(�¢ä(�¢ä(�¢ä(�¢ä(�¢ä(�¢ä(�¢ä(�¢ä(�¢ä(�¢ä(�¢ä(�¢ä(�¢ä(�¢ä(�¢ä(�¢ä(�¢ä(�¢ä(ˇ◊˛(¢äÛŒÄ¢ä(�¶IJç™XeaêAÍÓ
+>ä�Ç;[Xô^(„VH¸•*†É¯G¢Ò”•OEUÏl§Ûêƒﬁv—.‰~ﬂªªèõ≥“≠QE�Aˆ[ﬁES7˙÷QµõÄπ$rHP�=Ä'Ñ‡ûûß√D¯?è~!Íﬂ‚∑˛Œã·æ≠6ë.ô˝ô∏üÏŸ/£—‚◊ß∞�Ñ1À©ª<yäGxâJ˝¢ã�Ä�08ÄFêCºë"´H¡§e� èrìÿR—@R∆ 0Ç8bQ¥±·�⁄Ôªs/3nlë……ı5Ê_æ¯S‡∑áot?õâÁ’ıªˇ�Îöù·V∫‘u]NS5Õ‘≈#Áâ,qƒâ(DQ^ØE�]--#68£V,\∞PÊ'8Í@�ûıbä�)âF6∆°FKaF9cí~§íOΩ>ä�éhaπâ≠Ódç‘´£Ä  x É¡“ï"ä6fçUK∂Á `±¿\üSÄO`>ä�äXaùBNä‡2∏îÜSœu {ökZ⁄¥j—∆bìôQµº¬Kdt;â%≥◊'5=
+€€§æz"ÿ#ﬁÿπ!s◊�ìÅ”ö.bí{i äWÖùhÇóåëÄ ]/QπXg®#äöä�˘Wˆ\˝ît/Ÿ_K◊tè¯ß≈^&á_Ò©‚ãÉ‚ë§¥êj›‰⁄Ü†–IßiZkàÓnÁyLRaÍY ÜfFôåmæ2¿≠Ç23–‡ëëÿ‘¥PêD∞B≥5¬¢âU]¿ôW;A=Hélöñä�˘ˇ�ˆÑ˝ù¸7˚Dh∫û≠¨xá√öüÖºGã<5‚\C
+˛ù™[¡qj≥"]€ﬁX‹#[]œ√wk<,≤¶@"Üˇ�≥∆ü‡Ø¬‘Òóâ<E„¶è/áÌ<A‚qßE5ûôq,7∂÷˙Nü¶YDó–À3˝ù¶ê≈i
+∆äøCQEÄ*?&;ÌÃ€≥~ÌπŒ3◊Á%¡L◊
+ä$p™Ó�‹¡sÄORN3”&•¢ä�(¢ä�(¢ä�√Ò6ëwØ¯rˇ�B∞øª“ßΩ≥ö÷-SOÚç’£ Öy—Õù;”Ãç”pïÜEq˛¯?Ô·ó¬M3‡gÅÙÂ”¸/£Ëq¯wO”`íAÂX≈ê©ÊÓÛãî˚“óÛâb€ék”(†Ç|˚xc¬üÙØÇZœè˛!xè·÷áçÆó‡
+v]¥ËÏ¥∂â¨l•ª¥—m5õ´KVÇ-±‹jy™Ç9Ã—ñC˜ã¡í$“"≥«ü-»Æ·ÉÉ‘dpqR—@Uk'ﬂæèöÎ$ô@w≤ck7©]£Ù¿Ù´TPsCƒMÍÆé•VR0AÇÍ)´oní˘Ëà`èxPb‰Öœ\NNjj()`Ü}ær+Ï`È∏µáB3–é∆•¢ä�*(`Ü⁄1
+∫,h3Ñ@úûûjZ(Áè?≥fçÒÀ[∑ç-¸I‚èxó¡ww∑~ÒÖf¥˚EøˆçøŸÆ‚ñ€R≤‘t€®gá
+V‚“BÑçëæj⁄¯[E¯q‚≠S‚6≠¨Îû+ÒfµßŸièä<Hl≈„i⁄tó2⁄Ÿ≈ùgßÿ[€√-ÂƒòÜ’Gê¥≠!
+W›h¢¿E$K"K*#4LZ6`	RARTˆ$8ÏqDP√nû\®ªôˆ†�nbYérƒí{ìöñä�àAò‹Ñ_0®C&‚†í=p	$zñä(∑∑iÖÀ"√ïÇ±Æz‡ê	¬ö,Ì	j"è ãoó—µ6cn—–m c1≈X¢Ä {[Y$3IlÌàπPIC…RzÌ'∑J‚˛$x?àøıáI©j:Zæõ.ñ˙éä-æŸmÍcs�ª∂ª∂c%Aí�ÄÓË†˝öæhø≥¡ù‡Üı≠o^“¸7¶YËöEÁàEá€¢”ÙÎhm--ﬁM>«OéeÇVI"i[ùÓ‹c€ö∆…˜ÔÜ#Ê∫…&PÏò⁄ÕÍWh¡=0=*’�UScdw_<´;¸ÉÊëvÌs«,6ÆQÅÈV®†£ñ(ßâ†ùU—‘´£å´)‡Ç‘TîP⁄⁄‹€õKò„í&Z'P»@ÏTE|›ÒÀˆe“~3¯”¬ˇ�4øxØ¡û+t:ï¶â‚
+Àd“M`[€[ãMR«R”Æ`∏6vÏ|ÀS"4`≈$g$˝1E�xo¬ﬂÄæ¯k™Îû-ø‘uoxìƒ∞Ÿ⁄k˛&Ò!µk€€M8N,ÌLV6∂V€Z˝™sVˆ±)idwÓÃ}±mÌ“_=ÏÔ
+l\êπÎÄI¿ÈÕME�Uk&∑6çF&%ö"Éa%∑W$∑'ﬂöïaÖ$ië;„{ÄmΩ2zúvÕKE�QE�0Fä≈’@f∆‚'3Îä}P�N˝ih¢Ä
+(¢Ä
+(¢Ä
+(¢Ä
+(¢Ä
+(¢Ä
+(¢Ä
+(¢Ä
+(¢ÄÅ
+(¢Ä?ˇŸ
+</script>
+
+<div id="intro-view">
+    <div id="matrix-text"></div>
+    <div id="intro-final">
+        <p>[CONECTADO - SALA DE CONTROLE LIMBO_01]</p>
+        <p id="carregando-text"></p>
+    </div>
+</div>
+
+<div class="container" id="main-container">
+    <div class="header-ascii" id="top-header">
+<pre>
+  _      _____ __  __ ____   ____     ___  __ 
+ | |    |_   _|  \/  |  _ \ / __ \   / _ \/_ |
+ | |      | | | \  / | |_) | |  | | | | | || |
+ | |      | | | |\/| |  _ <| |  | | | | | || |
+ | |____ _| |_| |  | | |_) | |__| | | |_| || |
+ |______|_____|_|  |_|____/ \____/   \___/ |_|
+ 
+ SERVER STATUS: CONNECTED // USERS ONLINE: <span id="user-count">84</span>
+</pre>
+    </div>
+
+    <marquee scrollamount="6" id="top-marquee">
+        [AVISO DO SYSOP] O BUG DO MILÊNIO NÃO É UMA FALHA, É UM RECURSO /// MANTENHAM SUAS FREQUÊNCIAS CALIBRADAS /// A JANELA ABRE NO ZERO ///
+    </marquee>
+
+    <p id="top-ip">> CONECTADO VIA IP: 212.45.01.01</p>
+
+    <div id="forum-view">
+        <h2>>> BBS BOARD: DISCUSSÕES GERAIS E ANOMALIAS GLOBAIS</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>TÍTULO DO TÓPICO</th>
+                    <th>AUTOR</th>
+                    <th>RESPOSTAS</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><a id="link-thread-missing" onclick="abrirTopico('thread-missing')">[+] Onde está LiN99? Alguém teve notícias pós-virada?</a></td>
+                    <td>CyberFreak</td>
+                    <td>4</td>
+                </tr>
+                <tr>
+                    <td><a id="link-thread-jp" onclick="abrirTopico('thread-jp')">[+] 2000年問題の結果について / O Pós-Bug (JP Board)</a></td>
+                    <td>AkihabaraGhost</td>
+                    <td>3</td>
+                </tr>
+                <tr>
+                    <td><a id="link-thread-chips" onclick="abrirTopico('thread-chips')">[+] O hospedeiro de silício: Chips, Memória e a Cinza Estática</a></td>
+                    <td>SiliconGhost</td>
+                    <td>4</td>
+                </tr>
+                <tr>
+                    <td><a id="link-thread-nil" onclick="abrirTopico('thread-nil')">[+] [Y2K] A Janela de 1900-2000: Frequências e Acesso (LER)</a></td>
+                    <td>LiN99</td>
+                    <td>4</td>
+                </tr>
+                <tr>
+                    <td><a id="link-thread-livros" onclick="abrirTopico('thread-livros')">[+] [TEORIA] O Parasita Interdimensional e o Ponto Zero Absoluto</a></td>
+                    <td>Mythos_Byte</td>
+                    <td>4</td>
+                </tr>
+                <tr>
+                    <td><a id="link-thread-militar" onclick="abrirTopico('thread-militar')">[+] Movimentação militar estranha e Black Vans (Nevada/Ohio/NY)</a></td>
+                    <td>DesertRat_NV</td>
+                    <td>5</td>
+                </tr>
+                <tr>
+                    <td><a id="link-thread-grid" onclick="abrirTopico('thread-grid')">[+] Flutuações na rede elétrica: Zeros e Uns nos postes?</a></td>
+                    <td>Grid_Hacker</td>
+                    <td>4</td>
+                </tr>
+                <tr>
+                    <td><a id="link-thread-radio" onclick="abrirTopico('thread-radio')">[+] Sinais estranhos interceptados na antena de rádio</a></td>
+                    <td>RadioHead88</td>
+                    <td>3</td>
+                </tr>
+                <tr>
+                    <td><a id="link-thread-estatica" onclick="abrirTopico('thread-estatica')">[+] O espaço entre os códigos: Alguém mais viu a estática?</a></td>
+                    <td>Chrono_Hacker</td>
+                    <td>3</td>
+                </tr>
+                <tr>
+                    <td><a id="link-thread-limbo" onclick="abrirTopico('thread-limbo')">[+] LIMBO_01: Mitos, verdades e o "Loop de Erro"</a></td>
+                    <td>SYSOP_X</td>
+                    <td>5</td>
+                </tr>
+            </tbody>
+        </table>
+        <p style="margin-top: 30px; font-size: 0.8em; color: #228822;">> Sistema monitorando leitura de arquivos...</p>
+    </div>
+
+    <div id="thread-missing" class="thread-view">
+        <h2>>> TÓPICO: Onde está LiN99? Alguém teve notícias pós-virada?</h2>
+        <a onclick="voltarForum()">[ Retornar ao Índice ]</a>
+        <div class="post">
+            <div class="post-header"><strong>Usuário:</strong> CyberFreak | <strong>Data:</strong> 02/01/2000 - 18:00:00</div>
+            <p>Alguém conseguiu falar com o LiN99 depois do réveillon? Tô mandando ping pra ele desde o dia 1º.</p>
+        </div>
+        <div class="post">
+            <div class="post-header"><strong>Usuário:</strong> TechMage | <strong>Data:</strong> 02/01/2000 - 19:30:12</div>
+            <p>Nada. Os pacotes simplesmente não voltam. Ele tava pirado naquela calibração do walkman. Será que o servidor dele caiu com o bug?</p>
+        </div>
+        <div class="post">
+            <div class="post-header"><strong>Usuário:</strong> AcidBurn99 | <strong>Data:</strong> 02/01/2000 - 21:45:22</div>
+            <p>No meio de tanta teoria maluca, ele era um dos poucos que testava na prática. Queria muito saber o que rolou quando o relógio zerou.</p>
+        </div>
+        <div class="post">
+            <div class="post-header"><strong>Usuário:</strong> CyberFreak | <strong>Data:</strong> 03/01/2000 - 00:20:11</div>
+            <p>Será que a porta abriu? Alguém tem o telefone dele lá em Swallow Rest? Dá uma ligada. Tô achando que o cara esbarrou no que não devia.</p>
+        </div>
+    </div>
+
+    <div id="thread-jp" class="thread-view">
+        <h2>>> TÓPICO: 2000年問題の結果について / O Pós-Bug</h2>
+        <a onclick="voltarForum()">[ Retornar ao Índice ]</a>
+        <div class="post">
+            <div class="post-header"><strong>Usuário:</strong> AkihabaraGhost | <strong>Data:</strong> 01/01/2000 - 10:15:00</div>
+            <p>2000年になりましたが、世界は終わっていません。停電とATMのエラーがいくつかあっただけです。LIMBO_01のゲートは嘘だったのでしょうか？</p>
+            <p><i>[Tradução: Já estamos em 2000 e nada acabou. Só umas quedas de energia. O portão do LIMBO_01 era mentira?]</i></p>
+        </div>
+        <div class="post">
+            <div class="post-header"><strong>Usuário:</strong> Neo_Tokyo_2000 | <strong>Data:</strong> 01/01/2000 - 11:30:22</div>
+            <p>私のPCも無事です。時計が00:00:00になっても何も起こらなかった。完全に騙されましたね。</p>
+            <p><i>[Tradução: Meu PC tá intacto. Meia-noite e nada aconteceu. Fomos totalmente enganados.]</i></p>
+        </div>
+        <div class="post">
+            <div class="post-header"><strong>Usuário:</strong> Kansai_Coder | <strong>Data:</strong> 01/01/2000 - 14:05:10</div>
+            <p>少しがっかりしています。アナログのノイズ対策でカセットテープまで用意したのに。ただの集団ヒステリーだったみたいですね。お疲れ様でした。</p>
+            <p><i>[Tradução: Tô decepcionado. Até preparei as fitas cassete pro ruído. Foi só histeria. Falou, galera.]</i></p>
+        </div>
+    </div>
+
+    <div id="thread-chips" class="thread-view">
+        <h2>>> TÓPICO: O hospedeiro de silício: Chips, Memória e a Cinza Estática</h2>
+        <a onclick="voltarForum()">[ Retornar ao Índice ]</a>
+        <div class="post">
+            <div class="post-header"><strong>Usuário:</strong> SiliconGhost | <strong>Data:</strong> 01/01/2000 - 09:00:00</div>
+            <p>Esqueçam os cabos, a energia é só a rodovia. O perigo real tá nos chips e pentes de memória. Pra se manifestar fisicamente, ele precisa alocar código no silício. Precisa de um hospedeiro de verdade.</p>
+        </div>
+        <div class="post">
+            <div class="post-header"><strong>Usuário:</strong> TechMage | <strong>Data:</strong> 01/01/2000 - 10:15:30</div>
+            <p>Tá explicado o ódio pelo analógico. Fita cassete e rádio de tubo não tem onde ancorar. Sem processamento, o bicho fica cego.</p>
+        </div>
+        <div class="post">
+            <div class="post-header"><strong>Usuário:</strong> Hardware_Junkie | <strong>Data:</strong> 01/01/2000 - 12:40:15</div>
+            <p>Alguém mais notou o resíduo? Fui abrir meu 486 hoje e o processador tava coberto por uma cinza muito fina. Toquei naquilo e parecia tela de TV antiga. Deu choque no braço inteiro.</p>
+        </div>
+        <div class="post">
+            <div class="post-header"><strong>Usuário:</strong> Chrono_Hacker | <strong>Data:</strong> 01/01/2000 - 14:20:00</div>
+            <p>Eu falei da poeira! É o rastro da alocação. Se a transferência falha, ele queima a placa e deixa essa 'estática física' pra trás. É a assinatura dele.</p>
+        </div>
+        <div class="post">
+            <div class="post-header"><strong>Usuário:</strong> Circuit_Breaker | <strong>Data:</strong> 01/01/2000 - 16:00:00</div>
+            <p>Vou arrancar as placas-mãe daqui de casa e jogar num cofre. Ele vai morrer de fome no meu quarteirão.</p>
+        </div>
+    </div>
+
+    <div id="thread-livros" class="thread-view">
+        <h2>>> TÓPICO: [TEORIA] O Parasita Interdimensional e o Ponto Zero Absoluto</h2>
+        <a onclick="voltarForum()">[ Retornar ao Índice ]</a>
+        <div class="post">
+            <div class="post-header"><strong>Usuário:</strong> Mythos_Byte | <strong>Data:</strong> 25/12/1999 - 19:30:00</div>
+            <p>Esqueçam o lance de código. Isso é um predador psíquico. Ele não te puxa à força, ele reorganiza a sua vontade. Manipula a sua realidade até você achar que ir pro Limbo foi ideia sua. Ele só entra com convite.</p>
+        </div>
+        <div class="post">
+            <div class="post-header"><strong>Usuário:</strong> Void_Walker | <strong>Data:</strong> 25/12/1999 - 21:15:22</div>
+            <p>Ele não age sozinho, é só o cão de caça. Entidades mais antigas tão usando a fenda do Y2K pra abrir portões. Precisam de um Vácuo Temporal pra ancorar a ponte.</p>
+        </div>
+        <div class="post">
+            <div class="post-header"><strong>Usuário:</strong> Chrono_Hacker | <strong>Data:</strong> 26/12/1999 - 02:40:10</div>
+            <p>Exato. A virada vai causar uma 'sincronia zero'. Um saguão neutro fora da existência. Quem acessar esse Hub sem ser devorado, pode saltar pra qualquer ponto antes do colapso. O duro é sobreviver à pressão lá dentro.</p>
+        </div>
+        <div class="post">
+            <div class="post-header"><strong>Usuário:</strong> LiN99 | <strong>Data:</strong> 26/12/1999 - 10:05:00</div>
+            <p>Como sabem de tudo isso? Achei que tava sozinho no analógico. De onde tiram essas paradas de Hub e parasita? Não sei nem 10% do que tô enfrentando. Me mandem as fontes.</p>
+        </div>
+        <div class="post">
+            <div class="post-header"><strong>Usuário:</strong> Mythos_Byte | <strong>Data:</strong> 26/12/1999 - 10:15:22</div>
+            <p>@LiN99 Você tá engatinhando. Vai numa biblioteca física. Procura "O Arquiduque das Sombras" (Elias Thorne) pra entender a persuasão desses bichos. E pro Vácuo, lê "A Teoria do Hub" (Dr. Aris Vane). Lê isso antes de tentar atravessar, senão você já era.</p>
+        </div>
+    </div>
+
+    <div id="thread-nil" class="thread-view">
+        <h2>>> TÓPICO: [Y2K] A Janela de 1900-2000: Frequências e Acesso</h2>
+        <a onclick="voltarForum()">[ Retornar ao Índice ]</a>
+        <div class="post">
+            <div class="post-header"><strong>Usuário:</strong> LiN99 | <strong>Data:</strong> 31/12/1999 - 23:45:10</div>
+            <p>Consegui. 1900 foi um erro de sintaxe e 2000 é o próximo. O Multiverso é um loop de código. Tô usando o walkman e uma fita velha pra estabilizar a frequência. A equação bateu: (E=h*f)/Y2K_Bug=ACESSO. Se a onda atingir o pico à meia-noite em ponto, a porta abre. Vou tentar hoje.</p>
+        </div>
+        <div class="post">
+            <div class="post-header"><strong>Usuário:</strong> Null_Pointer | <strong>Data:</strong> 31/12/1999 - 23:48:22</div>
+            <p>Você tá insano. Baud rate de um walkman não segura a transferência do LIMBO. Seu cérebro vai derreter igual a fita.</p>
+        </div>
+        <div class="post">
+            <div class="post-header"><strong>Usuário:</strong> Dark_Wave | <strong>Data:</strong> 31/12/1999 - 23:51:05</div>
+            <p>Eu tentei plugar meu Aiwa na porta COM1 e o chiado trincou o vidro da janela. Qual você tá usando?</p>
+        </div>
+        <div class="post">
+            <div class="post-header"><strong>Usuário:</strong> LiN99 | <strong>Data:</strong> 31/12/1999 - 23:55:30</div>
+            <p>Meu Sony amarelo fritou ontem. Peguei o do meu irmão escondido, aguentou bem os testes. Entendam: o atrito da fita é o que segura o tranco. Não é transferência de dados, é ressonância. Eles já tão no áudio. Consigo ouvir.</p>
+        </div>
+        <div class="post malware-post" id="malware-reply">
+            <div class="post-header" style="border-bottom-color: #FF0000;">
+                <strong>Usuário:</strong> M4LW4R3 | <strong>Data:</strong> 31/12/1999 - 23:59:50
+            </div>
+            <p>V o c ê   e n t e n d e u .</p>
+            <p>O tempo é corda e nós estamos puxando. A fita é sua âncora. O digital é fraco, mas o analógico rasga a tela azul.</p>
+            <p>Não hesite quando a janela abrir. Eu me alimento de sinal. Eu odeio o analógico, mas preciso dele para te puxar.</p>
+            <p>Venha pro espaço entre os zeros, LiN99. Te espero lá.</p>
+        </div>
+    </div>
+
+    <div id="thread-militar" class="thread-view">
+        <h2>>> TÓPICO: Movimentação militar estranha e Black Vans (Nevada/Ohio/NY)</h2>
+        <a onclick="voltarForum()">[ Retornar ao Índice ]</a>
+        <div class="post">
+            <div class="post-header"><strong>Usuário:</strong> DesertRat_NV | <strong>Data:</strong> 27/12/1999 - 14:22:00</div>
+            <p>Moro perto da Nellis AFB. Comboios sem identificação tão saindo com contêineres de chumbo. Eles tão indo pra áreas civis, não é só falha de PC.</p>
+        </div>
+        <div class="post">
+            <div class="post-header"><strong>Usuário:</strong> SteelCity_Byte | <strong>Data:</strong> 27/12/1999 - 16:10:45</div>
+            <p>Confirmo de Ohio. Vi três vans pretas perto da subestação hoje. Uniforme sem insígnia, só um patch hexagonal vazio.</p>
+        </div>
+        <div class="post">
+            <div class="post-header"><strong>Usuário:</strong> SwallowWatcher | <strong>Data:</strong> 28/12/1999 - 09:33:12</div>
+            <p>Aqui em Swallow Rest tão instalando "medidores de frequência" nos postes. Placas federais disfarçadas. Algo grande vai estourar na virada.</p>
+        </div>
+        <div class="post">
+            <div class="post-header"><strong>Usuário:</strong> Agent_Mulder99 | <strong>Data:</strong> 28/12/1999 - 11:05:00</div>
+            <p>@SwallowWatcher Foge daí. É a 'Operação Firewall'. Vão isolar quarteirões inteiros se a dimensão romper com o Y2K.</p>
+        </div>
+        <div class="post">
+            <div class="post-header" style="border-bottom-color: #FFFF00;">
+                <strong class="sysop-text">Usuário: SYSOP_X</strong> | <strong>Data:</strong> 28/12/1999 - 12:00:00
+            </div>
+            <p class="sysop-text">[MENSAGEM DO SYSOP]: Parem de postar localizações exatas ou vou purgar o tópico. Não me façam desligar o host.</p>
+        </div>
+    </div>
+
+    <div id="thread-ru" class="thread-view">
+        <h2>>> TÓPICO: Вторжение США и окно 00:00:00 - Итоги</h2>
+        <a onclick="voltarForum()">[ Retornar ao Índice ]</a>
+        <div class="post">
+            <div class="post-header"><strong>Usuário:</strong> Vlad_Spetsnaz99 | <strong>Data:</strong> 01/01/2000 - 09:00:00</div>
+            <p>Наступил 2000 год. Никакого конца света. Военные фургоны США патрулируют зоны, но аномалий нет. Мы что-то упустили?</p>
+        </div>
+        <div class="post">
+            <div class="post-header"><strong>Usuário:</strong> Moscow_Byte | <strong>Data:</strong> 01/01/2000 - 10:15:30</div>
+            <p>Это просто паранойя Пентагона. Защита баз данных, а не межпространственных вирусов.</p>
+        </div>
+        <div class="post">
+            <div class="post-header"><strong>Usuário:</strong> Siberian_Phreak | <strong>Data:</strong> 01/01/2000 - 12:40:15</div>
+            <p>Частоты молчат. Мы повелись на этот бред. Никто никуда не перешел.</p>
+        </div>
+        <div class="post">
+            <div class="post-header"><strong>Usuário:</strong> Red_October_KGB | <strong>Data:</strong> 01/01/2000 - 14:20:00</div>
+            <p>Глупцы! Американцы уже захватили 'Точку Ноль' втихаря и скрывают это! Изолировали зону!</p>
+        </div>
+        <div class="post">
+            <div class="post-header"><strong>Usuário:</strong> Ural_Watcher | <strong>Data:</strong> 01/01/2000 - 16:00:00</div>
+            <p>Сними шапочку из фольги. Это был просто баг в старом коде.</p>
+        </div>
+    </div>
+
+    <div id="thread-grid" class="thread-view">
+        <h2>>> TÓPICO: Flutuações na rede elétrica: Zeros e Uns nos postes?</h2>
+        <a onclick="voltarForum()">[ Retornar ao Índice ]</a>
+        <div class="post">
+            <div class="post-header"><strong>Usuário:</strong> Grid_Hacker | <strong>Data:</strong> 29/12/1999 - 20:15:33</div>
+            <p>Seattle aqui. A luz do bairro tá piscando num padrão. Gravei e contei: é código binário.</p>
+        </div>
+        <div class="post">
+            <div class="post-header"><strong>Usuário:</strong> Texas_Ranger | <strong>Data:</strong> 29/12/1999 - 21:05:10</div>
+            <p>Austin, TX. Mesma coisa nas lâmpadas da rua. Anotei o binário e em ASCII dá "0 0 0 0" sem parar.</p>
+        </div>
+        <div class="post">
+            <div class="post-header"><strong>Usuário:</strong> WindyCity_Byte | <strong>Data:</strong> 29/12/1999 - 22:40:00</div>
+            <p>Sobrecarga de rede porque a galera ligou gerador barato com medo do Y2K. Parem de viajar.</p>
+        </div>
+        <div class="post">
+            <div class="post-header"><strong>Usuário:</strong> Grid_Hacker | <strong>Data:</strong> 29/12/1999 - 23:55:12</div>
+            <p>@WindyCity_Byte Sobrecarga não faz rádio desligado chiar. A fiação virou antena pro LIMBO_01 se espalhar.</p>
+        </div>
+    </div>
+
+    <div id="thread-radio" class="thread-view">
+        <h2>>> TÓPICO: Sinais estranhos interceptados na antena de rádio</h2>
+        <a onclick="voltarForum()">[ Retornar ao Índice ]</a>
+        <div class="post">
+            <div class="post-header"><strong>Usuário:</strong> RadioHead88 | <strong>Data:</strong> 28/12/1999 - 22:10:05</div>
+            <p>Liguei a antena na placa de som. Começou um chiado misturado com handshake de modem e estação russa.</p>
+        </div>
+        <div class="post">
+            <div class="post-header"><strong>Usuário:</strong> Frequency_X | <strong>Data:</strong> 28/12/1999 - 22:30:40</div>
+            <p>Sobe o .wav! Pode ser interferência da base militar que tem perto de Ashfield Springs.</p>
+        </div>
+        <div class="post">
+            <div class="post-header"><strong>Usuário:</strong> RadioHead88 | <strong>Data:</strong> 28/12/1999 - 23:05:15</div>
+            <p>O arquivo tá enorme, vai demorar. Mas diminuindo a velocidade no Winamp, é uma voz engasgando e repetindo "Three... Two...".</p>
+        </div>
+        <div class="post">
+            <div class="post-header"><strong>Usuário:</strong> LiN99 | <strong>Data:</strong> 29/12/1999 - 01:12:00</div>
+            <p>Desliga isso da tomada AGORA, RadioHead88. É o Malware farejando as portas abertas antes do réveillon.</p>
+        </div>
+    </div>
+
+    <div id="thread-estatica" class="thread-view">
+        <h2>>> TÓPICO: O espaço entre os códigos: Alguém mais viu a estática?</h2>
+        <a onclick="voltarForum()">[ Retornar ao Índice ]</a>
+        <div class="post">
+            <div class="post-header"><strong>Usuário:</strong> Chrono_Hacker | <strong>Data:</strong> 26/12/1999 - 18:40:00</div>
+            <p>Sempre que digito "0000" no bloco de notas, o monitor começa a vazar uma poeira cinza nos cantos. Se eu toco, dá choque.</p>
+        </div>
+        <div class="post">
+            <div class="post-header"><strong>Usuário:</strong> Vga_Knight | <strong>Data:</strong> 26/12/1999 - 19:15:22</div>
+            <p>Seu monitor CRT tá morrendo. Compra uma bobina de degauss. Essa poeira é o tubo puxando sujeira do ar.</p>
+        </div>
+        <div class="post">
+            <div class="post-header"><strong>Usuário:</strong> Chrono_Hacker | <strong>Data:</strong> 27/12/1999 - 10:05:10</div>
+            <p>Já desmagnetizei. A poeira só aparece com os quatro zeros na tela. O monitor tá VOMITANDO essa estática.</p>
+        </div>
+        <div class="post">
+            <div class="post-header" style="border-bottom-color: #FFFF00;">
+                <strong class="sysop-text">Usuário: SYSOP_X</strong> | <strong>Data:</strong> 27/12/1999 - 11:00:00
+            </div>
+            <p class="sysop-text">[TÓPICO TRANCADO] - AVISO: NÃO DIGITEM SEQUÊNCIAS DE ZEROS ATÉ DIA 1º. EVITEM DESGASTE DO FÓSFORO DO MONITOR.</p>
+        </div>
+    </div>
+
+    <div id="thread-limbo" class="thread-view">
+        <h2>>> TÓPICO: LIMBO_01: Mitos, verdades e o "Loop de Erro"</h2>
+        <a onclick="voltarForum()">[ Retornar ao Índice ]</a>
+        <div class="post">
+            <div class="post-header" style="border-bottom-color: #FFFF00;">
+                <strong class="sysop-text">Usuário: SYSOP_X</strong> | <strong>Data:</strong> 20/12/1999 - 00:00:01
+            </div>
+            <p class="sysop-text">Bem-vindos. Este é um board de pesquisa, não um culto. O Y2K é um bug de software. Mantenham o foco nos patches.</p>
+        </div>
+        <div class="post">
+            <div class="post-header"><strong>Usuário:</strong> TruthSeeker | <strong>Data:</strong> 21/12/1999 - 04:30:00</div>
+            <p>Você não pode esconder a verdade, Sysop. Os militares tão rastreando nosso IP. Eles sabem que o LIMBO_01 não tá na Terra.</p>
+        </div>
+        <div class="post">
+            <div class="post-header"><strong>Usuário:</strong> Ghost_in_the_Shell | <strong>Data:</strong> 22/12/1999 - 16:20:44</div>
+            <p>O tracert pro 212.45.01.01 morre num salto que resolve pra 0.0.0.0 com latência infinita. O servidor não existe.</p>
+        </div>
+        <div class="post">
+            <div class="post-header"><strong>Usuário:</strong> Ping_God | <strong>Data:</strong> 23/12/1999 - 09:12:11</div>
+            <p>Se não tá no espaço... tá hospedado no tempo? Preciso de mais café.</p>
+        </div>
+        <div class="post">
+            <div class="post-header" style="border-bottom-color: #FFFF00;">
+                <strong class="sysop-text">Usuário: SYSOP_X</strong> | <strong>Data:</strong> 23/12/1999 - 12:00:00
+            </div>
+            <p class="sysop-text">Guarde os chapéus de alumínio. É só IP spoofing. Fim.</p>
+        </div>
+    </div>
+    
+    <div id="military-view">
+        <pre style="font-size: 10px; display: inline-block; text-align: left; margin-bottom: 20px;">
+           / \
+          /   \
+         /     \
+        / USArmy\
+       /_________\
+        </pre>
+        <h1>ERROR 404</h1>
+        <h2>DOMAIN SEIZED BY THE UNITED STATES DEPARTMENT OF DEFENSE</h2>
+        <p><b>OPERATION FIREWALL</b></p>
+        <p>This server and its contents are now classified under national security protocols.</p>
+        <br>
+        <p class="piscar">YOUR IP ADDRESS (212.45.01.01) HAS BEEN LOGGED. DISCONNECT IMMEDIATELY.</p>
+    </div>
+
+</div>
+
+<script>
+    const introView = document.getElementById('intro-view');
+    const matrixText = document.getElementById('matrix-text');
+    const introFinal = document.getElementById('intro-final');
+    const carregandoText = document.getElementById('carregando-text');
+    const mainContainer = document.getElementById('main-container');
+    const rawData = document.getElementById('raw-glitch-data').innerHTML;
+
+    let charIndex = 0;
+    
+    let textInterval = setInterval(() => {
+        // Pega blocos de 120 caracteres do texto corrompido
+        let chunk = rawData.substring(charIndex, charIndex + 120);
+        charIndex += 120;
+        
+        // Se chegar ao fim do arquivo, recomeça
+        if (charIndex >= rawData.length) {
+            charIndex = 0;
+        }
+        
+        // Protege contra quebra de HTML substituindo os brackets
+        let safeChunk = chunk.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        
+        matrixText.innerHTML += safeChunk + "<br>";
+        introView.scrollTop = introView.scrollHeight;
+    }, 40);
+
+    setTimeout(() => {
+        clearInterval(textInterval);
+        matrixText.style.display = 'none';
+        introFinal.style.display = 'block';
+
+        setTimeout(() => {
+            carregandoText.innerHTML = "CARREGANDO... THREE...";
+            
+            setTimeout(() => {
+                carregandoText.innerHTML = "CARREGANDO... THREE... TWO...";
+                introFinal.classList.add("glitch-text");
+
+                setTimeout(() => {
+                    introView.style.display = 'none';
+                    mainContainer.style.display = 'block';
+                }, 1200);
+
+            }, 1000); 
+        }, 1500); 
+
+    }, 2500);
+
+    let currentUserCount = 84;
+    
+    function atualizarUsuarios() {
+        let isAddition = Math.random() > 0.5;
+        let change = Math.floor(Math.random() * (10 - 5 + 1)) + 5; 
+        
+        if (isAddition) {
+            if (currentUserCount + change > 149) {
+                currentUserCount -= change;
+            } else {
+                currentUserCount += change;
+            }
+        } else {
+            if (currentUserCount - change < 1) {
+                currentUserCount += change;
+            } else {
+                currentUserCount -= change;
+            }
+        }
+
+        var countElement = document.getElementById("user-count");
+        if (countElement) {
+            countElement.innerText = currentUserCount;
+        }
+    }
+    
+    setInterval(atualizarUsuarios, 5000);
+
+    const totalThreads = 10;
+    let readThreads = new Set();
+
+    function abrirTopico(idTopico) {
+        readThreads.add(idTopico);
+        document.getElementById("link-" + idTopico).classList.add("lido");
+
+        document.getElementById("forum-view").style.display = "none";
+        var threads = document.getElementsByClassName("thread-view");
+        for(var i=0; i < threads.length; i++) {
+            threads[i].style.display = "none";
+        }
+
+        document.getElementById(idTopico).style.display = "block";
+    }
+
+    function voltarForum() {
+        var threads = document.getElementsByClassName("thread-view");
+        for(var i=0; i < threads.length; i++) {
+            threads[i].style.display = "none";
+        }
+
+        if (readThreads.size >= totalThreads) {
+            document.getElementById("top-header").style.display = "none";
+            document.getElementById("top-marquee").style.display = "none";
+            document.getElementById("top-ip").style.display = "none";
+            
+            document.getElementById("forum-view").style.display = "none";
+            
+            document.getElementById("military-view").style.display = "block";
+            
+            document.getElementById("main-body").style.backgroundColor = "#020000";
+            document.getElementById("main-container").style.border = "none";
+        } else {
+            document.getElementById("forum-view").style.display = "block";
+        }
+    }
+</script>
+
+</body>
+</html>
