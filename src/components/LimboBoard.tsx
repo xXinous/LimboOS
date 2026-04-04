@@ -6,6 +6,7 @@ interface LimboBoardProps {
   uid: string;
   onClose: () => void;
   globalSeizedStatus: boolean;
+  onBackToTerminal?: () => void;
 }
 
 // ── Thread Data ────────────────────────────────────────────────────────────────
@@ -132,7 +133,7 @@ const THREADS: Thread[] = [
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export default function LimboBoard({ uid, onClose, globalSeizedStatus }: LimboBoardProps) {
+export default function LimboBoard({ uid, onClose, globalSeizedStatus, onBackToTerminal }: LimboBoardProps) {
   const [view, setView] = useState<'intro' | 'forum' | 'thread' | 'military'>('intro');
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
   const [readThreads, setReadThreads] = useState<Set<string>>(new Set());
@@ -210,7 +211,15 @@ export default function LimboBoard({ uid, onClose, globalSeizedStatus }: LimboBo
 
       {/* Disconnect button */}
       {view !== 'intro' && (
-        <div className="fixed top-2 right-4 z-50">
+        <div className="fixed top-2 right-4 z-50 flex gap-2">
+          {onBackToTerminal && (
+             <button
+               onClick={onBackToTerminal}
+               className={`border px-2 py-1 uppercase text-xs transition-colors ${view === 'military' ? 'text-red-500 border-red-500 hover:bg-red-500 hover:text-black' : 'text-[#33FF33] border-[#33FF33] hover:bg-[#33FF33] hover:text-[#050505]'}`}
+             >
+               [ VOLTAR AO PC_ ]
+             </button>
+          )}
           <button
             onClick={onClose}
             className={`border px-2 py-1 uppercase text-xs transition-colors ${view === 'military' ? 'text-red-500 border-red-500 hover:bg-red-500 hover:text-black' : 'text-[#33FF33] border-[#33FF33] hover:bg-[#33FF33] hover:text-[#050505]'}`}

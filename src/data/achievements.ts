@@ -48,6 +48,11 @@ const registerAchievements = () => {
   // Limbo Achievements
   achievementManager.register(new Achievement('ACH-LIMBO-FOUND', 'Despertar', 'Onde nós realmente estamos?', '👁️', '???', new ManualRule(), 'Burlar os sistemas do Walkman para descobrir o acesso ao BBS secreto (Limbo_01).'));
   achievementManager.register(new Achievement('ACH-LIMBO-READ', 'O Ponto Zero', 'Agora você não pode mais fechar os olhos.', '🌀', '???', new ManualRule(), 'Ler todas as threads secretas no arquivo do BBS até acionar o protocolo de bloqueio militar.'));
+
+  // Disk Repair Achievements
+  achievementManager.register(new Achievement('ACH-REPAIR-APP', 'Engenheiro de Software', 'Interfaces visuais em um mundo CLI.', '🖥️', '???', new ManualRule(), 'Encontrar e iniciar o aplicativo de reparo de discos no terminal.'));
+  achievementManager.register(new Achievement('ACH-REPAIR-FAIL', 'Setor Defeituoso', 'A agulha não consegue ler o caos de primeira.', '🛑', '???', new ManualRule(), 'Inserir o disquete corrompido no computador para diagnóstico.'));
+  achievementManager.register(new Achievement('ACH-REPAIR-SUCCESS', 'A Verdade no Zero', 'O conteúdo da fenda foi restaurado.', '💾', '???', new ManualRule(), 'Reparar com sucesso o disquete magnético e descobrir a mensagem oculta.'));
 };
 
 // Initialize them

@@ -144,6 +144,21 @@ export class AnalyticsTracker {
       this.syncLocalChanges();
     }
   }
+
+  public grantAchievement(id: string) {
+    if (!this.playerData || !this.localStats) return;
+    if (this.playerData.achievementIds.includes(id)) return;
+
+    firestoreGrantAchievements(this.playerData.uid, [id]);
+    this.playerData.achievementIds = [...this.playerData.achievementIds, id];
+    
+    if (this.onToast) {
+      this.onToast({ type: 'achievement', title: 'Conquista!', subtitle: 'Nova Conquista Desbloqueada', icon: '🏆' });
+    }
+    
+    this.syncLocalChanges();
+    this.forceSyncToServer();
+  }
 }
 
 export const analyticsTracker = AnalyticsTracker.getInstance();

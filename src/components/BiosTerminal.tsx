@@ -6,9 +6,10 @@ interface BiosTerminalProps {
   onIpDetected: () => void;
   uid: string;
   onClose: () => void;
+  onAppLaunch?: (app: string) => void;
 }
 
-export default function BiosTerminal({ onIpDetected, uid, onClose }: BiosTerminalProps) {
+export default function BiosTerminal({ onIpDetected, uid, onClose, onAppLaunch }: BiosTerminalProps) {
   const [history, setHistory] = useState<React.ReactNode[]>([]);
   const [currentLine, setCurrentLine] = useState('');
   const terminalRef = useRef<HTMLDivElement>(null);
@@ -24,6 +25,11 @@ export default function BiosTerminal({ onIpDetected, uid, onClose }: BiosTermina
       return; 
     }
 
+    if (cleanCmd === 'diskrepair') {
+      if (onAppLaunch) onAppLaunch('diskRepair');
+      return;
+    }
+
     switch (cleanCmd) {
       case 'dir':
         response = (
@@ -34,7 +40,8 @@ export default function BiosTerminal({ onIpDetected, uid, onClose }: BiosTermina
             CONFIG   SYS       256 01-01-94<br/>
             AUTOEXEC BAT       128 01-01-94<br/>
             LIMBO    EXE    88.000 12-31-99<br/>
-            4 file(s)    143.029 bytes
+            DISKREPAIR EXE  24.512 11-12-95<br/>
+            5 file(s)    167.541 bytes
           </div>
         );
         break;

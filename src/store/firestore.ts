@@ -37,6 +37,10 @@ export interface LimboGlobalState {
   seizedAt?: Timestamp;
 }
 
+export interface GameEventsState {
+  diskRepairAllowed: boolean;
+}
+
 export interface PlayerStats {
   totalListenTime: number; // in seconds
   screwClicks: number;
@@ -184,6 +188,17 @@ export async function resetLimboSeized(): Promise<void> {
     seized: false,
     seizedBy: null,
     seizedAt: null
+  }, { merge: true });
+}
+
+export async function fetchGameEventsState(): Promise<GameEventsState> {
+  const snap = await getDoc(doc(db, 'system', 'gameEvents'));
+  return snap.exists() ? (snap.data() as GameEventsState) : { diskRepairAllowed: false };
+}
+
+export async function setDiskRepairAllowed(allowed: boolean): Promise<void> {
+  await setDoc(doc(db, 'system', 'gameEvents'), {
+    diskRepairAllowed: allowed
   }, { merge: true });
 }
 

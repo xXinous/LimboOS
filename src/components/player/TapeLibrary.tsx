@@ -18,7 +18,7 @@ export default function TapeLibrary({ tapes, currentTapeId, isPlaying, displayMo
       <div className="p-3 border-b border-[#333] flex items-center justify-between shrink-0">
         <div className="flex items-center gap-2">
           <div className="w-6 h-6 bg-orange-600 rounded flex items-center justify-center"><span className="text-white font-black text-sm italic">R.</span></div>
-          <h2 className="text-orange-500 text-sm font-bold tracking-tight">Fitas</h2>
+          <h2 className="text-orange-500 text-sm font-bold tracking-tight">Lista de Provas</h2>
         </div>
         <span className="text-[9px] text-gray-500 font-bold uppercase tracking-widest">
           {displayMode === 'default' ? 'Original' : displayMode === 'title' ? 'A-Z' : 'Cap.'}
@@ -48,7 +48,9 @@ export default function TapeLibrary({ tapes, currentTapeId, isPlaying, displayMo
                       <motion.div animate={{ opacity: [0, 1] }} transition={{ repeat: Infinity, duration: 0.5 }}
                         className="w-0 h-0 border-t-4 border-t-transparent border-l-[6px] border-l-orange-500 border-b-4 border-b-transparent" />
                     )}
-                    <div className="w-8 h-8 bg-[#222] rounded border border-[#333] flex items-center justify-center text-sm">📼</div>
+                    <div className={`w-8 h-8 rounded border flex items-center justify-center text-sm ${tape.type === 'disk' ? 'bg-orange-600/30 border-orange-500 shadow-[0_0_10px_rgba(234,88,12,0.3)]' : 'bg-[#222] border-[#333]'}`}>
+                      {tape.type === 'disk' ? '💾' : '📼'}
+                    </div>
                   </div>
                 </motion.div>
               ))}
