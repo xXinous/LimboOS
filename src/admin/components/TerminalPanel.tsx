@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, onSnapshot } from 'firebase/firestore';
+import { collection, doc, setDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { setTerminalStateForUsers, fetchLimboGlobalState, resetLimboSeized, LimboGlobalState, PlayerMeta } from '../../store/firestore';
 import { Terminal, ShieldBan, ShieldCheck, UserCheck } from 'lucide-react';
@@ -8,6 +8,7 @@ export default function TerminalPanel() {
   const [users, setUsers] = useState<PlayerMeta[]>([]);
   const [selectedUids, setSelectedUids] = useState<Set<string>>(new Set());
   const [limboState, setLimboState] = useState<LimboGlobalState>({ seized: false });
+  const [diskRepairAllowed, setDiskRepairAllowed] = useState(false);
 
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'users'), (snap) => {
@@ -19,8 +20,13 @@ export default function TerminalPanel() {
 
   useEffect(() => {
     fetchLimboGlobalState().then(setLimboState);
-    const unsubLimbo = onSnapshot(collection(db, 'system'), () => {
+    const unsubLimbo = onSnapshot(collection(db, 'system'), (snap) => {
       fetchLimboGlobalState().then(setLimboState);
+      
+      const gameEventsDoc = snap.docs.find(d => d.id === 'gameEvents');
+      if (gameEventsDoc) {
+        setDiskRepairAllowed(!!gameEventsDoc.data().diskRepairAllowed);
+      }
     });
     return () => unsubLimbo();
   }, []);
@@ -55,6 +61,11 @@ export default function TerminalPanel() {
     }
   };
 
+  const toggleDiskRepair = async () => {
+    const newState = !diskRepairAllowed;
+    await setDoc(doc(db, 'system', 'gameEvents'), { diskRepairAllowed: newState }, { merge: true });
+  };
+
   return (
     <div className="bg-surface-container border border-zinc-800 p-6 machined-edge mb-8">
       <div className="flex items-center gap-3 mb-6">
@@ -80,6 +91,24 @@ export default function TerminalPanel() {
                <p className="text-xs text-zinc-500">Nenhum evento em andamento. Administre os terminais individuais à direita.</p>
             )}
           </div>
+
+          {/* RPG Events */}
+          <div className="p-4 border machined-edge bg-surface-container-highest border-zinc-800 flex flex-col gap-4">
+            <h3 className="font-label uppercase text-xs tracking-widest text-zinc-400">Eventos de RPG (Mestre)</h3>
+            <div className="flex items-center justify-between p-3 bg-surface-container border border-zinc-700/50">
+              <div>
+                <p className="font-bold text-sm text-zinc-300 uppercase">DiskRepair.exe</p>
+                <p className="text-[10px] text-zinc-500">Permitir desmagnetização do disquete</p>
+              </div>
+              <button
+                onClick={toggleDiskRepair}
+                className={`relative w-12 h-6 rounded-full transition-colors ${diskRepairAllowed ? 'bg-orange-500' : 'bg-zinc-700'}`}
+              >
+                <div className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform ${diskRepairAllowed ? 'translate-x-6' : 'translate-x-0'}`} />
+              </button>
+            </div>
+          </div>
+
         </div>
 
         {/* User Selection */}

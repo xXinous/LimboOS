@@ -13,6 +13,8 @@ import BottomControls from './components/player/BottomControls';
 import Screw from './components/player/Screw';
 import BiosTerminal from './components/BiosTerminal';
 import LimboBoard from './components/LimboBoard';
+import DiskRepairApp from './components/DiskRepairApp';
+import EvidenceReader from './components/EvidenceReader';
 
 import { audioEngine } from './services/AudioEngine';
 import { analyticsTracker } from './services/AnalyticsTracker';
@@ -44,6 +46,7 @@ export default function App() {
   const [ownedTapes, setOwnedTapes]   = useState<Tape[]>([]);
   
   const [limboStatus, setLimboStatus] = useState<LimboGlobalState>({ seized: false });
+  const [activeEvidence, setActiveEvidence] = useState<Tape | null>(null);
 
   const hasPlayedCurrentTape = useRef(false);
 
@@ -250,6 +253,10 @@ export default function App() {
   };
 
   const handleTapeSelect = (tape: Tape) => {
+    if (tape.type === 'disk') {
+      setActiveEvidence(tape);
+      return;
+    }
     if (tape.id === currentTape?.id) return;
     checkEjectWithoutPlay();
     hasPlayedCurrentTape.current = false;
@@ -310,11 +317,15 @@ export default function App() {
           </motion.div>
         ) : screen === 'bios' ? (
           <motion.div key="bios" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-50">
-            <BiosTerminal uid={playerData.uid} onIpDetected={() => setScreen('limbo')} onClose={() => setScreen('player')} />
+            <BiosTerminal uid={playerData.uid} onIpDetected={() => setScreen('limbo')} onClose={() => setScreen('player')} onAppLaunch={(app) => { if(app === 'diskRepair') setScreen('diskRepair'); }} />
           </motion.div>
         ) : screen === 'limbo' ? (
           <motion.div key="limbo" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-50">
-            <LimboBoard uid={playerData.uid} onClose={() => setScreen('player')} globalSeizedStatus={limboStatus.seized} />
+            <LimboBoard uid={playerData.uid} onClose={() => setScreen('player')} onBackToTerminal={() => setScreen('bios')} globalSeizedStatus={limboStatus.seized} />
+          </motion.div>
+        ) : screen === 'diskRepair' ? (
+          <motion.div key="diskRepair" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-50">
+            <DiskRepairApp uid={playerData.uid} onClose={() => setScreen('player')} onBackToTerminal={() => setScreen('bios')} />
           </motion.div>
         ) : (
           <motion.div 
@@ -345,6 +356,12 @@ export default function App() {
 
             <BottomControls isPlaying={isPlaying} setIsPlaying={setIsPlaying} hasTape={!!currentTape} onRewind={handleRewind} isRewinding={isRewinding} hasTerminalAccess={playerData.hasTerminalAccess} onTerminalOpen={() => setScreen('bios')} />
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {activeEvidence && (
+          <EvidenceReader evidence={activeEvidence} onClose={() => setActiveEvidence(null)} />
         )}
       </AnimatePresence>
 
