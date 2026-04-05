@@ -29,6 +29,8 @@ export interface PlayerMeta {
   achievementsRevealed?: boolean;
   forceTerminalOpen?: boolean;
   hasTerminalAccess?: boolean;
+  forceMacOpen?: boolean;
+  hasMacAccess?: boolean;
 }
 
 export interface LimboGlobalState {
@@ -63,7 +65,7 @@ export async function loadPlayerData(uid: string): Promise<PlayerData> {
   const metaSnap = await getDoc(doc(db, 'users', uid));
   const meta = metaSnap.exists()
     ? (metaSnap.data() as PlayerMeta)
-    : { uid, username: uid, createdAt: null, achievementsRevealed: false, forceTerminalOpen: false, hasTerminalAccess: false };
+    : { uid, username: uid, createdAt: null, achievementsRevealed: false, forceTerminalOpen: false, hasTerminalAccess: false, forceMacOpen: false, hasMacAccess: false };
 
   const tapesSnap = await getDocs(collection(db, 'users', uid, 'tapes'));
   const achievementsSnap = await getDocs(collection(db, 'users', uid, 'achievements'));
@@ -170,6 +172,21 @@ export async function checkTerminalClosed(uid: string): Promise<void> {
   await setDoc(doc(db, 'users', uid), { forceTerminalOpen: false }, { merge: true });
 }
 
+export async function setMacStateForUsers(uids: string[], forceMacOpen: boolean, grantAccess: boolean): Promise<void> {
+  await Promise.all(
+    uids.map(uid =>
+      setDoc(doc(db, 'users', uid), {
+        forceMacOpen,
+        hasMacAccess: grantAccess
+      }, { merge: true })
+    )
+  );
+}
+
+export async function checkMacClosed(uid: string): Promise<void> {
+  await setDoc(doc(db, 'users', uid), { forceMacOpen: false }, { merge: true });
+}
+
 export async function fetchLimboGlobalState(): Promise<LimboGlobalState> {
   const snap = await getDoc(doc(db, 'system', 'limboState'));
   return snap.exists() ? (snap.data() as LimboGlobalState) : { seized: false };
@@ -204,20 +221,22 @@ export async function setDiskRepairAllowed(allowed: boolean): Promise<void> {
 
 // ── Remote Audios ────────────────────────────────────────────────────────────
 
-/** Fetch an uploaded audio from the 'audios' collection and map it to a Tape */
+/** Fetch an uploaded audio from the 'audios' collection and map it to a Tape.
+ *  All tape fields MUST come exclusively from the audio file's ID3 metadata
+ *  that was parsed at upload time — no placeholders or non-metadata fallbacks. */
 export async function fetchAudioTapeById(audioId: string): Promise<Tape | null> {
   const snap = await getDoc(doc(db, 'audios', audioId));
   if (!snap.exists()) return null;
   const data = snap.data();
   return {
     id: snap.id,
-    title: data.title || (data.originalName || 'Audio').replace(/\.[^/.]+$/, ""),
-    artist: data.artist || data.ownerName || 'Admin',
-    npc: data.npc || data.artist || '',
-    chapter: data.chapter || 'Uploads',
-    description: data.description || 'Enviado via Terminal',
+    title: data.title ?? '',
+    artist: data.artist ?? '',
+    npc: data.npc ?? data.artist ?? '',
+    chapter: data.chapter ?? '',
+    description: data.description ?? '',
     audioUrl: data.url,
-    duration: data.duration || 0,
+    duration: data.duration ?? 0,
     isSecret: Boolean(data.isSecret),
   } as Tape;
 }

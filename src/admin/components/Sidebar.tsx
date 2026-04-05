@@ -9,6 +9,7 @@ interface SidebarProps {
 export default function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
   const navItems = [
     { id: 'users', label: 'User Registry', icon: 'group' },
+    { id: 'inventory', label: 'Inventory Manager', icon: 'inventory_2' },
     { id: 'audio', label: 'Audio Library', icon: 'library_music' },
     { id: 'achievements', label: 'Achievements', icon: 'stars' },
     { id: 'analytics', label: 'Analytics / BI', icon: 'insights' },

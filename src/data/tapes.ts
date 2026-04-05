@@ -1,5 +1,5 @@
 // ⚠️  ARQUIVO GERADO AUTOMATICAMENTE — NÃO EDITE MANUALMENTE
-// Gerado em: 2026-04-04T08:47:47.999Z
+// Gerado em: 2026-04-05T08:37:23.684Z
 // Para atualizar: adicione/edite os metadados dos arquivos em public/audio/
 //                 e rode:  npm run generate-tapes
 
@@ -101,3 +101,19 @@ export function resolveTapes(ids: string[]): Tape[] {
     .map((id) => ALL_TAPES.find((t) => t.id === id))
     .filter((t): t is Tape => t !== undefined);
 }
+
+/** Admin-facing minimal shape of an evidence tape item. */
+export interface EvidenceTapeAdmin {
+  id: string;
+  title: string;
+  chapter: string;
+  type: 'audio' | 'disk';
+}
+
+/** Simplified list of all evidence items for the admin Inventory Manager. */
+export const EVIDENCE_TAPES_FOR_ADMIN: EvidenceTapeAdmin[] = EVIDENCE_TAPES.map((t) => ({
+  id: t.id,
+  title: t.title,
+  chapter: t.chapter,
+  type: (t.type ?? 'audio') as 'audio' | 'disk',
+}));

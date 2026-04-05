@@ -10,6 +10,7 @@ import AnalyticsPanel from './AnalyticsPanel';
 import TechSpecs from './TechSpecs';
 import AchievementsPanel from './AchievementsPanel';
 import TerminalPanel from './TerminalPanel';
+import InventoryManager from './InventoryManager';
 
 interface DashboardProps {
   user: User | null;
@@ -116,6 +117,7 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
 
           {/* Tab Content */}
           {activeTab === 'users' && <UserRegistry isAdmin={isAdmin} />}
+          {activeTab === 'inventory' && <InventoryManager />}
           {activeTab === 'audio' && (
             <AudioBuffer user={user} isAdmin={isAdmin} />
           )}

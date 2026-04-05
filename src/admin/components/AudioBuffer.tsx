@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { db, storage } from '../../lib/firebase';
-import { collection, onSnapshot, doc, deleteDoc, addDoc, setDoc, serverTimestamp, query, orderBy, getDoc } from 'firebase/firestore';
+import { collection, onSnapshot, doc, deleteDoc, addDoc, updateDoc, serverTimestamp, query, orderBy, getDoc } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import { User } from 'firebase/auth';
 import { parseBlob } from 'music-metadata';
@@ -19,13 +19,6 @@ interface AudioData {
   createdAt: any;
 }
 
-interface UserData {
-  uid: string;
-  displayName: string;
-  username?: string;
-  email: string;
-}
-
 export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAdmin: boolean }) {
   const [audios, setAudios] = useState<AudioData[]>([]);
   const [isUploading, setIsUploading] = useState(false);
@@ -37,14 +30,14 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { showAlert, modal } = useModal();
 
-  // Manage Access state
-  const [manageAccessAudio, setManageAccessAudio] = useState<AudioData | null>(null);
-  const [allUsers, setAllUsers] = useState<UserData[]>([]);
-  const [selectedUserUids, setSelectedUserUids] = useState<Set<string>>(new Set());
-  const [usersWithAccess, setUsersWithAccess] = useState<Set<string>>(new Set());
-  const [accessSearchQuery, setAccessSearchQuery] = useState('');
-  const [accessLoading, setAccessLoading] = useState(false);
-  const [accessActionFeedback, setAccessActionFeedback] = useState<string | null>(null);
+  // Edit Metadata state
+  const [editAudio, setEditAudio] = useState<AudioData | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editArtist, setEditArtist] = useState('');
+  const [editNpc, setEditNpc] = useState('');
+  const [editChapter, setEditChapter] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  const [editSaving, setEditSaving] = useState(false);
 
   useEffect(() => {
     const q = query(collection(db, 'audios'), orderBy('createdAt', 'desc'));
@@ -54,18 +47,6 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
         audioData.push({ id: doc.id, ...doc.data() } as AudioData);
       });
       setAudios(audioData);
-    });
-    return () => unsubscribe();
-  }, []);
-
-  // Load all users for the manage access modal
-  useEffect(() => {
-    const unsubscribe = onSnapshot(collection(db, 'users'), (snapshot) => {
-      const usersData: UserData[] = [];
-      snapshot.forEach((doc) => {
-        usersData.push(doc.data() as UserData);
-      });
-      setAllUsers(usersData);
     });
     return () => unsubscribe();
   }, []);
@@ -85,95 +66,37 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
     return () => unsubscribe();
   }, []);
 
-  // When opening manage access modal, load which users already have this tape
-  const openManageAccess = async (audio: AudioData) => {
-    setManageAccessAudio(audio);
-    setSelectedUserUids(new Set());
-    setAccessSearchQuery('');
-    setAccessActionFeedback(null);
-
-    // Query each user's tapes subcollection for this audio id
-    const withAccess = new Set<string>();
-    await Promise.all(
-      allUsers.map(async (u) => {
-        const tapeDoc = await getDoc(doc(db, 'users', u.uid, 'tapes', audio.id));
-        if (tapeDoc.exists()) {
-          withAccess.add(u.uid);
-        }
-      })
-    );
-    setUsersWithAccess(withAccess);
+  // ── Edit Metadata ──────────────────────────────────────────────────────────
+  const openEditMetadata = async (audio: AudioData) => {
+    // Fetch fresh data from Firestore to get the metadata fields
+    const snap = await getDoc(doc(db, 'audios', audio.id));
+    const data = snap.exists() ? snap.data() : {};
+    setEditTitle(data.title ?? '');
+    setEditArtist(data.artist ?? '');
+    setEditNpc(data.npc ?? '');
+    setEditChapter(data.chapter ?? '');
+    setEditDescription(data.description ?? '');
+    setEditAudio(audio);
   };
 
-  const handleGrantAccess = async () => {
-    if (!manageAccessAudio || selectedUserUids.size === 0) return;
-    setAccessLoading(true);
+  const saveEditMetadata = async () => {
+    if (!editAudio) return;
+    setEditSaving(true);
     try {
-      await Promise.all(
-        Array.from(selectedUserUids).map((uid: string) =>
-          setDoc(doc(db, 'users', uid, 'tapes', manageAccessAudio.id), {
-            tapeId: manageAccessAudio.id,
-            unlockedAt: serverTimestamp(),
-          })
-        )
-      );
-      // Update local state
-      setUsersWithAccess((prev) => {
-        const next = new Set(prev);
-        selectedUserUids.forEach((uid) => next.add(uid));
-        return next;
+      await updateDoc(doc(db, 'audios', editAudio.id), {
+        title: editTitle,
+        artist: editArtist,
+        npc: editNpc,
+        chapter: editChapter,
+        description: editDescription,
       });
-      setSelectedUserUids(new Set());
-      setAccessActionFeedback(`Acesso concedido para ${selectedUserUids.size} usuário(s).`);
-    } catch (error) {
-      console.error('Error granting access:', error);
-      setAccessActionFeedback('Erro ao conceder acesso.');
+      setEditAudio(null);
+    } catch (err) {
+      console.error('Error updating metadata:', err);
+      showAlert('Erro', 'Falha ao salvar metadados.');
     } finally {
-      setAccessLoading(false);
+      setEditSaving(false);
     }
-  };
-
-  const handleRevokeAccess = async () => {
-    if (!manageAccessAudio || selectedUserUids.size === 0) return;
-    setAccessLoading(true);
-    try {
-      await Promise.all(
-        Array.from(selectedUserUids).map((uid: string) =>
-          deleteDoc(doc(db, 'users', uid, 'tapes', manageAccessAudio.id))
-        )
-      );
-      // Update local state
-      setUsersWithAccess((prev) => {
-        const next = new Set(prev);
-        selectedUserUids.forEach((uid) => next.delete(uid));
-        return next;
-      });
-      setSelectedUserUids(new Set());
-      setAccessActionFeedback(`Acesso revogado de ${selectedUserUids.size} usuário(s).`);
-    } catch (error) {
-      console.error('Error revoking access:', error);
-      setAccessActionFeedback('Erro ao revogar acesso.');
-    } finally {
-      setAccessLoading(false);
-    }
-  };
-
-  const toggleUserSelection = (uid: string) => {
-    setSelectedUserUids((prev) => {
-      const next = new Set(prev);
-      if (next.has(uid)) next.delete(uid);
-      else next.add(uid);
-      return next;
-    });
-  };
-
-  const selectAllFiltered = () => {
-    const filteredUids = filteredAccessUsers.map((u) => u.uid);
-    setSelectedUserUids(new Set(filteredUids));
-  };
-
-  const deselectAll = () => {
-    setSelectedUserUids(new Set());
   };
 
   const handleUploadClick = () => {
@@ -325,13 +248,6 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
     a.ownerName.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const filteredAccessUsers = allUsers
-    .filter((u) =>
-      (u.displayName || u.username || '').toLowerCase().includes(accessSearchQuery.toLowerCase()) ||
-      (u.email || '').toLowerCase().includes(accessSearchQuery.toLowerCase())
-    )
-    .sort((a, b) => (a.displayName || a.username || '').localeCompare(b.displayName || b.username || ''));
-
   const totalSize = audios.reduce((acc, a) => acc + a.size, 0);
 
   return (
@@ -431,11 +347,11 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
               </div>
               {isAdmin && (
                 <button 
-                  onClick={() => openManageAccess(audio)}
-                  className="material-symbols-outlined text-zinc-500 hover:text-blue-400 transition-colors"
-                  title="Gerenciar Acesso"
+                  onClick={() => openEditMetadata(audio)}
+                  className="material-symbols-outlined text-zinc-500 hover:text-emerald-400 transition-colors"
+                  title="Editar Metadados"
                 >
-                  group_add
+                  edit
                 </button>
               )}
               <button 
@@ -520,132 +436,68 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
         </div>
       )}
 
-      {/* Manage Access Modal */}
-      {manageAccessAudio && (
+      {/* Edit Metadata Modal */}
+      {editAudio && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
-          <div className="bg-surface-container-low border border-blue-500/30 p-6 w-full max-w-lg machined-edge max-h-[85vh] flex flex-col">
-            {/* Modal Header */}
+          <div className="bg-surface-container-low border border-emerald-500/30 p-6 w-full max-w-md machined-edge flex flex-col">
             <div className="flex items-center gap-3 mb-1">
-              <span className="material-symbols-outlined text-blue-400 text-xl">group_add</span>
-              <h3 className="font-headline text-lg text-zinc-200">GERENCIAR_ACESSO</h3>
+              <span className="material-symbols-outlined text-emerald-400 text-xl">edit_note</span>
+              <h3 className="font-headline text-lg text-zinc-200">EDITAR_METADADOS</h3>
             </div>
-            <p className="font-body text-xs text-zinc-500 mb-4 truncate">
-              Áudio: <span className="text-orange-400 font-bold">{manageAccessAudio.originalName}</span>
+            <p className="font-body text-xs text-zinc-500 mb-5 truncate">
+              Áudio: <span className="text-orange-400 font-bold">{editAudio.originalName}</span>
             </p>
 
-            {/* Search + Select All */}
-            <div className="flex items-center gap-2 mb-3">
-              <input
-                type="text"
-                placeholder="BUSCAR_USUARIO..."
-                value={accessSearchQuery}
-                onChange={(e) => setAccessSearchQuery(e.target.value)}
-                className="flex-1 bg-surface-container-lowest border border-zinc-800 text-[10px] font-label uppercase tracking-widest focus:ring-1 focus:ring-blue-500 focus:border-blue-500 placeholder:text-zinc-700 text-zinc-300 px-3 py-2"
-              />
-              <button
-                onClick={selectAllFiltered}
-                className="text-[9px] font-label uppercase tracking-wider text-blue-400 hover:text-blue-300 transition-colors whitespace-nowrap px-2 py-2 border border-zinc-800 hover:border-blue-500/30"
-              >
-                SEL_ALL
-              </button>
-              <button
-                onClick={deselectAll}
-                className="text-[9px] font-label uppercase tracking-wider text-zinc-500 hover:text-zinc-300 transition-colors whitespace-nowrap px-2 py-2 border border-zinc-800 hover:border-zinc-600"
-              >
-                LIMPAR
-              </button>
-            </div>
-
-            {/* User List */}
-            <div className="flex-1 overflow-y-auto border border-zinc-800 mb-4 min-h-0" style={{ maxHeight: '340px' }}>
-              {filteredAccessUsers.length === 0 ? (
-                <div className="p-6 text-center text-zinc-600 font-label text-xs tracking-widest">
-                  NO_USERS_FOUND
+            <div className="space-y-3 mb-6">
+              {[
+                { label: 'TITLE', value: editTitle, set: setEditTitle, placeholder: 'Nome da fita' },
+                { label: 'ARTIST', value: editArtist, set: setEditArtist, placeholder: 'Artista / Autor' },
+                { label: 'NPC', value: editNpc, set: setEditNpc, placeholder: 'NPC associado' },
+                { label: 'CHAPTER', value: editChapter, set: setEditChapter, placeholder: 'Capítulo / Álbum' },
+              ].map(({ label, value, set, placeholder }) => (
+                <div key={label}>
+                  <label className="block text-[9px] font-label uppercase tracking-widest text-zinc-500 mb-1">{label}</label>
+                  <input
+                    type="text"
+                    value={value}
+                    onChange={(e) => set(e.target.value)}
+                    placeholder={placeholder}
+                    className="w-full bg-surface-container-lowest border border-zinc-800 text-sm font-body text-zinc-200 px-3 py-2 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 placeholder:text-zinc-700"
+                  />
                 </div>
-              ) : (
-                filteredAccessUsers.map((u) => {
-                  const hasAccess = usersWithAccess.has(u.uid);
-                  const isSelected = selectedUserUids.has(u.uid);
-                  return (
-                    <div
-                      key={u.uid}
-                      onClick={() => toggleUserSelection(u.uid)}
-                      className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-all border-b border-zinc-800/50 last:border-b-0 ${
-                        isSelected
-                          ? 'bg-blue-500/10 border-l-2 border-l-blue-500'
-                          : 'hover:bg-zinc-800/40 border-l-2 border-l-transparent'
-                      }`}
-                    >
-                      {/* Checkbox */}
-                      <div className={`w-4 h-4 border flex items-center justify-center shrink-0 transition-colors ${
-                        isSelected ? 'bg-blue-500 border-blue-500' : 'border-zinc-600'
-                      }`}>
-                        {isSelected && (
-                          <span className="material-symbols-outlined text-white text-xs">check</span>
-                        )}
-                      </div>
-
-                      {/* User Info */}
-                      <div className="flex-1 min-w-0">
-                        <p className="font-headline text-xs font-bold text-zinc-200 truncate">
-                          {u.displayName || u.username || 'UNKNOWN'}
-                        </p>
-                        <p className="text-[9px] font-label text-zinc-600 truncate">{u.email}</p>
-                      </div>
-
-                      {/* Access Badge */}
-                      {hasAccess && (
-                        <span className="text-[8px] font-label uppercase tracking-wider px-2 py-0.5 border border-emerald-500/30 text-emerald-500 shrink-0">
-                          HAS_ACCESS
-                        </span>
-                      )}
-                    </div>
-                  );
-                })
-              )}
+              ))}
+              <div>
+                <label className="block text-[9px] font-label uppercase tracking-widest text-zinc-500 mb-1">DESCRIPTION</label>
+                <textarea
+                  value={editDescription}
+                  onChange={(e) => setEditDescription(e.target.value)}
+                  placeholder="Descrição da fita"
+                  rows={3}
+                  className="w-full bg-surface-container-lowest border border-zinc-800 text-sm font-body text-zinc-200 px-3 py-2 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 placeholder:text-zinc-700 resize-none"
+                />
+              </div>
             </div>
 
-            {/* Feedback message */}
-            {accessActionFeedback && (
-              <p className="text-[10px] font-label text-emerald-400 mb-3 tracking-wider text-center">
-                ✓ {accessActionFeedback}
-              </p>
-            )}
-
-            {/* Selected count + Actions */}
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-label text-zinc-500 tracking-wider">
-                {selectedUserUids.size} SELECIONADO(S) • {usersWithAccess.size} COM_ACESSO
-              </span>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => {
-                    setManageAccessAudio(null);
-                    setAccessActionFeedback(null);
-                  }}
-                  className="px-4 py-2 text-xs font-label text-zinc-400 hover:text-white border border-zinc-700 hover:border-zinc-500 transition-colors"
-                >
-                  FECHAR
-                </button>
-                <button
-                  onClick={handleRevokeAccess}
-                  disabled={selectedUserUids.size === 0 || accessLoading}
-                  className="px-4 py-2 text-xs font-label bg-red-900/60 text-red-300 font-bold tracking-wider hover:bg-red-800/60 transition-all disabled:opacity-30 disabled:cursor-not-allowed border border-red-700/30"
-                >
-                  REVOGAR
-                </button>
-                <button
-                  onClick={handleGrantAccess}
-                  disabled={selectedUserUids.size === 0 || accessLoading}
-                  className="px-4 py-2 text-xs font-label bg-blue-900/60 text-blue-300 font-bold tracking-wider hover:bg-blue-800/60 transition-all disabled:opacity-30 disabled:cursor-not-allowed border border-blue-700/30"
-                >
-                  CONCEDER
-                </button>
-              </div>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setEditAudio(null)}
+                disabled={editSaving}
+                className="px-4 py-2 text-xs font-label text-zinc-400 hover:text-white border border-zinc-700 hover:border-zinc-500 transition-colors"
+              >
+                CANCELAR
+              </button>
+              <button
+                onClick={saveEditMetadata}
+                disabled={editSaving}
+                className="px-5 py-2 text-xs font-label bg-emerald-900/60 text-emerald-300 font-bold tracking-wider hover:bg-emerald-800/60 transition-all disabled:opacity-50 border border-emerald-700/30"
+              >
+                {editSaving ? 'SALVANDO...' : 'SALVAR'}
+              </button>
             </div>
           </div>
         </div>
       )}
+
     </section>
   );
 }

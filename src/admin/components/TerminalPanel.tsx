@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { collection, doc, setDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
-import { setTerminalStateForUsers, fetchLimboGlobalState, resetLimboSeized, LimboGlobalState, PlayerMeta } from '../../store/firestore';
-import { Terminal, ShieldBan, ShieldCheck, UserCheck } from 'lucide-react';
+import { setTerminalStateForUsers, setMacStateForUsers, fetchLimboGlobalState, resetLimboSeized, LimboGlobalState, PlayerMeta } from '../../store/firestore';
+import { Terminal, ShieldBan, ShieldCheck, UserCheck, Apple } from 'lucide-react';
 
 export default function TerminalPanel() {
   const [users, setUsers] = useState<PlayerMeta[]>([]);
@@ -52,6 +52,18 @@ export default function TerminalPanel() {
   const handleRevokeAccess = async () => {
     if (selectedUids.size === 0) return;
     await setTerminalStateForUsers(Array.from(selectedUids), false, false);
+    setSelectedUids(new Set());
+  };
+
+  const handleForceMac = async () => {
+    if (selectedUids.size === 0) return;
+    await setMacStateForUsers(Array.from(selectedUids), true, true);
+    setSelectedUids(new Set());
+  };
+
+  const handleRevokeMac = async () => {
+    if (selectedUids.size === 0) return;
+    await setMacStateForUsers(Array.from(selectedUids), false, false);
     setSelectedUids(new Set());
   };
 
@@ -113,12 +125,19 @@ export default function TerminalPanel() {
 
         {/* User Selection */}
         <div className="lg:w-2/3 flex flex-col">
-          <div className="flex gap-4 mb-4">
+          <div className="flex flex-wrap gap-4 mb-4">
              <button onClick={handleForceTerminal} disabled={selectedUids.size === 0} className="px-4 py-2 bg-primary text-on-primary font-label uppercase text-xs tracking-wider machined-edge hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2">
-                <Terminal size={16}/> Abrir Remotamente na Tela
+                <Terminal size={16}/> Abrir Terminal Remotamente
              </button>
              <button onClick={handleRevokeAccess} disabled={selectedUids.size === 0} className="px-4 py-2 bg-surface-container-highest border border-zinc-700 text-zinc-300 font-label uppercase text-xs tracking-wider machined-edge hover:bg-zinc-800 disabled:opacity-50">
-                Revogar Acesso Limbo
+                Revogar DOS
+             </button>
+             <div className="w-px h-8 bg-zinc-800 self-center hidden sm:block" />
+             <button onClick={handleForceMac} disabled={selectedUids.size === 0} className="px-4 py-2 bg-[#eee] text-black font-label uppercase text-xs tracking-wider machined-edge hover:bg-white disabled:opacity-50 flex items-center gap-2">
+                <Apple size={16}/> Abrir MacOS Remotamente
+             </button>
+             <button onClick={handleRevokeMac} disabled={selectedUids.size === 0} className="px-4 py-2 bg-surface-container-highest border border-zinc-700 text-zinc-300 font-label uppercase text-xs tracking-wider machined-edge hover:bg-zinc-800 disabled:opacity-50">
+                Revogar Mac
              </button>
           </div>
 
@@ -130,7 +149,7 @@ export default function TerminalPanel() {
                     <input type="checkbox" onChange={selectAll} checked={selectedUids.size > 0 && selectedUids.size === users.length} className="accent-orange-500 w-4 h-4" />
                   </th>
                   <th className="p-3 font-label uppercase text-[10px] tracking-widest text-zinc-500">Usuário</th>
-                  <th className="p-3 font-label uppercase text-[10px] tracking-widest text-zinc-500 text-center">Acesso PC Liberado</th>
+                  <th className="p-3 font-label uppercase text-[10px] tracking-widest text-zinc-500 text-center">PC/Mac Liberado</th>
                   <th className="p-3 font-label uppercase text-[10px] tracking-widest text-zinc-500 text-center">Na Tela (Forçado)</th>
                 </tr>
               </thead>
@@ -144,11 +163,18 @@ export default function TerminalPanel() {
                        <UserCheck size={14} className={u.hasTerminalAccess ? 'text-green-500' : 'text-zinc-600'} />
                        {u.username}
                     </td>
-                    <td className="p-3 text-center">
-                       {u.hasTerminalAccess ? <span className="text-green-500">SIM</span> : <span className="text-zinc-600">NÃO</span>}
+                     <td className="p-3 text-center flex flex-col items-center gap-1">
+                        <div className="flex gap-4">
+                          <span className={u.hasTerminalAccess ? 'text-green-500' : 'text-zinc-600'}>DOS: {u.hasTerminalAccess ? 'OK' : '-'}</span>
+                          <span className={u.hasMacAccess ? 'text-blue-400' : 'text-zinc-600'}>MAC: {u.hasMacAccess ? 'OK' : '-'}</span>
+                        </div>
                     </td>
                     <td className="p-3 text-center">
-                       {u.forceTerminalOpen ? <span className="text-orange-500 animate-pulse">ABERTO</span> : <span className="text-zinc-600">-</span>}
+                       <div className="flex flex-col gap-1">
+                        {u.forceTerminalOpen && <span className="text-orange-500 text-[10px] animate-pulse">DOS ATIVO</span>}
+                        {u.forceMacOpen && <span className="text-blue-500 text-[10px] animate-pulse">MAC ATIVO</span>}
+                        {!u.forceTerminalOpen && !u.forceMacOpen && <span className="text-zinc-600">-</span>}
+                       </div>
                     </td>
                   </tr>
                 ))}
