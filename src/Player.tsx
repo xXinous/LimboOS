@@ -14,6 +14,7 @@ import Screw from './components/player/Screw';
 import BiosTerminal from './components/BiosTerminal';
 import LimboBoard from './components/LimboBoard';
 import DiskRepairApp from './components/DiskRepairApp';
+import MacOsApp from './components/MacOsApp';
 import EvidenceReader from './components/EvidenceReader';
 
 import { audioEngine } from './services/AudioEngine';
@@ -114,13 +115,29 @@ export default function App() {
         const data = snap.data();
         if (data.forceTerminalOpen) {
           setScreen(prev => {
-            if (prev !== 'bios' && prev !== 'limbo') return 'bios';
+            if (prev !== 'bios' && prev !== 'limbo' && prev !== 'diskRepair') return 'bios';
             return prev;
           });
+        } else if (data.forceMacOpen) {
+          setScreen(prev => (prev !== 'macos' ? 'macos' : prev));
         } else {
-          setScreen(prev => (prev === 'bios' || prev === 'limbo') ? 'player' : prev);
+          setScreen(prev => (prev === 'bios' || prev === 'limbo' || prev === 'diskRepair' || prev === 'macos') ? 'player' : prev);
         }
-        setPlayerData(prev => prev ? { ...prev, hasTerminalAccess: !!data.hasTerminalAccess } : prev);
+        setPlayerData(prev => {
+          if (!prev) return prev;
+          const updated = {
+            ...prev,
+            hasTerminalAccess: data.hasTerminalAccess !== undefined ? !!data.hasTerminalAccess : prev.hasTerminalAccess,
+            hasMacAccess: data.hasMacAccess !== undefined ? !!data.hasMacAccess : prev.hasMacAccess,
+            forceTerminalOpen: data.forceTerminalOpen !== undefined ? !!data.forceTerminalOpen : prev.forceTerminalOpen,
+            forceMacOpen: data.forceMacOpen !== undefined ? !!data.forceMacOpen : prev.forceMacOpen,
+            username: data.username || prev.username,
+            achievementsRevealed: data.achievementsRevealed !== undefined ? !!data.achievementsRevealed : prev.achievementsRevealed
+          };
+          // Sync tracker immediately to prevent stale stats overwriting our access flags later
+          analyticsTracker.updatePlayerData(updated);
+          return updated;
+        });
       }
     });
 
@@ -327,6 +344,10 @@ export default function App() {
           <motion.div key="diskRepair" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-50">
             <DiskRepairApp uid={playerData.uid} onClose={() => setScreen('player')} onBackToTerminal={() => setScreen('bios')} />
           </motion.div>
+        ) : screen === 'macos' ? (
+          <motion.div key="macos" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-50">
+            <MacOsApp uid={playerData.uid} onClose={() => setScreen('player')} />
+          </motion.div>
         ) : (
           <motion.div 
             key="player"
@@ -354,7 +375,17 @@ export default function App() {
             <SideControls volume={volume} setVolume={setVolume} onModeChange={handleModeChange}
               onProfileOpen={() => { analyticsTracker.forceSyncToServer(); setScreen('profile'); }} />
 
-            <BottomControls isPlaying={isPlaying} setIsPlaying={setIsPlaying} hasTape={!!currentTape} onRewind={handleRewind} isRewinding={isRewinding} hasTerminalAccess={playerData.hasTerminalAccess} onTerminalOpen={() => setScreen('bios')} />
+            <BottomControls 
+              isPlaying={isPlaying} 
+              setIsPlaying={setIsPlaying} 
+              hasTape={!!currentTape} 
+              onRewind={handleRewind} 
+              isRewinding={isRewinding} 
+              hasTerminalAccess={playerData.hasTerminalAccess} 
+              onTerminalOpen={() => setScreen('bios')}
+              hasMacAccess={playerData.hasMacAccess}
+              onMacOpen={() => setScreen('macos')}
+            />
           </motion.div>
         )}
       </AnimatePresence>

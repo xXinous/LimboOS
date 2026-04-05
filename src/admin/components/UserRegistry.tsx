@@ -21,7 +21,6 @@ import {
 } from "firebase/auth";
 import { format } from "date-fns";
 import { useModal } from './ConfirmModal';
-import { ALL_ACHIEVEMENTS } from "../../data/achievements";
 interface UserData {
   uid: string;
   displayName: string;
@@ -57,7 +56,6 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
   const [userPlayCounts, setUserPlayCounts] = useState<Record<string, PlayCountData[]>>({});
   const [userTotalPlays, setUserTotalPlays] = useState<Record<string, number>>({});
   const [userStats, setUserStats] = useState<Record<string, any>>({});
-  const [userAchievements, setUserAchievements] = useState<Record<string, any[]>>({});
   // Confirm modal state
   const [confirmDeleteUid, setConfirmDeleteUid] = useState<string | null>(null);
   const [confirmDeleteTape, setConfirmDeleteTape] = useState<{ uid: string; tapeId: string } | null>(null);
@@ -67,10 +65,6 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
   // Add tape modal state
   const [addTapeModal, setAddTapeModal] = useState<string | null>(null); // uid of target user
   const [selectedAudioId, setSelectedAudioId] = useState<string>("");
-
-  // Add achievement modal state
-  const [addAchievementModal, setAddAchievementModal] = useState<string | null>(null); // uid of target user
-  const [selectedAchievementId, setSelectedAchievementId] = useState<string>("");
 
   // Create user modal state
   const [showCreateUser, setShowCreateUser] = useState(false);
@@ -164,12 +158,6 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
       if (statsSnap.exists()) {
         setUserStats((prev) => ({ ...prev, [uid]: statsSnap.data() }));
       }
-
-      // Load achievements
-      const achSnap = await getDocs(collection(db, "users", uid, "achievements"));
-      const achs: any[] = [];
-      achSnap.forEach((d) => achs.push({ achievementId: d.id, ...d.data() }));
-      setUserAchievements((prev) => ({ ...prev, [uid]: achs }));
     } catch (error) {
       console.error("Error loading user tapes:", error);
     }
@@ -298,36 +286,6 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
     }
   };
 
-  // ── Add/Revoke Achievement ──────────────────────────────────────────────────
-  const openAddAchievementModal = (uid: string) => {
-    setAddAchievementModal(uid);
-    setSelectedAchievementId("");
-  };
-
-  const executeAddAchievement = async () => {
-    if (!addAchievementModal || !selectedAchievementId) return;
-    try {
-      await setDoc(doc(db, "users", addAchievementModal, "achievements", selectedAchievementId), {
-        achievementId: selectedAchievementId,
-        unlockedAt: serverTimestamp(),
-      });
-      loadUserTapes(addAchievementModal);
-      setAddAchievementModal(null);
-      setSelectedAchievementId("");
-    } catch (error) {
-      console.error("Error adding achievement:", error);
-    }
-  };
-
-  const handleRevokeAchievement = async (uid: string, achievementId: string) => {
-    if (!isAdmin) return;
-    try {
-      await deleteDoc(doc(db, "users", uid, "achievements", achievementId));
-      loadUserTapes(uid);
-    } catch (error) {
-      console.error("Error revoking achievement:", error);
-    }
-  };
 
   // ── Create New User ────────────────────────────────────────────────────────
   const handleCreateUser = async (e: React.FormEvent) => {
@@ -692,55 +650,6 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
                           </div>
                         </div>
 
-                        {/* Achievements Section */}
-                        <div className="pt-4 border-t border-zinc-800/50">
-                          <div className="flex items-center justify-between mb-4">
-                            <div className="flex items-center gap-2">
-                              <span className="material-symbols-outlined text-secondary text-sm">stars</span>
-                              <h4 className="font-label text-[10px] uppercase tracking-widest text-zinc-400">
-                                Unlocked_Achievements ({userAchievements[user.uid]?.length || 0})
-                              </h4>
-                            </div>
-                            <button
-                              onClick={() => openAddAchievementModal(user.uid)}
-                              className="flex items-center gap-1 text-[10px] font-label uppercase tracking-wider text-secondary hover:text-white transition-colors"
-                            >
-                              <span className="material-symbols-outlined text-xs">add</span>
-                              GRANT_ACHIEVEMENT
-                            </button>
-                          </div>
-                          {userAchievements[user.uid]?.length ? (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2">
-                              {userAchievements[user.uid].map((ach) => (
-                                <div key={ach.achievementId} className="bg-surface-container-lowest border border-zinc-800 p-3 flex items-center justify-between gap-3">
-                                  <div className="flex items-center gap-3 min-w-0 flex-1">
-                                    <div className="text-secondary text-lg">★</div>
-                                    <div className="flex-1 min-w-0">
-                                      <p className="font-headline text-xs font-bold text-zinc-200 truncate" title={ach.achievementId}>
-                                        {ach.achievementId}
-                                      </p>
-                                      {ach.unlockedAt && (
-                                        <span className="text-[9px] font-label text-zinc-600 truncate block mt-0.5">
-                                          ACQUIRED: {ach.unlockedAt?.toDate ? format(ach.unlockedAt.toDate(), "dd/MM/yy HH:mm") : ""}
-                                        </span>
-                                      )}
-                                    </div>
-                                  </div>
-                                  <button
-                                    onClick={() => handleRevokeAchievement(user.uid, ach.achievementId)}
-                                    className="material-symbols-outlined text-sm text-zinc-600 hover:text-error transition-colors"
-                                    title="Revoke achievement"
-                                  >
-                                    close
-                                  </button>
-                                </div>
-                              ))}
-                            </div>
-                          ) : (
-                            <p className="text-zinc-600 text-xs font-label tracking-widest">NO_ACHIEVEMENTS_UNLOCKED</p>
-                          )}
-                        </div>
-
                       </div>
                     </td>
                   </tr>
@@ -944,52 +853,6 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
         </div>
       )}
 
-      {/* Add Achievement Modal */}
-      {addAchievementModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
-          <div className="bg-surface-container-low border border-secondary/30 p-6 w-full max-w-md machined-edge">
-            <div className="flex items-center gap-3 mb-4">
-              <span className="material-symbols-outlined text-secondary text-xl">stars</span>
-              <h3 className="font-headline text-lg text-zinc-200">CONCEDER_CONQUISTA</h3>
-            </div>
-            <p className="font-body text-xs text-zinc-500 mb-4">
-              Selecione uma conquista para desbloquear para este jogador:
-            </p>
-            <select
-              value={selectedAchievementId}
-              onChange={(e) => setSelectedAchievementId(e.target.value)}
-              className="w-full bg-zinc-900 border border-zinc-700 text-zinc-200 px-3 py-3 text-sm focus:border-secondary outline-none mb-4"
-            >
-              <option value="">-- SELECIONAR_CONQUISTA --</option>
-              {ALL_ACHIEVEMENTS.map((ach) => (
-                <option key={ach.id} value={ach.id}>
-                  {ach.icon} {ach.title}
-                </option>
-              ))}
-            </select>
-            {selectedAchievementId && (
-              <p className="text-[9px] font-label text-zinc-600 mb-4 break-all">
-                ID: {selectedAchievementId}
-              </p>
-            )}
-            <div className="flex justify-end gap-3">
-              <button
-                onClick={() => setAddAchievementModal(null)}
-                className="px-4 py-2 text-xs font-label text-zinc-400 hover:text-white border border-zinc-700 hover:border-zinc-500 transition-colors"
-              >
-                CANCELAR
-              </button>
-              <button
-                onClick={executeAddAchievement}
-                disabled={!selectedAchievementId}
-                className="px-4 py-2 text-xs font-label bg-secondary text-black font-bold tracking-wider hover:brightness-110 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
-              >
-                CONCEDER
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Create New User Modal */}
       {showCreateUser && (

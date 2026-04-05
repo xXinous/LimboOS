@@ -230,6 +230,22 @@ export function resolveTapes(ids: string[]): Tape[] {
     .map((id) => ALL_TAPES.find((t) => t.id === id))
     .filter((t): t is Tape => t !== undefined);
 }
+
+/** Admin-facing minimal shape of an evidence tape item. */
+export interface EvidenceTapeAdmin {
+  id: string;
+  title: string;
+  chapter: string;
+  type: 'audio' | 'disk';
+}
+
+/** Simplified list of all evidence items for the admin Inventory Manager. */
+export const EVIDENCE_TAPES_FOR_ADMIN: EvidenceTapeAdmin[] = EVIDENCE_TAPES.map((t) => ({
+  id: t.id,
+  title: t.title,
+  chapter: t.chapter,
+  type: (t.type ?? 'audio') as 'audio' | 'disk',
+}));
 `;
 
   fs.writeFileSync(OUTPUT, output, 'utf-8');
