@@ -41,9 +41,11 @@ service cloud.firestore {
       // User can read their own profile. Admin can read all.
       allow read: if isOwner(userId) || isAdmin();
       
-      // Prevent normal users from writing directly to root users collection except specific fields like lastLogin
-      // Admin can write anything.
-      allow write: if isAdmin() || (isOwner(userId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastLogin']));
+      // Allow users to create their own profile. Admin can write all.
+      allow create: if isOwner(userId) || isAdmin();
+      
+      // Allow users to update only specific fields. Admin can update anything.
+      allow update: if isAdmin() || (isOwner(userId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastLogin', 'spotifyPlaylistUrl', 'forceTerminalOpen', 'forceMacOpen']));
 
       // Subcollection: tapes
       match /tapes/{tapeId} {

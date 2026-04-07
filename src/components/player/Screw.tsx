@@ -1,24 +1,30 @@
 import React from 'react';
 import { analyticsTracker } from '../../services/AnalyticsTracker';
+import { activityLogger } from '../../services/ActivityLogger';
 
 export interface ScrewProps {
   key?: React.Key;
   className?: string;
   innerClassName?: string;
   onClick?: () => void;
+  uid?: string;
+  username?: string;
 }
 
 export class ScrewBehavior {
-  static registerClick() {
+  static registerClick(uid?: string, username?: string) {
     analyticsTracker.incrementStat('screwClicks');
     analyticsTracker.incrementStat('fidgetClicks');
+    if (uid && username) {
+      activityLogger.logAction(uid, username, 'fidget', 'Interação tátil (parafuso)');
+    }
   }
 }
 
-export default function Screw({ className = '', innerClassName = '', onClick }: ScrewProps) {
+export default function Screw({ className = '', innerClassName = '', onClick, uid, username }: ScrewProps) {
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    ScrewBehavior.registerClick();
+    ScrewBehavior.registerClick(uid, username);
     if (onClick) onClick();
   };
 

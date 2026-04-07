@@ -1,6 +1,7 @@
 import { collection, doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { analyticsTracker } from './AnalyticsTracker';
+import { activityLogger } from './ActivityLogger';
 import type { PlayerData, LimboGlobalState } from '../store/firestore';
 import type { AppScreen } from '../types/player';
 
@@ -40,11 +41,29 @@ export class PlayerSyncService {
         
         // Handle forced screen transitions based on new flags
         if (data.forceTerminalOpen) {
-          onScreenChange((prev) => (prev !== 'bios' && prev !== 'limbo' && prev !== 'diskRepair' ? 'bios' : prev));
+          onScreenChange((prev) => {
+            if (prev !== 'bios' && prev !== 'limbo' && prev !== 'diskRepair') {
+              activityLogger.logSystem(uid, data.username || uid, 'sync', 'Terminal forçado pelo servidor', { triggeredBy: 'forceTerminalOpen' });
+              return 'bios';
+            }
+            return prev;
+          });
         } else if (data.forceMacOpen) {
-          onScreenChange((prev) => (prev !== 'macos' ? 'macos' : prev));
+          onScreenChange((prev) => {
+            if (prev !== 'macos') {
+              activityLogger.logSystem(uid, data.username || uid, 'sync', 'MacOS forçado pelo servidor', { triggeredBy: 'forceMacOpen' });
+              return 'macos';
+            }
+            return prev;
+          });
         } else {
-          onScreenChange((prev) => (['bios', 'limbo', 'diskRepair', 'macos'].includes(prev) ? 'player' : prev));
+          onScreenChange((prev) => {
+            if (['bios', 'limbo', 'diskRepair', 'macos'].includes(prev)) {
+               activityLogger.logSystem(uid, data.username || uid, 'sync', 'Acesso remoto encerrado pelo servidor', { triggeredBy: 'forceOpenRemoved' });
+               return 'player';
+            }
+            return prev;
+          });
         }
 
         const updatedData: Partial<PlayerData> = {

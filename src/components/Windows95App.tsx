@@ -1,0 +1,269 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import { checkMacClosed, firestoreUnlockTape } from '../store/firestore';
+import { analyticsTracker } from '../services/AnalyticsTracker';
+import { activityLogger } from '../services/ActivityLogger';
+
+interface Windows95AppProps {
+  uid: string;
+  onClose: () => void;
+}
+
+type WindowType = 'myComputer' | 'diskRepair' | 'recycleBin';
+
+export default function Windows95App({ uid, onClose }: Windows95AppProps) {
+  const [activeWindows, setActiveWindows] = useState<WindowType[]>([]);
+  const [focusedWindow, setFocusedWindow] = useState<WindowType | null>(null);
+  const [startMenuOpen, setStartMenuOpen] = useState(false);
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  // Clock
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const toggleWindow = (type: WindowType) => {
+    if (activeWindows.includes(type)) {
+      setFocusedWindow(type);
+    } else {
+      activityLogger.logAction(uid, 'Sistema', 'windows95', `Abriu janela: ${getWindowLabel(type)}`, { window: type });
+      setActiveWindows(prev => [...prev, type]);
+      setFocusedWindow(type);
+    }
+    setStartMenuOpen(false);
+  };
+
+  const closeWindow = (type: WindowType) => {
+    activityLogger.logAction(uid, 'Sistema', 'windows95', `Fechou janela: ${getWindowLabel(type)}`, { window: type });
+    setActiveWindows(prev => prev.filter(w => w !== type));
+    if (focusedWindow === type) setFocusedWindow(null);
+  };
+
+  const handleShutdown = async () => {
+    activityLogger.logAction(uid, 'Sistema', 'windows95', 'Solicitou desligamento do Windows 95');
+    await checkMacClosed(uid); // Reuse the same close check as Mac if appropriate
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col bg-[#008080] font-sans overflow-hidden select-none touch-none text-black">
+      <style>{`
+        @font-face {
+          font-family: 'Win95';
+          src: url('https://fonts.cdnfonts.com/css/w95fa') format('woff2');
+        }
+        .win95-font { font-family: 'MS Sans Serif', 'Win95', sans-serif; }
+        .win95-border-out {
+          box-shadow: inset 1px 1px #fff, inset -1px -1px #0a0a0a, inset -2px -2px #808080;
+          border: 1px solid #dfdfdf;
+        }
+        .win95-border-in {
+          box-shadow: inset 1px 1px #0a0a0a, inset -1px -1px #fff;
+          border: 1px solid #808080;
+        }
+        .win95-button {
+          background: #c0c0c0;
+          box-shadow: inset 1px 1px #dfdfdf, inset 2px 2px #fff, inset -1px -1px #0a0a0a, inset -2px -2px #808080;
+          border: 1px solid #0a0a0a;
+        }
+        .win95-button:active {
+          box-shadow: inset 1px 1px #0a0a0a, inset 2px 2px #808080, inset -1px -1px #dfdfdf, inset -2px -2px #fff;
+          padding: 2px 0 0 2px;
+        }
+        .start-menu-sidebar {
+            background: linear-gradient(to top, #000080, #1084d0);
+            width: 24px;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            padding-bottom: 8px;
+        }
+        .start-menu-text {
+            color: #fff;
+            font-weight: bold;
+            transform: rotate(-90deg);
+            white-space: nowrap;
+            margin-bottom: 24px;
+            font-size: 14px;
+        }
+      `}</style>
+
+      {/* Desktop Icons */}
+      <div className="flex-1 p-4 flex flex-col gap-4 pointer-events-none">
+        <DesktopIcon icon="💻" label="Meu Computador" onClick={() => toggleWindow('myComputer')} />
+        <DesktopIcon icon="🗑️" label="Lixeira" onClick={() => toggleWindow('recycleBin')} />
+        <DesktopIcon icon="💾" label="DiskRepair Pro" onClick={() => toggleWindow('diskRepair')} />
+      </div>
+
+      {/* Windows Layer */}
+      <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+        <AnimatePresence>
+          {activeWindows.map(win => (
+            <Window 
+              key={win}
+              type={win} 
+              isFocused={focusedWindow === win}
+              onFocus={() => setFocusedWindow(win)}
+              onClose={() => closeWindow(win)}
+              uid={uid}
+            />
+          ))}
+        </AnimatePresence>
+      </div>
+
+      {/* Taskbar */}
+      <div className="h-10 bg-[#c0c0c0] border-t-2 border-white flex items-center px-1 gap-1 z-50">
+        <button 
+          onClick={() => setStartMenuOpen(!startMenuOpen)}
+          className={`win95-button h-8 px-2 flex items-center gap-1 font-bold text-sm ${startMenuOpen ? 'bg-[#dfdfdf] shadow-[inset_1px_1px_#0a0a0a]' : ''}`}
+        >
+          <span className="text-lg">🪟</span> Iniciar
+        </button>
+
+        <div className="flex-1 flex gap-1 h-8 overflow-hidden mx-1">
+          {activeWindows.map(win => (
+            <button 
+              key={win}
+              onClick={() => setFocusedWindow(win)}
+              className={`win95-button h-full px-2 text-xs text-left min-w-[100px] truncate ${focusedWindow === win ? 'shadow-[inset_1px_1px_#0a0a0a] bg-[#dfdfdf]' : ''}`}
+            >
+              <span className="mr-1">{win === 'diskRepair' ? '💾' : win === 'recycleBin' ? '🗑️' : '💻'}</span>
+              {getWindowLabel(win)}
+            </button>
+          ))}
+        </div>
+
+        {/* Tray */}
+        <div className="win95-border-in h-8 px-2 flex items-center gap-2 text-[11px] min-w-[70px] justify-center bg-[#c0c0c0]">
+          <span>🔊</span>
+          <span>{currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+        </div>
+      </div>
+
+      {/* Start Menu */}
+      <AnimatePresence>
+        {startMenuOpen && (
+          <>
+            <div className="fixed inset-0 z-40" onClick={() => setStartMenuOpen(false)} />
+            <motion.div 
+              initial={{ y: 10, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 10, opacity: 0 }}
+              className="absolute bottom-10 left-0 w-60 bg-[#c0c0c0] win95-border-out z-50 p-0.5 flex"
+            >
+              <div className="start-menu-sidebar">
+                <span className="start-menu-text">Windows 95</span>
+              </div>
+              <div className="flex-1 py-1">
+                <StartOption icon="💻" label="Programas" subMenu />
+                <StartOption icon="📂" label="Documentos" subMenu />
+                <StartOption icon="⚙️" label="Configurações" subMenu />
+                <StartOption icon="🔍" label="Localizar" subMenu />
+                <StartOption icon="❓" label="Ajuda" />
+                <StartOption icon="🏃" label="Executar..." />
+                <div className="h-px bg-[#808080] border-b border-white my-1 mx-1" />
+                <StartOption icon="🚪" label="Desligar..." onClick={handleShutdown} />
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function DesktopIcon({ icon, label, onClick }: { icon: string, label: string, onClick: () => void }) {
+  return (
+    <div 
+      className="w-20 flex flex-col items-center gap-1 cursor-pointer group pointer-events-auto active:opacity-70"
+      onClick={onClick}
+    >
+      <div className="text-4xl">{icon}</div>
+      <span className="text-[11px] text-white text-center leading-tight bg-transparent group-active:bg-[#000080] px-1 selection:bg-[#000080]">
+        {label}
+      </span>
+    </div>
+  );
+}
+
+function StartOption({ icon, label, onClick, subMenu }: { icon: string, label: string, onClick?: () => void, subMenu?: boolean }) {
+  return (
+    <div 
+      className="flex items-center gap-3 px-4 py-1.5 hover:bg-[#000080] hover:text-white cursor-pointer group"
+      onClick={onClick}
+    >
+      <span className="text-xl w-6 flex justify-center">{icon}</span>
+      <span className="text-[11px] font-medium">{label}</span>
+      {subMenu && <span className="ml-auto text-[8px]">▶</span>}
+    </div>
+  );
+}
+
+function Window({ type, isFocused, onFocus, onClose, uid, key }: { type: WindowType, isFocused: boolean, onFocus: () => void, onClose: () => void, uid: string, key?: React.Key }) {
+  return (
+    <motion.div 
+      key={key}
+      initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
+      className={`absolute w-[90%] max-w-lg min-h-[300px] bg-[#c0c0c0] win95-border-out pointer-events-auto flex flex-col`}
+      style={{ zIndex: isFocused ? 45 : 35 }}
+      onPointerDown={onFocus}
+    >
+      {/* Title Bar */}
+      <div className={`h-[22px] flex items-center px-1 gap-1 ${isFocused ? 'bg-linear-to-r from-[#000080] to-[#1084d0]' : 'bg-[#808080]'}`}>
+        <span className="text-xs px-1">{type === 'diskRepair' ? '💾' : type === 'recycleBin' ? '🗑️' : '💻'}</span>
+        <span className="text-white font-bold text-[11px] flex-1 truncate select-none">{getWindowLabel(type)}</span>
+        <div className="flex gap-1 h-4 py-0.5">
+          <button className="win95-button w-4 h-4 text-[7px] flex items-center justify-center font-bold">_</button>
+          <button className="win95-button w-4 h-4 text-[7px] flex items-center justify-center font-bold">□</button>
+          <button 
+            onClick={(e) => { e.stopPropagation(); onClose(); }}
+            className="win95-button w-4 h-4 text-[10px] flex items-center justify-center font-bold pb-0.5"
+          >
+            ✕
+          </button>
+        </div>
+      </div>
+
+      {/* Menu Area (Simulated) */}
+      <div className="flex px-1 gap-3 text-[11px] h-5 items-center">
+        <span className="hover:win95-border-in px-1 cursor-default">Arquivo</span>
+        <span className="hover:win95-border-in px-1 cursor-default">Editar</span>
+        <span className="hover:win95-border-in px-1 cursor-default">Exibir</span>
+        <span className="hover:win95-border-in px-1 cursor-default">Ajuda</span>
+      </div>
+
+      {/* Window Content */}
+      <div className="flex-1 bg-white m-0.5 win95-border-in overflow-auto p-4 flex flex-col">
+        {type === 'myComputer' && (
+          <div className="grid grid-cols-3 gap-6">
+            <DesktopIcon icon="💽" label="Disco Local (C:)" onClick={() => {}} />
+            <DesktopIcon icon="💿" label="Drive CD (D:)" onClick={() => {}} />
+            <DesktopIcon icon="💾" label="Disquete (A:)" onClick={() => {}} />
+          </div>
+        )}
+        {type === 'diskRepair' && (
+          <div className="flex flex-col gap-4 text-center items-center">
+            <h3 className="font-bold text-sm">Desmagnetizador de Disco v1.4</h3>
+            <div className="text-5xl my-4">💾</div>
+            <p className="text-xs max-w-[200px]">Nenhum disquete inserido. Por favor, coloque um disco no Drive A: para começar.</p>
+            <button className="win95-button py-1 px-8 mt-4 font-bold text-xs uppercase">Analisar</button>
+          </div>
+        )}
+        {type === 'recycleBin' && (
+          <div className="flex flex-col items-center justify-center py-12 opacity-30">
+            <span className="text-6xl mb-4">🗑️</span>
+            <span className="text-sm font-bold">A Lixeira está vazia.</span>
+          </div>
+        )}
+      </div>
+    </motion.div>
+  );
+}
+
+function getWindowLabel(type: WindowType): string {
+  switch (type) {
+    case 'myComputer': return 'Meu Computador';
+    case 'diskRepair': return 'DiskRepair Pro';
+    case 'recycleBin': return 'Lixeira';
+    default: return 'Janela';
+  }
+}

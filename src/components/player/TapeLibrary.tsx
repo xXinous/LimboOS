@@ -1,11 +1,13 @@
-import React from 'react';
-import { AnimatePresence, motion } from 'motion/react';
+import { AnimatePresence, motion, useScroll } from 'motion/react';
+import { activityLogger } from '../../services/ActivityLogger';
 import type { Tape } from '../../data/tapes';
 import type { DisplayMode } from '../../types/player';
+import React from 'react';
 
-export default function TapeLibrary({ tapes, currentTapeId, isPlaying, displayMode, onTapeSelect }: {
+export default function TapeLibrary({ tapes, currentTapeId, isPlaying, displayMode, onTapeSelect, uid, username }: {
   tapes: Tape[]; currentTapeId: string | null; isPlaying: boolean; displayMode: DisplayMode;
   onTapeSelect: (tape: Tape) => void;
+  uid: string; username: string;
 }) {
   const sorted = React.useMemo(() => {
     if (displayMode === 'title') return [...tapes].sort((a, b) => a.title.localeCompare(b.title));
@@ -37,7 +39,10 @@ export default function TapeLibrary({ tapes, currentTapeId, isPlaying, displayMo
             <AnimatePresence mode="popLayout">
               {sorted.map((tape) => (
                 <motion.div layout key={tape.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                  onClick={() => onTapeSelect(tape)}
+                  onClick={() => {
+                    activityLogger.logAction(uid, username, 'player', `Selecionou fita: ${tape.title}`, { tapeId: tape.id, tapeTitle: tape.title });
+                    onTapeSelect(tape);
+                  }}
                   className={`p-2 border-b border-[#222] cursor-pointer transition-colors flex justify-between items-center ${tape.id === currentTapeId ? 'bg-orange-900/20 border-orange-500/50' : 'hover:bg-[#222]'}`}>
                   <div className="flex flex-col min-w-0 pr-2">
                     <span className={`text-xs font-bold truncate ${tape.id === currentTapeId ? 'text-orange-500' : 'text-gray-200'}`}>{tape.title}</span>

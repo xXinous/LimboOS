@@ -13,7 +13,7 @@ export default function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
     { id: 'achievements', label: 'Achievements', icon: 'stars' },
     { id: 'analytics', label: 'Analytics / BI', icon: 'insights' },
     { id: 'terminals', label: 'Controle de Sistemas', icon: 'terminal' },
-    { id: 'logs', label: 'Live Feed / Logs', icon: 'cell_tower' },
+    { id: 'logs', label: 'System Logs', icon: 'list_alt' },
     { id: 'settings', label: 'System Config', icon: 'settings_suggest' },
   ];
 

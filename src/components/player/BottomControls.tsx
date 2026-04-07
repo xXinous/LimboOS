@@ -3,6 +3,7 @@ import { Play, Pause, RotateCcw, Menu, Monitor } from 'lucide-react';
 import { FaApple } from 'react-icons/fa';
 import { motion, AnimatePresence } from 'motion/react';
 import { analyticsTracker } from '../../services/AnalyticsTracker';
+import { activityLogger } from '../../services/ActivityLogger';
 
 export default function BottomControls({ 
   isPlaying, 
@@ -13,7 +14,9 @@ export default function BottomControls({
   hasTerminalAccess,
   onTerminalOpen,
   hasMacAccess,
-  onMacOpen
+  onMacOpen,
+  uid,
+  username
 }: { 
   isPlaying: boolean; 
   setIsPlaying: (v: boolean) => void; 
@@ -24,6 +27,8 @@ export default function BottomControls({
   onTerminalOpen?: () => void;
   hasMacAccess?: boolean;
   onMacOpen?: () => void;
+  uid: string;
+  username: string;
 }) {
   const [showMenu, setShowMenu] = useState(false);
   const terminalAccess = !!hasTerminalAccess;
@@ -33,6 +38,7 @@ export default function BottomControls({
   const handleAppClick = () => {
     analyticsTracker.incrementStat('fidgetClicks');
     if (appCount > 1) {
+      if (!showMenu) activityLogger.logAction(uid, username, 'menu', 'Aberto seletor de sistemas');
       setShowMenu(!showMenu);
     } else if (terminalAccess && onTerminalOpen) {
       onTerminalOpen();
@@ -78,7 +84,10 @@ export default function BottomControls({
       <button 
         onClick={() => { 
           analyticsTracker.incrementStat('fidgetClicks');
-          if (hasTape && onRewind && !isRewinding) onRewind(); 
+          if (hasTape && onRewind && !isRewinding) {
+            activityLogger.logAction(uid, username, 'player', 'Retroceder fita');
+            onRewind();
+          }
         }}
         className={`w-16 h-10 bg-[#333] rounded-full border-2 border-[#1a1a1a] shadow-lg flex items-center justify-center transition-all ${(hasTape && !isRewinding) ? 'active:bg-[#444] active:scale-95' : 'opacity-40 cursor-not-allowed'}`}
       >
@@ -86,7 +95,11 @@ export default function BottomControls({
       </button>
       <button onClick={() => {
         analyticsTracker.incrementStat('fidgetClicks');
-        if (hasTape) setIsPlaying(!isPlaying);
+        if (hasTape) {
+          const newState = !isPlaying;
+          activityLogger.logAction(uid, username, 'player', newState ? 'Iniciado Play' : 'Pausado');
+          setIsPlaying(newState);
+        }
       }}
         className={`w-20 h-12 bg-[#333] rounded-xl border-2 border-[#1a1a1a] shadow-lg flex items-center justify-center gap-1 transition-all ${hasTape ? 'active:bg-[#444] active:shadow-inner active:scale-95' : 'opacity-40 cursor-not-allowed'}`}>
         {isPlaying ? <Pause size={22} className="text-orange-500 fill-orange-500" /> : <Play size={22} className="text-orange-500 fill-orange-500" />}
