@@ -8,19 +8,21 @@ import Screw from './Screw';
 export default function CassetteVisor({
   currentTape, isPlaying, volume, tapeState,
   onEject, onScanClick, onCancelScan, isChangingTape, onQrDetected,
-  isRewinding
+  isRewinding, uid, username
 }: {
   currentTape: Tape | null; isPlaying: boolean; volume: number;
   tapeState: TapeState; onEject: () => void; onScanClick: () => void;
   onCancelScan: () => void; isChangingTape: boolean;
   onQrDetected: (code: string) => void;
   isRewinding?: boolean;
+  uid: string;
+  username: string;
 }) {
   return (
     <div className="mt-4 mx-auto w-[310px] h-[190px] bg-[#222] rounded-xl border-4 border-[#1a1a1a] shadow-[inset_0_4px_10px_rgba(0,0,0,0.6)] flex flex-col items-center relative overflow-hidden shrink-0">
       {/* Corner screws */}
       {([['top-2 left-2',''],['top-2 right-2','-rotate-45'],['bottom-2 left-2','rotate-90'],['bottom-2 right-2','']] as const).map(([pos, rot], i) => (
-        <Screw key={i} className={`absolute ${pos} w-2.5 h-2.5 rounded-full bg-[#111]`} innerClassName={`w-1.5 h-px bg-[#333] ${rot}`} />
+        <Screw key={i} className={`absolute ${pos} w-2.5 h-2.5 rounded-full bg-[#111]`} innerClassName={`w-1.5 h-px bg-[#333] ${rot}`} uid={uid} username={username} />
       ))}
 
       <AnimatePresence mode="wait">

@@ -1,16 +1,34 @@
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { motion, useMotionValue, useTransform, animate } from 'motion/react';
 import { User } from 'lucide-react';
 import { analyticsTracker } from '../../services/AnalyticsTracker';
+import { activityLogger } from '../../services/ActivityLogger';
 
-export default function SideControls({ volume, setVolume, onModeChange, onProfileOpen }: {
+export default function SideControls({ volume, setVolume, onModeChange, onProfileOpen, uid, username }: {
   volume: number; setVolume: (v: number) => void;
   onModeChange: (dir: 'up' | 'down') => void; onProfileOpen: () => void;
+  uid: string; username: string;
 }) {
   const dragY = useMotionValue(0);
   const firedRef = useRef(false);
   const upArrowColor = useTransform(dragY, (v: number) => v < -5 ? '#ea580c' : '#6b7280');
   const downArrowColor = useTransform(dragY, (v: number) => v > 5 ? '#ea580c' : '#6b7280');
+  
+  // Volume Debounce Logging
+  const lastLoggedVolume = useRef(volume);
+  const volumeTimer = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    if (volume === lastLoggedVolume.current) return;
+    if (volumeTimer.current) clearTimeout(volumeTimer.current);
+
+    volumeTimer.current = setTimeout(() => {
+      activityLogger.logAction(uid, username, 'player', `Volume ajustado para ${volume}%`, { volume });
+      lastLoggedVolume.current = volume;
+    }, 1500);
+
+    return () => { if (volumeTimer.current) clearTimeout(volumeTimer.current); };
+  }, [volume, uid, username]);
 
   return (
     <div className="absolute right-2 top-[240px] bottom-20 flex flex-col items-center justify-center gap-6 w-16">
@@ -49,11 +67,13 @@ export default function SideControls({ volume, setVolume, onModeChange, onProfil
               // Gatilho de mudança em 18 pixels
               if (delta <= -18) {
                 onModeChange('up');
+                activityLogger.logAction(uid, username, 'player', 'Alterado modo de exibição (Cima)');
                 analyticsTracker.incrementStat('fidgetClicks');
                 firedRef.current = true;
                 animate(dragY, 0, { type: 'spring', stiffness: 400, damping: 25 });
               } else if (delta >= 18) {
                 onModeChange('down');
+                activityLogger.logAction(uid, username, 'player', 'Alterado modo de exibição (Baixo)');
                 analyticsTracker.incrementStat('fidgetClicks');
                 firedRef.current = true;
                 animate(dragY, 0, { type: 'spring', stiffness: 400, damping: 25 });

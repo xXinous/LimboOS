@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import { useSwipeable } from 'react-swipeable';
 
 import LoginScreen from './components/LoginScreen';
 import ProfileScreen from './components/ProfileScreen';
@@ -15,6 +16,7 @@ import BiosTerminal from './components/BiosTerminal';
 import LimboBoard from './components/LimboBoard';
 import DiskRepairApp from './components/DiskRepairApp';
 import MacOsApp from './components/MacOsApp';
+import Windows95App from './components/Windows95App';
 import EvidenceReader from './components/EvidenceReader';
 
 import { audioEngine } from './services/AudioEngine';
@@ -262,6 +264,25 @@ export default function App() {
     setCurrentTape(null); setTapeState('empty'); setIsPlaying(false);
   };
 
+  // ── Swipe Gestures ────────────────────────────────────────────────────────
+  const swipeHandlers = useSwipeable({
+    onSwipedLeft: () => {
+      if (screen === 'player' && playerData) {
+        activityLogger.logNavigation(playerData.uid, playerData.username, 'player', 'profile');
+        analyticsTracker.forceSyncToServer();
+        setScreen('profile');
+      }
+    },
+    onSwipedRight: () => {
+      if (screen === 'profile' && playerData) {
+        activityLogger.logNavigation(playerData.uid, playerData.username, 'profile', 'player');
+        setScreen('player');
+      }
+    },
+    trackMouse: true,
+    preventScrollOnSwipe: true,
+  });
+
   // ── UI Loading / Nav ──────────────────────────────────────────────────────
   if (playerData === null) {
     return (
@@ -275,7 +296,7 @@ export default function App() {
 
   // ── Renderer ──────────────────────────────────────────────────────────────
   return (
-    <div className="fixed inset-0 bg-surface flex items-center justify-center p-0 sm:p-4 overflow-hidden select-none touch-none">
+    <div {...swipeHandlers} className="fixed inset-0 bg-surface flex items-center justify-center p-0 sm:p-4 overflow-hidden select-none touch-none">
       <div className="noise-overlay" />
       <div className="scanlines" />
       <div className="vignette" />
@@ -289,7 +310,7 @@ export default function App() {
             exit={{ opacity: 0 }}
             className="w-full h-full flex items-center justify-center"
           >
-            <LoginScreen onLogin={(data) => { setPlayerData(data); setLocalStats(data.stats); setScreen('player') }} />
+            <LoginScreen onLogin={(data) => { activityLogger.logNavigation(data.uid, data.username, 'login', 'player'); setPlayerData(data); setLocalStats(data.stats); setScreen('player') }} />
           </motion.div>
         ) : screen === 'profile' ? (
           <motion.div
@@ -299,11 +320,29 @@ export default function App() {
             exit={{ opacity: 0 }}
             className="w-full h-full flex items-center justify-center"
           >
-            <ProfileScreen profile={playerData} onBack={() => setScreen('player')} onLogout={handleLogout} onUpdateSpotify={async (url) => { if (playerData) { await firestoreUpdateSpotifyPlaylist(playerData.uid, url); setPlayerData({ ...playerData, spotifyPlaylistUrl: url }); } }} />
+            <ProfileScreen 
+              profile={playerData} 
+              onBack={() => { activityLogger.logNavigation(playerData.uid, playerData.username, 'profile', 'player'); setScreen('player'); }} 
+              onLogout={handleLogout} 
+              onUpdateSpotify={async (url) => { 
+                if (playerData) { 
+                  activityLogger.logAction(playerData.uid, playerData.username, 'profile', `Atualizou playlist Spotify: ${url}`, { url });
+                  await firestoreUpdateSpotifyPlaylist(playerData.uid, url); 
+                  setPlayerData({ ...playerData, spotifyPlaylistUrl: url }); 
+                } 
+              }} 
+            />
           </motion.div>
         ) : screen === 'bios' ? (
           <motion.div key="bios" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-50">
-            <BiosTerminal uid={playerData.uid} onIpDetected={() => { activityLogger.logNavigation(playerData.uid, playerData.username, 'bios', 'limbo'); setScreen('limbo'); }} onClose={() => { activityLogger.logNavigation(playerData.uid, playerData.username, 'bios', 'player'); setScreen('player'); }} onAppLaunch={(app) => { if(app === 'diskRepair') { activityLogger.logNavigation(playerData.uid, playerData.username, 'bios', 'diskRepair'); setScreen('diskRepair'); } }} />
+            <BiosTerminal 
+              uid={playerData.uid} 
+              username={playerData.username}
+              onIpDetected={() => { activityLogger.logNavigation(playerData.uid, playerData.username, 'bios', 'limbo'); setScreen('limbo'); }} 
+              onClose={() => { activityLogger.logNavigation(playerData.uid, playerData.username, 'bios', 'player'); setScreen('player'); }} 
+              onAppLaunch={(app) => { if(app === 'diskRepair') { activityLogger.logNavigation(playerData.uid, playerData.username, 'bios', 'diskRepair'); setScreen('diskRepair'); } }} 
+              onBootSystem={() => { activityLogger.logNavigation(playerData.uid, playerData.username, 'bios', 'windows95'); setScreen('windows95'); }}
+            />
           </motion.div>
         ) : screen === 'limbo' ? (
           <motion.div key="limbo" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-50">
@@ -317,6 +356,10 @@ export default function App() {
           <motion.div key="macos" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-50">
             <MacOsApp uid={playerData.uid} onClose={() => { activityLogger.logNavigation(playerData.uid, playerData.username, 'macos', 'player'); setScreen('player'); }} />
           </motion.div>
+        ) : screen === 'windows95' ? (
+          <motion.div key="windows95" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-50">
+            <Windows95App uid={playerData.uid} onClose={() => { activityLogger.logNavigation(playerData.uid, playerData.username, 'windows95', 'player'); setScreen('player'); }} />
+          </motion.div>
         ) : (
           <motion.div 
             key="player"
@@ -328,21 +371,50 @@ export default function App() {
             <div className="absolute inset-0 bg-linear-to-br from-white/5 to-transparent pointer-events-none" />
             <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPjxyZWN0IHdpZHRoPSI0IiBoZWlnaHQ9IjQiIGZpbGw9IiMyMjIiPjwvcmVjdD48cGF0aCBkPSJNMCAwTDIgMk0yIDBMMCAyIiBzdHJva2U9IiMzMzMiIHN0cm9rZS13aWR0aD0iMSIvPjwvc3ZnPg==')] opacity-30 pointer-events-none mix-blend-overlay" />
 
-            <Screw className="top-4 left-4" />
-            <Screw className="top-4 right-4 -rotate-90" />
-            <Screw className="bottom-4 left-4 -rotate-90" />
-            <Screw className="bottom-4 right-4" />
+            <Screw className="top-4 left-4" uid={playerData.uid} username={playerData.username} />
+            <Screw className="top-4 right-4 -rotate-90" uid={playerData.uid} username={playerData.username} />
+            <Screw className="bottom-4 left-4 -rotate-90" uid={playerData.uid} username={playerData.username} />
+            <Screw className="bottom-4 right-4" uid={playerData.uid} username={playerData.username} />
 
-            <CassetteVisor currentTape={currentTape} isPlaying={isPlaying} volume={volume} tapeState={tapeState}
-              onEject={handleEject} onScanClick={() => setTapeState('scanning')}
-              onCancelScan={() => setTapeState('empty')} isChangingTape={isChangingTape}
-              onQrDetected={handleQrDetected} isRewinding={isRewinding} />
+            <CassetteVisor 
+              currentTape={currentTape} 
+              isPlaying={isPlaying} 
+              volume={volume} 
+              tapeState={tapeState}
+              onEject={handleEject} 
+              onScanClick={() => {
+                if (playerData) activityLogger.logAction(playerData.uid, playerData.username, 'qr_scan', 'Iniciou escaneamento QR');
+                setTapeState('scanning');
+              }} 
+              onCancelScan={() => {
+                if (playerData) activityLogger.logAction(playerData.uid, playerData.username, 'qr_scan', 'Cancelou escaneamento QR');
+                setTapeState('empty');
+              }} 
+              isChangingTape={isChangingTape}
+              onQrDetected={handleQrDetected} 
+              isRewinding={isRewinding} 
+              uid={playerData.uid}
+              username={playerData.username}
+            />
 
-            <TapeLibrary tapes={ownedTapes} currentTapeId={currentTape?.id ?? null}
-              isPlaying={isPlaying} displayMode={displayMode} onTapeSelect={handleTapeSelect} />
+            <TapeLibrary 
+              tapes={ownedTapes} 
+              currentTapeId={currentTape?.id ?? null}
+              isPlaying={isPlaying} 
+              displayMode={displayMode} 
+              onTapeSelect={handleTapeSelect} 
+              uid={playerData.uid}
+              username={playerData.username}
+            />
 
-            <SideControls volume={volume} setVolume={setVolume} onModeChange={handleModeChange}
-              onProfileOpen={() => { analyticsTracker.forceSyncToServer(); setScreen('profile'); }} />
+            <SideControls 
+              volume={volume} 
+              setVolume={setVolume} 
+              onModeChange={handleModeChange}
+              onProfileOpen={() => { activityLogger.logNavigation(playerData.uid, playerData.username, 'player', 'profile'); analyticsTracker.forceSyncToServer(); setScreen('profile'); }} 
+              uid={playerData.uid}
+              username={playerData.username}
+            />
 
             <BottomControls 
               isPlaying={isPlaying} 
@@ -351,9 +423,11 @@ export default function App() {
               onRewind={handleRewind} 
               isRewinding={isRewinding} 
               hasTerminalAccess={playerData.hasTerminalAccess} 
-              onTerminalOpen={() => setScreen('bios')}
+              onTerminalOpen={() => { activityLogger.logNavigation(playerData.uid, playerData.username, 'player', 'bios'); setScreen('bios'); }}
               hasMacAccess={playerData.hasMacAccess}
-              onMacOpen={() => setScreen('macos')}
+              onMacOpen={() => { activityLogger.logNavigation(playerData.uid, playerData.username, 'player', 'macos'); setScreen('macos'); }}
+              uid={playerData.uid}
+              username={playerData.username}
             />
           </motion.div>
         )}

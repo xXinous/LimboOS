@@ -44,10 +44,24 @@ class ActivityLogger {
 
   // ── Private write ──────────────────────────────────────────────────────────
 
+  private sanitizeData(obj: any): any {
+    if (obj === null || obj === undefined) return obj;
+    if (typeof obj !== 'object') return obj;
+    if (Array.isArray(obj)) return obj.map((v) => this.sanitizeData(v));
+    const result: Record<string, any> = {};
+    for (const [k, v] of Object.entries(obj)) {
+      if (v !== undefined) {
+        result[k] = this.sanitizeData(v);
+      }
+    }
+    return result;
+  }
+
   private async write(event: Omit<ActivityEvent, 'timestamp'>): Promise<void> {
     try {
+      const cleanEvent = this.sanitizeData(event);
       await addDoc(collection(db, 'activityLog'), {
-        ...event,
+        ...cleanEvent,
         timestamp: serverTimestamp(),
       });
     } catch (err) {
@@ -114,6 +128,24 @@ class ActivityLogger {
       type: 'system',
       category,
       message,
+      metadata,
+      source: 'player',
+    });
+  }
+
+  /** Network errors or connectivity events. */
+  logNetwork(
+    uid: string,
+    username: string,
+    message: string,
+    metadata?: Record<string, unknown>,
+  ): void {
+    this.write({
+      uid,
+      username,
+      type: 'error',
+      category: 'network',
+      message: `[NETWORK] ${message}`,
       metadata,
       source: 'player',
     });

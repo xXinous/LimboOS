@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { FaApple } from 'react-icons/fa';
 import { checkMacClosed, firestoreUnlockTape } from '../store/firestore';
 import { analyticsTracker } from '../services/AnalyticsTracker';
+import { activityLogger } from '../services/ActivityLogger';
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
@@ -144,16 +145,19 @@ export default function MacOsApp({ uid, onClose }: MacOsAppProps) {
   }, []);
 
   const handleClose = useCallback(async () => {
+    activityLogger.logAction(uid, 'Sistema', 'macos', 'Solicitou desligamento do MacOS');
     await checkMacClosed(uid);
     onClose();
   }, [uid, onClose]);
 
   const handleLogin = useCallback(() => {
     if (navigator.vibrate) navigator.vibrate(20);
+    activityLogger.logAction(uid, 'Sistema', 'macos', 'Entrou no Desktop MacOS');
     setPhase('desktop');
-  }, []);
+  }, [uid]);
 
   const insertDisk = useCallback(() => {
+    activityLogger.logAction(uid, 'Sistema', 'diskrepair', 'Inseriu disquete para análise');
     setRepairStep('reading');
     setTimeout(() => {
       setRepairStep('corrupted');
@@ -163,15 +167,17 @@ export default function MacOsApp({ uid, onClose }: MacOsAppProps) {
   }, [uid]);
 
   const startRepair = useCallback(() => {
+    activityLogger.logAction(uid, 'Sistema', 'diskrepair', 'Iniciou reconstrução de setores');
     setRepairStep('repairing');
     setRepairProgress(0);
-  }, []);
+  }, [uid]);
 
   const openDiskRepair = useCallback(() => {
+    activityLogger.logAction(uid, 'Sistema', 'macos', 'Abriu aplicativo: DiskRepair Pro');
     setActiveWindow('diskRepair');
     setRepairStep('idle');
     analyticsTracker.grantAchievement('ACH-REPAIR-APP');
-  }, []);
+  }, [uid]);
 
   const closeWindow = useCallback(() => setActiveWindow(null), []);
 
@@ -331,10 +337,16 @@ export default function MacOsApp({ uid, onClose }: MacOsAppProps) {
                       <div className="p-3 sm:p-4 flex flex-col min-h-0 flex-1 overflow-hidden">
                         {/* Toolbar */}
                         <div className="flex gap-2 mb-3 pb-2 shrink-0" style={{ borderBottom: '2px groove #fff' }}>
-                          <PlatinumButton disabled={repairStep !== 'idle'} onClick={insertDisk}>
+                          <PlatinumButton 
+                            disabled={repairStep !== 'idle'} 
+                            onClick={insertDisk}
+                          >
                             Inserir Disquete [A:]
                           </PlatinumButton>
-                          <PlatinumButton disabled={repairStep !== 'corrupted'} onClick={startRepair}>
+                          <PlatinumButton 
+                            disabled={repairStep !== 'corrupted'} 
+                            onClick={startRepair}
+                          >
                             Reconstruir Setores
                           </PlatinumButton>
                         </div>

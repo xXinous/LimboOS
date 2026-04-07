@@ -1,21 +1,25 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion } from 'motion/react';
 import { checkTerminalClosed } from '../store/firestore';
+import { activityLogger } from '../services/ActivityLogger';
 
 interface BiosTerminalProps {
   onIpDetected: () => void;
   uid: string;
+  username: string;
   onClose: () => void;
   onAppLaunch?: (app: string) => void;
+  onBootSystem?: () => void;
 }
 
-export default function BiosTerminal({ onIpDetected, uid, onClose, onAppLaunch }: BiosTerminalProps) {
+export default function BiosTerminal({ onIpDetected, uid, username, onClose, onAppLaunch, onBootSystem }: BiosTerminalProps) {
   const [history, setHistory] = useState<React.ReactNode[]>([]);
   const [currentLine, setCurrentLine] = useState('');
   const terminalRef = useRef<HTMLDivElement>(null);
 
   const processCommand = useCallback((cmd: string) => {
     const cleanCmd = cmd.toLowerCase().trim();
+    activityLogger.logAction(uid, username, 'terminal', `Comando executado: ${cmd}`, { command: cmd });
     const newHistory = [...history, <div key={`cmd-${Date.now()}`}>C:\&gt;{cmd}</div>];
 
     let response: React.ReactNode = null;
@@ -53,7 +57,20 @@ export default function BiosTerminal({ onIpDetected, uid, onClose, onAppLaunch }
         response = <div key={`res-${Date.now()}`}>MH-DOS Version 6.22 [Parody Edition]</div>;
         break;
       case 'help':
-        response = <div key={`res-${Date.now()}`}>COMMANDS: DIR, CLS, VER, HELP, TIME, MEM, EXIT</div>;
+        response = (
+          <div key={`res-${Date.now()}`}>
+            [ COMANDOS DISPONÍVEIS ]<br/>
+            DIR   - Listar arquivos no diretório atual<br/>
+            CLS   - Limpar a tela do terminal<br/>
+            VER   - Mostrar versão do sistema operacional<br/>
+            HELP  - Exibir esta mensagem de ajuda<br/>
+            TIME  - Exibir a hora atual do sistema<br/>
+            MEM   - Exibir estatísticas de memória RAM<br/>
+            EXIT  - Encerrar terminal e voltar ao hardware<br/>
+            <br/>
+            Dica: Pressione [EXE] sem digitar nada para bootar o sistema.
+          </div>
+        );
         break;
       case 'time':
         response = <div key={`res-${Date.now()}`}>{new Date().toLocaleTimeString()}</div>;
@@ -65,9 +82,13 @@ export default function BiosTerminal({ onIpDetected, uid, onClose, onAppLaunch }
         handleClose();
         return;
       case '':
+        if (onBootSystem) {
+          onBootSystem();
+          return;
+        }
         break;
       default:
-        response = <div key={`res-${Date.now()}`}>Bad command or file name. (Hint: Try typing an IP address)</div>;
+        response = <div key={`res-${Date.now()}`}>Comando ou arquivo inválido. (Dica: Digite HELP para ajuda ou aperte EXE para entrar no sistema)</div>;
     }
 
     if (response) {
@@ -169,6 +190,13 @@ export default function BiosTerminal({ onIpDetected, uid, onClose, onAppLaunch }
           <br/>
           <div>MH-DOS Version 6.22</div>
           <div>(C) Copyright Macrohard Corp 1981-1994.</div>
+          <br/>
+          <div className="text-[#33FF33] opacity-80 border-b border-[#33FF33]/30 pb-2 mb-2">
+            [ INSTRUÇÕES DE BOOT ]<br/>
+            - PARA CONEXÃO DIRETA: INSIRA O ENDEREÇO IP ALVO.<br/>
+            - PARA ENTRAR NO SISTEMA: PRESSIONE [EXE] (CAMPO VAZIO).<br/>
+            - DIGITE &apos;HELP&apos; PARA LISTAR TODOS OS COMANDOS.
+          </div>
           <br/>
           {history}
           <div className="flex items-center">

@@ -10,7 +10,6 @@ import AnalyticsPanel from './AnalyticsPanel';
 import AchievementsPanel from './AchievementsPanel';
 import TerminalPanel from './TerminalPanel';
 import InventoryManager from './InventoryManager';
-import LiveFeedPanel from './LiveFeedPanel';
 import SystemLogPanel from './SystemLogPanel';
 
 interface DashboardProps {
@@ -46,9 +45,9 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
     return () => clearInterval(id);
   }, []);
 
-  // Real-time stats — only subscribe once the user is authenticated
+  // Real-time stats — only subscribe once the user is authenticated as an admin
   useEffect(() => {
-    if (!user) return;
+    if (!isAdmin) return;
 
     const unsubs: (() => void)[] = [];
 
@@ -125,10 +124,7 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
           {activeTab === 'analytics' && <AnalyticsPanel />}
           {activeTab === 'terminals' && <TerminalPanel />}
           {activeTab === 'logs' && (
-            <div className="flex flex-col gap-4">
-              <LiveFeedPanel />
-              <SystemLogPanel />
-            </div>
+            <SystemLogPanel />
           )}
           {activeTab === 'settings' && (
             <AudioBuffer user={user} isAdmin={isAdmin} />
