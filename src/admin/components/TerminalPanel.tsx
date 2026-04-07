@@ -3,6 +3,7 @@ import { collection, doc, setDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { setTerminalStateForUsers, setMacStateForUsers, fetchLimboGlobalState, resetLimboSeized, LimboGlobalState, PlayerMeta } from '../../store/firestore';
 import { Terminal, ShieldBan, ShieldCheck, UserCheck, Apple } from 'lucide-react';
+import { activityLogger } from '../../services/ActivityLogger';
 
 export default function TerminalPanel() {
   const [users, setUsers] = useState<PlayerMeta[]>([]);
@@ -45,37 +46,56 @@ export default function TerminalPanel() {
 
   const handleForceTerminal = async () => {
     if (selectedUids.size === 0) return;
-    await setTerminalStateForUsers(Array.from(selectedUids), true, true);
+    const uids: string[] = [...selectedUids];
+    activityLogger.logTrace('gm.mpg', 'force_terminal_step', `Iniciando injeção de evento DOS para ${uids.length} usuário(s)...`);
+    await setTerminalStateForUsers(uids, true, true);
+    const names = users.filter(u => uids.includes(u.uid)).map(u => u.username).join(', ');
+    activityLogger.logAdmin('gm.mpg', 'force_terminal', `Forçou terminal DOS para: ${names}`, { uids });
     setSelectedUids(new Set());
   };
 
   const handleRevokeAccess = async () => {
     if (selectedUids.size === 0) return;
-    await setTerminalStateForUsers(Array.from(selectedUids), false, false);
+    const uids: string[] = [...selectedUids];
+    activityLogger.logTrace('gm.mpg', 'revoke_terminal_step', `Iniciando revogação de acesso DOS para ${uids.length} usuário(s)...`);
+    await setTerminalStateForUsers(uids, false, false);
+    const names = users.filter(u => uids.includes(u.uid)).map(u => u.username).join(', ');
+    activityLogger.logAdmin('gm.mpg', 'revoke_terminal', `Revogou acesso DOS de: ${names}`, { uids });
     setSelectedUids(new Set());
   };
 
   const handleForceMac = async () => {
     if (selectedUids.size === 0) return;
-    await setMacStateForUsers(Array.from(selectedUids), true, true);
+    const uids: string[] = [...selectedUids];
+    activityLogger.logTrace('gm.mpg', 'force_mac_step', `Iniciando injeção de boot MacOS para ${uids.length} usuário(s)...`);
+    await setMacStateForUsers(uids, true, true);
+    const names = users.filter(u => uids.includes(u.uid)).map(u => u.username).join(', ');
+    activityLogger.logAdmin('gm.mpg', 'force_mac', `Forçou MacOS para: ${names}`, { uids });
     setSelectedUids(new Set());
   };
 
   const handleRevokeMac = async () => {
     if (selectedUids.size === 0) return;
-    await setMacStateForUsers(Array.from(selectedUids), false, false);
+    const uids: string[] = [...selectedUids];
+    activityLogger.logTrace('gm.mpg', 'revoke_mac_step', `Iniciando revogação de acesso MacOS para ${uids.length} usuário(s)...`);
+    await setMacStateForUsers(uids, false, false);
+    const names = users.filter(u => uids.includes(u.uid)).map(u => u.username).join(', ');
+    activityLogger.logAdmin('gm.mpg', 'revoke_mac', `Revogou acesso Mac de: ${names}`, { uids });
     setSelectedUids(new Set());
   };
 
   const handleResetGlobalLimbo = async () => {
     if (confirm('Tem certeza que deseja desativar o bloqueio militar do Limbo para todo o mundo?')) {
+      activityLogger.logTrace('gm.mpg', 'limbo_reset_step', `Enviando requisição de reset global do Limbo para Firestore...`);
       await resetLimboSeized();
+      activityLogger.logAdmin('gm.mpg', 'limbo_reset', 'Resetou evento global LIMBO SEIZED');
     }
   };
 
   const toggleDiskRepair = async () => {
     const newState = !diskRepairAllowed;
     await setDoc(doc(db, 'system', 'gameEvents'), { diskRepairAllowed: newState }, { merge: true });
+    activityLogger.logAdmin('gm.mpg', 'disk_repair_toggle', `DiskRepair ${newState ? 'ATIVADO' : 'DESATIVADO'}`, { diskRepairAllowed: newState });
   };
 
   return (

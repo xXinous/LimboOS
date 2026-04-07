@@ -1,8 +1,4 @@
-// ⚠️  ARQUIVO GERADO AUTOMATICAMENTE — NÃO EDITE MANUALMENTE
-// Gerado em: 2026-04-05T08:37:23.684Z
-// Para atualizar: adicione/edite os metadados dos arquivos em public/audio/
-//                 e rode:  npm run generate-tapes
-
+// Evidences, disks, or other non-audio functional items the application needs locally.
 export interface Tape {
   id: string;
   title: string;
@@ -16,31 +12,6 @@ export interface Tape {
   type?: 'audio' | 'disk';
   content?: string;
 }
-
-// The master list — generated from ID3 metadata of files in public/audio/.
-// QR codes should encode the tape `id` exactly (e.g. "TAPE-01").
-const MASTER_TAPES: Tape[] = [
-  {
-    id: 'DEMO Deserto Eletrico + ____',
-    title: 'DEMO Deserto Elétrico + ????',
-    artist: 'Analog Leviathan',
-    npc: 'Analog Leviathan',
-    chapter: 'Analog Leviathan',
-    description: '',
-    audioUrl: '/audio/DEMO%20Deserto%20Eletrico%20%2B%20____.mp3',
-    duration: 219,
-  },
-  {
-    id: 'TESTE PARA NIL _<3',
-    title: 'TESTE PARA NIL <3',
-    artist: 'Emily',
-    npc: 'Emily',
-    chapter: 'Circuitos da Emy',
-    description: '',
-    audioUrl: '/audio/TESTE%20PARA%20NIL%20_%3C3.mp3',
-    duration: 78,
-  }
-];
 
 const EVIDENCE_TAPES: Tape[] = [
   {
@@ -87,7 +58,7 @@ Se eu sumir hoje, significa que a frequência funcionou. Não me procurem no fut
   }
 ];
 
-const ALL_TAPES = [...MASTER_TAPES, ...EVIDENCE_TAPES];
+const ALL_TAPES = EVIDENCE_TAPES;
 
 /** Returns a tape by its QR code value (case-insensitive). */
 export function getTapeByCode(code: string): Tape | null {

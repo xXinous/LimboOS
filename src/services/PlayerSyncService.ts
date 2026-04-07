@@ -1,0 +1,83 @@
+import { collection, doc, onSnapshot } from 'firebase/firestore';
+import { db } from '../lib/firebase';
+import { analyticsTracker } from './AnalyticsTracker';
+import type { PlayerData, LimboGlobalState } from '../store/firestore';
+import type { AppScreen } from '../types/player';
+
+export class PlayerSyncService {
+  private static instance: PlayerSyncService;
+  private unsubs: (() => void)[] = [];
+
+  private constructor() {}
+
+  public static getInstance(): PlayerSyncService {
+    if (!PlayerSyncService.instance) {
+      PlayerSyncService.instance = new PlayerSyncService();
+    }
+    return PlayerSyncService.instance;
+  }
+
+  public subscribeToPlayerData(
+    uid: string | undefined,
+    onPlayerDataUpdate: (data: Partial<PlayerData>) => void,
+    onScreenChange: (screenSetter: (prev: AppScreen) => AppScreen) => void,
+    onLimboUpdate: (limboStatus: LimboGlobalState) => void
+  ) {
+    this.stopAll();
+
+    if (!uid) return;
+
+    // 1. Tapes Listener
+    const unsubTapes = onSnapshot(collection(db, 'users', uid, 'tapes'), (snapshot) => {
+      const tapeIds = snapshot.docs.map((d) => d.id).sort();
+      onPlayerDataUpdate({ unlockedTapeIds: tapeIds });
+    });
+
+    // 2. User Settings / Flags Listener
+    const unsubUser = onSnapshot(doc(db, 'users', uid), (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        
+        // Handle forced screen transitions based on new flags
+        if (data.forceTerminalOpen) {
+          onScreenChange((prev) => (prev !== 'bios' && prev !== 'limbo' && prev !== 'diskRepair' ? 'bios' : prev));
+        } else if (data.forceMacOpen) {
+          onScreenChange((prev) => (prev !== 'macos' ? 'macos' : prev));
+        } else {
+          onScreenChange((prev) => (['bios', 'limbo', 'diskRepair', 'macos'].includes(prev) ? 'player' : prev));
+        }
+
+        const updatedData: Partial<PlayerData> = {
+          hasTerminalAccess: !!data.hasTerminalAccess,
+          hasMacAccess: !!data.hasMacAccess,
+          forceTerminalOpen: !!data.forceTerminalOpen,
+          forceMacOpen: !!data.forceMacOpen,
+          username: data.username,
+          achievementsRevealed: !!data.achievementsRevealed,
+        };
+
+        onPlayerDataUpdate(updatedData);
+      }
+    });
+
+    // 3. System Limbo Listener
+    const unsubLimbo = onSnapshot(doc(db, 'system', 'limboState'), (snap) => {
+      if (snap.exists()) {
+        const lState = snap.data() as LimboGlobalState;
+        onLimboUpdate(lState);
+        if (lState.seized) {
+          onScreenChange(() => 'limbo');
+        }
+      }
+    });
+
+    this.unsubs.push(unsubTapes, unsubUser, unsubLimbo);
+  }
+
+  public stopAll() {
+    this.unsubs.forEach((unsub) => unsub());
+    this.unsubs = [];
+  }
+}
+
+export const playerSyncService = PlayerSyncService.getInstance();

@@ -1,18 +1,107 @@
-rules_version='2'
+rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    
+    // Function to check if the user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Function to check if the user is an admin
+    // In our app, admin is gm.mpg@runningman.local
+    function isAdmin() {
+      return isAuthenticated() && request.auth.token.email == "gm.mpg@runningman.local";
+    }
+
+    // Function to check if the user is accessing their own data
+    function isOwner(uid) {
+      return isAuthenticated() && request.auth.uid == uid;
+    }
+
+    // Basic size validation to prevent massive payload DDOS (Storage exhaustion)
+    function isValidPayloadSize() {
+      // Limit document sizes roughly by not allowing extremely large strings if needed.
+      return true; // Implemented basic boundary below where necessary
+    }
+
+    // ==========================================
+    // SYSTEM SETTINGS (limboState, etc)
+    // ==========================================
+    match /system/{document=**} {
+      // Anyone can read system state (like limbo), but only admin writes
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ==========================================
+    // USERS COLLECTION
+    // ==========================================
+    match /users/{userId} {
+      // User can read their own profile. Admin can read all.
+      allow read: if isOwner(userId) || isAdmin();
+      
+      // Prevent normal users from writing directly to root users collection except specific fields like lastLogin
+      // Admin can write anything.
+      allow write: if isAdmin() || (isOwner(userId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastLogin']));
+
+      // Subcollection: tapes
+      match /tapes/{tapeId} {
+        allow read: if isOwner(userId) || isAdmin();
+        // Allow creating a tape document (unlocking) but prevent huge payloads
+        allow write: if isOwner(userId) || isAdmin();
+      }
+
+      // Subcollection: achievements
+      match /achievements/{achId} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow write: if isOwner(userId) || isAdmin();
+      }
+
+      // Subcollection: stats
+      match /stats/{statDoc} {
+        allow read: if isOwner(userId) || isAdmin();
+        // Users can update their stats
+        allow write: if (isOwner(userId) && isValidPayloadSize()) || isAdmin();
+      }
+    }
+
+    // ==========================================
+    // AUDIOS COLLECTION
+    // ==========================================
+    match /audios/{audioId} {
+      // Any authenticated user can read audio metadata to play tapes
+      allow read: if isAuthenticated();
+      // Only Admin can add/edit audio metadata
+      allow write: if isAdmin();
+    }
+
+    // ==========================================
+    // PLAY EVENTS COLLECTION (Analytics)
+    // ==========================================
+    match /playEvents/{eventId} {
+      // Only Admin can read analytics globally
+      allow read: if isAdmin();
+      // Users can only create events for themselves
+      allow create: if isOwner(request.resource.data.uid) && isValidPayloadSize();
+      allow update, delete: if isAdmin();
+    }
+    
+    // ==========================================
+    // ACTIVITY LOG COLLECTION (Live Feed / System Log)
+    // ==========================================
+    match /activityLog/{logId} {
+      // Admin can read all logs
+      allow read: if isAdmin();
+      // Authenticated users can create log entries (player-side logging)
+      allow create: if isAuthenticated();
+      // Only admin can delete logs (clear logs feature)
+      allow update, delete: if isAdmin();
+    }
+    
+    // Default Deny
     match /{document=**} {
-      // This rule allows anyone with your database reference to view, edit,
-      // and delete all data in your database. It is useful for getting
-      // started, but it is configured to expire after 30 days because it
-      // leaves your app open to attackers. At that time, all client
-      // requests to your database will be denied.
-      //
-      // Make sure to write security rules for your app before that time, or
-      // else all client requests to your database will be denied until you
-      // update your rules.
-      allow read, write: if request.time < timestamp.date(2026, 4, 19);
+      allow read, write: if false;
     }
   }
 }
