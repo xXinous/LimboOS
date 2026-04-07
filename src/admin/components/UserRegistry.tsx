@@ -125,6 +125,7 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
         displayName: editingUser.displayName,
         username: editingUser.displayName,
         role: editingUser.role,
+        spotifyPlaylistUrl: editingUser.spotifyPlaylistUrl || '',
       });
       setEditingUser(null);
     } catch (error) {
@@ -422,6 +423,20 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
               <div>
                 <label className="block font-label text-[10px] text-zinc-400 mb-1">UID (read-only)</label>
                 <input type="text" value={editingUser.uid} readOnly className="w-full bg-zinc-950 border border-zinc-800 text-zinc-600 px-3 py-2 text-xs cursor-not-allowed" />
+              </div>
+              <div>
+                <label className="font-label text-[10px] text-zinc-400 mb-1 flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-[#1DB954] text-xs">music_note</span>
+                  SPOTIFY_PLAYLIST_URL
+                </label>
+                <input
+                  type="url"
+                  value={editingUser.spotifyPlaylistUrl || ''}
+                  onChange={(e) => setEditingUser({ ...editingUser, spotifyPlaylistUrl: e.target.value })}
+                  placeholder="https://open.spotify.com/playlist/..."
+                  className="w-full bg-zinc-900 border border-zinc-700 text-zinc-200 px-3 py-2 text-sm focus:border-[#1DB954] outline-none placeholder:text-zinc-700"
+                />
+                <p className="text-[9px] font-label text-zinc-600 mt-1">Cole o link de uma playlist pública do Spotify para o Walkman pessoal do jogador.</p>
               </div>
               <div className="pt-4 flex justify-end gap-3">
                 <button type="button" onClick={() => setEditingUser(null)} className="px-4 py-2 text-xs font-label text-zinc-400 hover:text-white">CANCEL</button>

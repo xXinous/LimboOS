@@ -31,6 +31,7 @@ export interface PlayerMeta {
   hasTerminalAccess?: boolean;
   forceMacOpen?: boolean;
   hasMacAccess?: boolean;
+  spotifyPlaylistUrl?: string;
 }
 
 export interface LimboGlobalState {
@@ -217,6 +218,12 @@ export async function setDiskRepairAllowed(allowed: boolean): Promise<void> {
   await setDoc(doc(db, 'system', 'gameEvents'), {
     diskRepairAllowed: allowed
   }, { merge: true });
+}
+
+// ── Spotify Integration ──────────────────────────────────────────────────────
+
+export async function firestoreUpdateSpotifyPlaylist(uid: string, url: string): Promise<void> {
+  await setDoc(doc(db, 'users', uid), { spotifyPlaylistUrl: url }, { merge: true });
 }
 
 // ── Remote Audios ────────────────────────────────────────────────────────────

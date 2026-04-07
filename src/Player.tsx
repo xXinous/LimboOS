@@ -25,7 +25,7 @@ import { playerSyncService } from './services/PlayerSyncService';
 
 import { onAuthStateChanged, logout } from './store/profile';
 import type { PlayerData, PlayerStats, LimboGlobalState } from './store/firestore';
-import { loadPlayerData } from './store/firestore';
+import { loadPlayerData, firestoreUpdateSpotifyPlaylist } from './store/firestore';
 import type { Tape } from './data/tapes';
 
 import type { AppScreen, TapeState, DisplayMode } from './types/player';
@@ -299,7 +299,7 @@ export default function App() {
             exit={{ opacity: 0 }}
             className="w-full h-full flex items-center justify-center"
           >
-            <ProfileScreen profile={playerData} onBack={() => setScreen('player')} onLogout={handleLogout} />
+            <ProfileScreen profile={playerData} onBack={() => setScreen('player')} onLogout={handleLogout} onUpdateSpotify={async (url) => { if (playerData) { await firestoreUpdateSpotifyPlaylist(playerData.uid, url); setPlayerData({ ...playerData, spotifyPlaylistUrl: url }); } }} />
           </motion.div>
         ) : screen === 'bios' ? (
           <motion.div key="bios" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-50">

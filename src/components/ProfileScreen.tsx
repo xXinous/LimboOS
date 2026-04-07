@@ -1,7 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft, LogOut, Scroll, Trophy } from 'lucide-react';
-import { resolveTapes } from '../data/tapes';
+import { ArrowLeft, LogOut, Trophy, Music, Pencil, Check, X, ExternalLink } from 'lucide-react';
 import { ALL_ACHIEVEMENTS } from '../data/achievements';
 
 interface ProfileData {
@@ -10,23 +9,64 @@ interface ProfileData {
   unlockedTapeIds: string[];
   achievementIds: string[];
   achievementsRevealed?: boolean;
+  spotifyPlaylistUrl?: string;
 }
 
 interface ProfileScreenProps {
   profile: ProfileData;
   onBack: () => void;
   onLogout: () => void;
+  onUpdateSpotify?: (url: string) => void;
 }
 
-export default function ProfileScreen({ profile, onBack, onLogout }: ProfileScreenProps) {
-  const tapes = resolveTapes(profile.unlockedTapeIds);
+/** Extract the Spotify playlist/album/track ID from various URL formats */
+function extractSpotifyEmbedUrl(url: string): string | null {
+  if (!url) return null;
+  // Already an embed URL
+  if (url.includes('open.spotify.com/embed')) return url;
+  // Standard Spotify URL: https://open.spotify.com/playlist/XXXXX?si=...
+  const match = url.match(/open\.spotify\.com\/(playlist|album|track|episode|show)\/([a-zA-Z0-9]+)/);
+  if (match) {
+    return `https://open.spotify.com/embed/${match[1]}/${match[2]}?utm_source=generator&theme=0`;
+  }
+  // Spotify URI: spotify:playlist:XXXXX
+  const uriMatch = url.match(/spotify:(playlist|album|track|episode|show):([a-zA-Z0-9]+)/);
+  if (uriMatch) {
+    return `https://open.spotify.com/embed/${uriMatch[1]}/${uriMatch[2]}?utm_source=generator&theme=0`;
+  }
+  return null;
+}
+
+export default function ProfileScreen({ profile, onBack, onLogout, onUpdateSpotify }: ProfileScreenProps) {
   const earnedIds = new Set(profile.achievementIds);
+  const [isEditingSpotify, setIsEditingSpotify] = useState(false);
+  const [spotifyInput, setSpotifyInput] = useState(profile.spotifyPlaylistUrl || '');
+  const [spotifyError, setSpotifyError] = useState('');
 
   const initials = profile.username
     .split(/[\s\-_]+/)
     .slice(0, 2)
     .map((w) => w[0]?.toUpperCase() ?? '')
     .join('');
+
+  const embedUrl = extractSpotifyEmbedUrl(profile.spotifyPlaylistUrl || '');
+
+  const handleSaveSpotify = () => {
+    const trimmed = spotifyInput.trim();
+    if (trimmed && !extractSpotifyEmbedUrl(trimmed)) {
+      setSpotifyError('Link inválido. Use o link de uma playlist do Spotify.');
+      return;
+    }
+    setSpotifyError('');
+    onUpdateSpotify?.(trimmed);
+    setIsEditingSpotify(false);
+  };
+
+  const handleCancelEdit = () => {
+    setSpotifyInput(profile.spotifyPlaylistUrl || '');
+    setSpotifyError('');
+    setIsEditingSpotify(false);
+  };
 
   return (
     <motion.div
@@ -63,8 +103,8 @@ export default function ProfileScreen({ profile, onBack, onLogout }: ProfileScre
       {/* Stats bar */}
       <div className="flex divide-x divide-[#333] bg-[#1a1a1a] shrink-0">
         <div className="flex-1 flex flex-col items-center py-3">
-          <span className="text-orange-500 font-bold text-xl">{tapes.length}</span>
-          <span className="text-[9px] text-gray-500 uppercase tracking-wider mt-0.5">Fitas</span>
+          <span className="text-orange-500 font-bold text-xl">{profile.unlockedTapeIds.length}</span>
+          <span className="text-[9px] text-gray-500 uppercase tracking-wider mt-0.5">Provas</span>
         </div>
         <div className="flex-1 flex flex-col items-center py-3">
           <span className="text-orange-500 font-bold text-xl">{profile.achievementIds.length}</span>
@@ -74,44 +114,112 @@ export default function ProfileScreen({ profile, onBack, onLogout }: ProfileScre
 
       {/* Scrollable body */}
       <div className="flex-1 overflow-y-auto">
-        {/* Tapes section */}
+        {/* Spotify Walkman section */}
         <div className="px-4 pt-4 pb-2">
-          <div className="flex items-center gap-2 mb-3">
-            <Scroll size={14} className="text-orange-500" />
-            <h2 className="text-orange-500 text-xs font-bold uppercase tracking-widest">Fitas Desbloqueadas</h2>
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <Music size={14} className="text-[#1DB954]" />
+              <h2 className="text-[#1DB954] text-xs font-bold uppercase tracking-widest">Meu Walkman</h2>
+            </div>
+            {onUpdateSpotify && !isEditingSpotify && (
+              <button
+                onClick={() => { setIsEditingSpotify(true); setSpotifyInput(profile.spotifyPlaylistUrl || ''); }}
+                className="flex items-center gap-1 text-[10px] text-gray-500 hover:text-[#1DB954] transition-colors"
+              >
+                <Pencil size={10} />
+                <span className="uppercase tracking-wider">{embedUrl ? 'Editar' : 'Conectar'}</span>
+              </button>
+            )}
           </div>
 
-          {tapes.length === 0 ? (
-            <div className="border border-dashed border-[#333] rounded-lg p-6 text-center">
-              <p className="text-gray-600 text-xs uppercase tracking-widest">Nenhuma fita ainda.</p>
-              <p className="text-gray-700 text-[10px] mt-1">Escaneie um QR code para começar.</p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              <AnimatePresence>
-                {tapes.map((tape, i) => (
-                  <motion.div
-                    key={tape.id}
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: i * 0.05 }}
-                    className="bg-[#242424] border border-[#333] rounded-lg p-3 flex items-start gap-3"
+          <AnimatePresence mode="wait">
+            {isEditingSpotify ? (
+              <motion.div
+                key="edit"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="space-y-2"
+              >
+                <div className="bg-[#242424] border border-[#333] rounded-lg p-3">
+                  <label className="text-[10px] text-gray-500 uppercase tracking-wider block mb-2">
+                    Cole o link da sua playlist do Spotify
+                  </label>
+                  <input
+                    type="url"
+                    value={spotifyInput}
+                    onChange={(e) => { setSpotifyInput(e.target.value); setSpotifyError(''); }}
+                    placeholder="https://open.spotify.com/playlist/..."
+                    className="w-full bg-[#1a1a1a] border border-[#444] rounded-md px-3 py-2 text-xs text-white placeholder:text-gray-700 focus:border-[#1DB954] focus:outline-none transition-colors"
+                    autoFocus
+                  />
+                  {spotifyError && (
+                    <p className="text-red-400 text-[10px] mt-1">{spotifyError}</p>
+                  )}
+                  <p className="text-[9px] text-gray-600 mt-1.5 leading-relaxed">
+                    Abra o Spotify → Playlist → Compartilhar → Copiar link
+                  </p>
+                </div>
+                <div className="flex gap-2 justify-end">
+                  <button
+                    onClick={handleCancelEdit}
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-md bg-[#333] text-gray-400 text-[10px] hover:bg-[#444] transition-colors"
                   >
-                    <div className="w-8 h-8 rounded bg-orange-900/30 border border-orange-800/40 flex items-center justify-center shrink-0 mt-0.5">
-                      <span className="text-orange-600 text-xs">📼</span>
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-white text-xs font-bold truncate">{tape.title}</p>
-                      <p className="text-orange-400 text-[10px] opacity-80">{tape.chapter} · {tape.npc}</p>
-                    </div>
-                    {tape.isSecret && (
-                      <span className="ml-auto text-[9px] text-red-400 font-bold uppercase tracking-wider shrink-0">SECRETO</span>
-                    )}
-                  </motion.div>
-                ))}
-              </AnimatePresence>
-            </div>
-          )}
+                    <X size={10} /> Cancelar
+                  </button>
+                  <button
+                    onClick={handleSaveSpotify}
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-md bg-[#1DB954]/20 text-[#1DB954] text-[10px] border border-[#1DB954]/30 hover:bg-[#1DB954]/30 transition-colors"
+                  >
+                    <Check size={10} /> Salvar
+                  </button>
+                </div>
+              </motion.div>
+            ) : embedUrl ? (
+              <motion.div
+                key="player"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="rounded-xl overflow-hidden border border-[#333] bg-[#121212] shadow-[0_0_30px_rgba(29,185,84,0.08)]"
+              >
+                <iframe
+                  src={embedUrl}
+                  width="100%"
+                  height="352"
+                  frameBorder="0"
+                  allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+                  loading="lazy"
+                  className="rounded-xl"
+                  style={{ borderRadius: '12px' }}
+                  title="Spotify Walkman"
+                />
+              </motion.div>
+            ) : (
+              <motion.div
+                key="empty"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="border border-dashed border-[#333] rounded-lg p-6 text-center"
+              >
+                <div className="w-14 h-14 rounded-full bg-[#1DB954]/10 border border-[#1DB954]/20 flex items-center justify-center mx-auto mb-3">
+                  <Music size={22} className="text-[#1DB954]/60" />
+                </div>
+                <p className="text-gray-500 text-xs uppercase tracking-widest mb-1">Nenhuma playlist conectada</p>
+                <p className="text-gray-700 text-[10px]">Conecte sua playlist do Spotify para personalizar seu Walkman.</p>
+                {onUpdateSpotify && (
+                  <button
+                    onClick={() => setIsEditingSpotify(true)}
+                    className="mt-3 flex items-center gap-1.5 mx-auto px-4 py-2 rounded-full bg-[#1DB954]/15 text-[#1DB954] text-[10px] font-bold uppercase tracking-wider border border-[#1DB954]/25 hover:bg-[#1DB954]/25 transition-all"
+                  >
+                    <ExternalLink size={10} />
+                    Conectar Spotify
+                  </button>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
         {/* Achievements section */}

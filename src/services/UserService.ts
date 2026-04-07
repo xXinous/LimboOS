@@ -30,6 +30,7 @@ export interface UserData {
   forceTerminalOpen?: boolean;
   forceMacOpen?: boolean;
   achievementsRevealed?: boolean;
+  spotifyPlaylistUrl?: string;
 }
 
 export interface TapeData {
