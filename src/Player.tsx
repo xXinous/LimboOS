@@ -168,8 +168,12 @@ export default function App() {
 
   // ── QR detection  ─────────────────────────────────────────────────────────
   const handleQrDetected = useCallback(async (code: string) => {
+    if (!playerData || !localStats) {
+      addToast({ type: 'error', title: 'Aguarde', subtitle: 'Perfil ainda carregando. Tente de novo.', icon: '⏳' });
+      return;
+    }
+
     setTapeState('empty');
-    if (!playerData || !localStats) return;
 
     activityLogger.logAction(playerData.uid, playerData.username, 'qr_scan', `QR escaneado: ${code}`, { code });
 
