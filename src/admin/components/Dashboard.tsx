@@ -7,10 +7,11 @@ import Header from './Header';
 import UserRegistry from './UserRegistry';
 import AudioBuffer from './AudioBuffer';
 import AnalyticsPanel from './AnalyticsPanel';
-import TechSpecs from './TechSpecs';
 import AchievementsPanel from './AchievementsPanel';
 import TerminalPanel from './TerminalPanel';
 import InventoryManager from './InventoryManager';
+import LiveFeedPanel from './LiveFeedPanel';
+import SystemLogPanel from './SystemLogPanel';
 
 interface DashboardProps {
   user: User | null;
@@ -45,8 +46,10 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
     return () => clearInterval(id);
   }, []);
 
-  // Real-time stats
+  // Real-time stats — only subscribe once the user is authenticated
   useEffect(() => {
+    if (!user) return;
+
     const unsubs: (() => void)[] = [];
 
     // Users count
@@ -65,7 +68,7 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
     }));
 
     return () => unsubs.forEach(u => u());
-  }, []);
+  }, [user]);
 
   return (
     <div className="min-h-screen bg-background text-on-background font-body selection:bg-primary-container selection:text-on-primary-container">
@@ -118,21 +121,17 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
           {/* Tab Content */}
           {activeTab === 'users' && <UserRegistry isAdmin={isAdmin} />}
           {activeTab === 'inventory' && <InventoryManager />}
-          {activeTab === 'audio' && (
-            <AudioBuffer user={user} isAdmin={isAdmin} />
-          )}
           {activeTab === 'achievements' && <AchievementsPanel />}
           {activeTab === 'analytics' && <AnalyticsPanel />}
           {activeTab === 'terminals' && <TerminalPanel />}
-          {activeTab === 'settings' && (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              <div className="lg:col-span-2">
-                <AudioBuffer user={user} isAdmin={isAdmin} />
-              </div>
-              <div>
-                <TechSpecs />
-              </div>
+          {activeTab === 'logs' && (
+            <div className="flex flex-col gap-4">
+              <LiveFeedPanel />
+              <SystemLogPanel />
             </div>
+          )}
+          {activeTab === 'settings' && (
+            <AudioBuffer user={user} isAdmin={isAdmin} />
           )}
         </div>
       </main>

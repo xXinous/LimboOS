@@ -4,6 +4,7 @@ import { recordPlayEvent, markPlayEventCompleted, firestoreUpdateStats, firestor
 import { checkNewAchievements } from '../data/achievements';
 import { resolveTapes } from '../data/tapes';
 import type { Toast } from '../components/ToastNotification';
+import { activityLogger } from './ActivityLogger';
 
 export class AnalyticsTracker {
   private static instance: AnalyticsTracker;
@@ -73,6 +74,8 @@ export class AnalyticsTracker {
       .then(id => this.activePlayEventId = id)
       .catch(console.error);
 
+    activityLogger.logAction(this.playerData.uid, this.playerData.username || this.playerData.uid, 'tape_play', `Iniciou reprodução: ${tape.title}`, { tapeId: tape.id, tapeTitle: tape.title });
+
     // Start Tracker Timer
     if (this.listenTimer) clearInterval(this.listenTimer);
     this.listenTimer = window.setInterval(() => this.tick(), 5000);
@@ -87,6 +90,9 @@ export class AnalyticsTracker {
     if (this.activePlayEventId) {
       markPlayEventCompleted(this.activePlayEventId).catch(console.error);
       this.activePlayEventId = null;
+    }
+    if (this.playerData) {
+      activityLogger.logAction(this.playerData.uid, this.playerData.username || this.playerData.uid, 'tape_end', 'Reprodução finalizada');
     }
   }
 
@@ -151,6 +157,8 @@ export class AnalyticsTracker {
 
     firestoreGrantAchievements(this.playerData.uid, [id]);
     this.playerData.achievementIds = [...this.playerData.achievementIds, id];
+    
+    activityLogger.logAction(this.playerData.uid, this.playerData.username || this.playerData.uid, 'achievement', `Conquista desbloqueada: ${id}`, { achievementId: id });
     
     if (this.onToast) {
       this.onToast({ type: 'achievement', title: 'Conquista!', subtitle: 'Nova Conquista Desbloqueada', icon: '🏆' });

@@ -19,13 +19,13 @@ import EvidenceReader from './components/EvidenceReader';
 
 import { audioEngine } from './services/AudioEngine';
 import { analyticsTracker } from './services/AnalyticsTracker';
+import { activityLogger } from './services/ActivityLogger';
 import { tapeManager } from './services/TapeManager';
+import { playerSyncService } from './services/PlayerSyncService';
 
 import { onAuthStateChanged, logout } from './store/profile';
 import type { PlayerData, PlayerStats, LimboGlobalState } from './store/firestore';
 import { loadPlayerData } from './store/firestore';
-import { collection, doc, onSnapshot as firestoreOnSnapshot } from 'firebase/firestore';
-import { db } from './lib/firebase';
 import type { Tape } from './data/tapes';
 
 import type { AppScreen, TapeState, DisplayMode } from './types/player';
@@ -50,6 +50,7 @@ export default function App() {
   const [activeEvidence, setActiveEvidence] = useState<Tape | null>(null);
 
   const hasPlayedCurrentTape = useRef(false);
+  const prevScreenRef = useRef<AppScreen>('login');
 
   // ── Auth & Data Loading ──────────────────────────────────────────────────
   useEffect(() => {
@@ -63,6 +64,7 @@ export default function App() {
         setPlayerData(data);
         setLocalStats(data.stats);
         setScreen('player');
+        activityLogger.logAuth(data.uid, data.username, 'login', `${data.username} entrou no sistema`);
       } else {
         setPlayerData(undefined);
         setLocalStats(null);
@@ -83,7 +85,7 @@ export default function App() {
       );
     }
     return () => { analyticsTracker.stopAll(); };
-  }, [playerData?.uid]); // Init on proper uid once
+  }, [playerData?.uid]);
 
   // Update volume in Engine & Tracker
   useEffect(() => {
@@ -91,67 +93,24 @@ export default function App() {
     analyticsTracker.setVolume(volume);
   }, [volume]);
 
-  // ── Real-time tape listener ──────────────────────────────────────────────
+  // ── Real-time Player Sync Service ─────────────────────────────────────────
   useEffect(() => {
-    if (!playerData?.uid) return;
-    const unsubTapes = firestoreOnSnapshot(
-      collection(db, 'users', playerData.uid, 'tapes'),
-      (snapshot) => {
-        const tapeIds = snapshot.docs.map((d) => d.id);
+    playerSyncService.subscribeToPlayerData(
+      playerData?.uid,
+      (updatedData) => {
         setPlayerData((prev) => {
           if (!prev) return prev;
-          const prevIds = prev.unlockedTapeIds.slice().sort().join(',');
-          const newIds = tapeIds.slice().sort().join(',');
-          if (prevIds === newIds) return prev;
-          const updated = { ...prev, unlockedTapeIds: tapeIds };
-          analyticsTracker.updatePlayerData(updated);
-          return updated;
+          const merged = { ...prev, ...updatedData };
+          // Ensure tracker knows about new tapes/flags
+          analyticsTracker.updatePlayerData(merged);
+          return merged;
         });
-      }
+      },
+      (screenSetter) => setScreen(screenSetter),
+      (lState) => setLimboStatus(lState)
     );
 
-    const unsubUser = firestoreOnSnapshot(doc(db, 'users', playerData.uid), (snap) => {
-      if (snap.exists()) {
-        const data = snap.data();
-        if (data.forceTerminalOpen) {
-          setScreen(prev => {
-            if (prev !== 'bios' && prev !== 'limbo' && prev !== 'diskRepair') return 'bios';
-            return prev;
-          });
-        } else if (data.forceMacOpen) {
-          setScreen(prev => (prev !== 'macos' ? 'macos' : prev));
-        } else {
-          setScreen(prev => (prev === 'bios' || prev === 'limbo' || prev === 'diskRepair' || prev === 'macos') ? 'player' : prev);
-        }
-        setPlayerData(prev => {
-          if (!prev) return prev;
-          const updated = {
-            ...prev,
-            hasTerminalAccess: data.hasTerminalAccess !== undefined ? !!data.hasTerminalAccess : prev.hasTerminalAccess,
-            hasMacAccess: data.hasMacAccess !== undefined ? !!data.hasMacAccess : prev.hasMacAccess,
-            forceTerminalOpen: data.forceTerminalOpen !== undefined ? !!data.forceTerminalOpen : prev.forceTerminalOpen,
-            forceMacOpen: data.forceMacOpen !== undefined ? !!data.forceMacOpen : prev.forceMacOpen,
-            username: data.username || prev.username,
-            achievementsRevealed: data.achievementsRevealed !== undefined ? !!data.achievementsRevealed : prev.achievementsRevealed
-          };
-          // Sync tracker immediately to prevent stale stats overwriting our access flags later
-          analyticsTracker.updatePlayerData(updated);
-          return updated;
-        });
-      }
-    });
-
-    const unsubLimbo = firestoreOnSnapshot(doc(db, 'system', 'limboState'), (snap) => {
-      if (snap.exists()) {
-        const lState = snap.data() as LimboGlobalState;
-        setLimboStatus(lState);
-        if (lState.seized) {
-          setScreen('limbo');
-        }
-      }
-    });
-
-    return () => { unsubTapes(); unsubUser(); unsubLimbo(); };
+    return () => playerSyncService.stopAll();
   }, [playerData?.uid]);
 
   // ── Tape resolving (Local & Remote) ──────────────────────────────────────
@@ -176,7 +135,7 @@ export default function App() {
   useEffect(() => {
     if (currentTape) {
       audioEngine.loadTrack(currentTape.audioUrl);
-      analyticsTracker.pausePlayback(); // Paused initially until Play clicked
+      analyticsTracker.pausePlayback();
     } else {
       audioEngine.clearTrack();
       analyticsTracker.stopAll();
@@ -210,10 +169,13 @@ export default function App() {
     setTapeState('empty');
     if (!playerData || !localStats) return;
 
+    activityLogger.logAction(playerData.uid, playerData.username, 'qr_scan', `QR escaneado: ${code}`, { code });
+
     try {
       const tape = await tapeManager.resolveTape(code);
       if (!tape) {
         addToast({ type: 'error', title: 'Código Desconhecido', subtitle: `"${code}"`, icon: '❌' });
+        activityLogger.logError(playerData.uid, playerData.username, `QR desconhecido: ${code}`, undefined, { code });
         return;
       }
 
@@ -223,7 +185,6 @@ export default function App() {
       const recentScans = [...scanTimes.filter(t => now - t < 5 * 60 * 1000), now];
       setScanTimes(recentScans);
 
-      // Verify achievements context
       analyticsTracker.checkAchievements(recentScans);
       setPlayerData({ ...playerData, unlockedTapeIds: updatedTapeIds });
 
@@ -238,9 +199,12 @@ export default function App() {
         addToast({ type: 'tape', title: alreadyOwned ? 'Fita Inserida' : 'Fita Desbloqueada!', subtitle: tape.title, icon: '📼' });
       }, 400);
 
+      activityLogger.logAction(playerData.uid, playerData.username, alreadyOwned ? 'tape_insert' : 'tape_unlock', `${alreadyOwned ? 'Inseriu' : 'Desbloqueou'} fita: ${tape.title}`, { tapeId: tape.id, tapeTitle: tape.title, alreadyOwned });
+
     } catch (err) {
       console.error('QR error:', err);
       addToast({ type: 'error', title: 'Erro ao analisar fita', subtitle: 'Tente dnv', icon: '⚠️' });
+      activityLogger.logError(playerData.uid, playerData.username, `Erro QR: ${err instanceof Error ? err.message : String(err)}`, err instanceof Error ? err.stack : undefined);
     }
   }, [playerData, localStats, scanTimes, addToast]);
 
@@ -255,9 +219,8 @@ export default function App() {
     if (!currentTape || isRewinding) return;
     setIsRewinding(true);
     setIsPlaying(false);
-    audioEngine.stop(); // Resets time to 0
+    audioEngine.stop();
 
-    // Play visual rewind animation
     setTimeout(() => {
       setIsRewinding(false);
     }, 1500);
@@ -265,6 +228,9 @@ export default function App() {
 
   const handleEject = () => { 
     checkEjectWithoutPlay();
+    if (playerData && currentTape) {
+      activityLogger.logAction(playerData.uid, playerData.username, 'tape_eject', `Ejetou fita: ${currentTape.title}`, { tapeId: currentTape.id });
+    }
     setIsPlaying(false); setTapeState('empty'); setCurrentTape(null); 
     analyticsTracker.forceSyncToServer();
   };
@@ -272,6 +238,7 @@ export default function App() {
   const handleTapeSelect = (tape: Tape) => {
     if (tape.type === 'disk') {
       setActiveEvidence(tape);
+      if (playerData) activityLogger.logAction(playerData.uid, playerData.username, 'evidence_open', `Abriu evidência: ${tape.title}`, { tapeId: tape.id });
       return;
     }
     if (tape.id === currentTape?.id) return;
@@ -279,6 +246,7 @@ export default function App() {
     hasPlayedCurrentTape.current = false;
     setIsChangingTape(true); setIsPlaying(false); setTapeState('empty');
     setTimeout(() => { setCurrentTape(tape); setTapeState('loaded'); setIsChangingTape(false); }, 400);
+    if (playerData) activityLogger.logAction(playerData.uid, playerData.username, 'tape_select', `Selecionou fita: ${tape.title}`, { tapeId: tape.id });
   };
 
   const handleModeChange = (dir: 'up' | 'down') => {
@@ -288,6 +256,7 @@ export default function App() {
   };
 
   const handleLogout = async () => {
+    if (playerData) activityLogger.logAuth(playerData.uid, playerData.username, 'logout', `${playerData.username} desconectou do sistema`);
     analyticsTracker.stopAll();
     await logout();
     setCurrentTape(null); setTapeState('empty'); setIsPlaying(false);
@@ -334,19 +303,19 @@ export default function App() {
           </motion.div>
         ) : screen === 'bios' ? (
           <motion.div key="bios" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-50">
-            <BiosTerminal uid={playerData.uid} onIpDetected={() => setScreen('limbo')} onClose={() => setScreen('player')} onAppLaunch={(app) => { if(app === 'diskRepair') setScreen('diskRepair'); }} />
+            <BiosTerminal uid={playerData.uid} onIpDetected={() => { activityLogger.logNavigation(playerData.uid, playerData.username, 'bios', 'limbo'); setScreen('limbo'); }} onClose={() => { activityLogger.logNavigation(playerData.uid, playerData.username, 'bios', 'player'); setScreen('player'); }} onAppLaunch={(app) => { if(app === 'diskRepair') { activityLogger.logNavigation(playerData.uid, playerData.username, 'bios', 'diskRepair'); setScreen('diskRepair'); } }} />
           </motion.div>
         ) : screen === 'limbo' ? (
           <motion.div key="limbo" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-50">
-            <LimboBoard uid={playerData.uid} onClose={() => setScreen('player')} onBackToTerminal={() => setScreen('bios')} globalSeizedStatus={limboStatus.seized} />
+            <LimboBoard uid={playerData.uid} onClose={() => { activityLogger.logNavigation(playerData.uid, playerData.username, 'limbo', 'player'); setScreen('player'); }} onBackToTerminal={() => { activityLogger.logNavigation(playerData.uid, playerData.username, 'limbo', 'bios'); setScreen('bios'); }} globalSeizedStatus={limboStatus.seized} />
           </motion.div>
         ) : screen === 'diskRepair' ? (
           <motion.div key="diskRepair" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-50">
-            <DiskRepairApp uid={playerData.uid} onClose={() => setScreen('player')} onBackToTerminal={() => setScreen('bios')} />
+            <DiskRepairApp uid={playerData.uid} onClose={() => { activityLogger.logNavigation(playerData.uid, playerData.username, 'diskRepair', 'player'); setScreen('player'); }} onBackToTerminal={() => { activityLogger.logNavigation(playerData.uid, playerData.username, 'diskRepair', 'bios'); setScreen('bios'); }} />
           </motion.div>
         ) : screen === 'macos' ? (
           <motion.div key="macos" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-50">
-            <MacOsApp uid={playerData.uid} onClose={() => setScreen('player')} />
+            <MacOsApp uid={playerData.uid} onClose={() => { activityLogger.logNavigation(playerData.uid, playerData.username, 'macos', 'player'); setScreen('player'); }} />
           </motion.div>
         ) : (
           <motion.div 

@@ -238,6 +238,71 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
     }
   };
 
+  const getQrCodeSvgDataUri = () => {
+    const container = document.getElementById("qr-code-container");
+    if (!container) return null;
+    const svgElement = container.querySelector("svg");
+    if (!svgElement) return null;
+    const svgData = new XMLSerializer().serializeToString(svgElement);
+    return "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svgData)));
+  };
+
+  const handleDownloadQrCode = () => {
+    const dataUri = getQrCodeSvgDataUri();
+    if (!dataUri) return;
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      const padding = 20;
+      canvas.width = img.width + padding * 2;
+      canvas.height = img.height + padding * 2;
+      const ctx = canvas.getContext("2d");
+      if (ctx) {
+        ctx.fillStyle = "white";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, padding, padding);
+        const pngFile = canvas.toDataURL("image/png");
+        const downloadLink = document.createElement("a");
+        downloadLink.download = `qrcode_${qrCodeModal?.originalName || 'audio'}.png`;
+        downloadLink.href = pngFile;
+        downloadLink.click();
+      }
+    };
+    img.src = dataUri;
+  };
+
+  const handleCopyQrCode = () => {
+    const dataUri = getQrCodeSvgDataUri();
+    if (!dataUri) return;
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      const padding = 20;
+      canvas.width = img.width + padding * 2;
+      canvas.height = img.height + padding * 2;
+      const ctx = canvas.getContext("2d");
+      if (ctx) {
+        ctx.fillStyle = "white";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, padding, padding);
+        canvas.toBlob(async (blob) => {
+          if (blob) {
+            try {
+              await navigator.clipboard.write([
+                new ClipboardItem({ 'image/png': blob })
+              ]);
+              showAlert('Sucesso', 'QR Code copiado para a área de transferência!');
+            } catch (err) {
+              console.error('Failed to copy', err);
+              showAlert('Erro', 'Falha ao copiar QR Code. Verifique as permissões.');
+            }
+          }
+        }, 'image/png');
+      }
+    };
+    img.src = dataUri;
+  };
+
   const formatSize = (bytes: number) => {
     const mb = bytes / (1024 * 1024);
     return mb >= 1 ? mb.toFixed(1) + ' MB' : (bytes / 1024).toFixed(0) + ' KB';
@@ -420,15 +485,31 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
             <h3 className="font-headline font-bold text-lg mb-4 text-orange-500 tracking-wider">
               CÓDIGO DA FITA
             </h3>
-            <div className="bg-white p-4 rounded mb-4">
+            <div id="qr-code-container" className="bg-white p-4 rounded mb-4">
               <QRCode value={qrCodeModal.id} size={200} />
             </div>
             <p className="font-label text-xs text-zinc-400 mb-6 text-center tracking-widest break-all">
               ID: {qrCodeModal.id}
             </p>
+            <div className="flex gap-3 mb-6 w-full justify-center">
+              <button
+                onClick={handleCopyQrCode}
+                className="flex items-center gap-2 px-4 py-2 text-[10px] font-label border border-zinc-700 text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors machined-edge"
+              >
+                <span className="material-symbols-outlined text-sm">content_copy</span>
+                COPIAR
+              </button>
+              <button
+                onClick={handleDownloadQrCode}
+                className="flex items-center gap-2 px-4 py-2 text-[10px] font-label border border-zinc-700 text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors machined-edge"
+              >
+                <span className="material-symbols-outlined text-sm">download</span>
+                SALVAR
+              </button>
+            </div>
             <button
               onClick={() => setQrCodeModal(null)}
-              className="px-6 py-2 text-xs font-label bg-zinc-800 text-white hover:bg-zinc-700 transition-colors machined-edge"
+              className="px-6 py-2 text-xs font-label bg-zinc-800 text-white hover:bg-zinc-700 transition-colors machined-edge w-full"
             >
               FECHAR
             </button>

@@ -9,8 +9,6 @@
     "preview": "vite preview",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
-    "generate-tapes": "npx tsx scripts/generate-tapes.ts",
-    "prebuild": "npm run generate-tapes",
     "deploy": "npm run build && firebase deploy --only hosting:main",
     "deploy:full": "npm run build && firebase deploy"
   },

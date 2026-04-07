@@ -14,6 +14,7 @@ import {
 import { format } from 'date-fns';
 import { useModal } from './ConfirmModal';
 import { EVIDENCE_TAPES_FOR_ADMIN, type EvidenceTapeAdmin } from '../../data/tapes';
+import { activityLogger } from '../../services/ActivityLogger';
 
 interface UserData {
   uid: string;
@@ -183,9 +184,11 @@ export default function InventoryManager() {
   const executeRemove = async (item: InventoryItem) => {
     if (!selectedUser) return;
     setConfirmRemove(null);
+    activityLogger.logTrace('gm.mpg', 'inventory_remove_step', `Iniciando remoção do item ${item.tapeId} para o usuário ${selectedUser.uid}...`);
     try {
       await deleteDoc(doc(db, 'users', selectedUser.uid, 'tapes', item.tapeId));
       setInventory((prev) => prev.filter((i) => i.tapeId !== item.tapeId));
+      activityLogger.logAdmin('gm.mpg', 'inventory_remove', `Removeu ${item.label} de ${selectedUser.displayName || selectedUser.username}`, { uid: selectedUser.uid, tapeId: item.tapeId, itemLabel: item.label });
     } catch (err) {
       console.error('Error removing item:', err);
       showAlert('Erro', 'Falha ao remover item do inventário.');
@@ -215,9 +218,10 @@ export default function InventoryManager() {
     const uid = selectedUser.uid; // captured before async so TS knows it's string
     setAddLoading(true);
     setAddFeedback(null);
+    activityLogger.logTrace('gm.mpg', 'inventory_add_step', `Iniciando injeção de ${selectedToAdd.size} item(s) no inventário de ${uid}...`);
     try {
       await Promise.all(
-        Array.from(selectedToAdd).map((id) =>
+        [...selectedToAdd].map((id) =>
           setDoc(doc(db, 'users', uid, 'tapes', id), {
             tapeId: id,
             unlockedAt: serverTimestamp(),
@@ -225,6 +229,7 @@ export default function InventoryManager() {
         )
       );
       setAddFeedback(`✓ ${selectedToAdd.size} item(s) adicionado(s) com sucesso.`);
+      activityLogger.logAdmin('gm.mpg', 'inventory_add', `Adicionou ${selectedToAdd.size} item(s) para ${selectedUser.displayName || selectedUser.username}`, { uid, items: [...selectedToAdd] });
       setSelectedToAdd(new Set());
       await loadInventory(uid);
     } catch (err) {
