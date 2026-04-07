@@ -3,7 +3,7 @@
 
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
+import { initializeFirestore, doc, getDocFromServer } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import { getFunctions } from 'firebase/functions';
 
@@ -19,7 +19,9 @@ const firebaseConfig = {
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
 export const auth = getAuth(app);
-export const db = getFirestore(app);
+export const db = initializeFirestore(app, {
+  experimentalAutoDetectLongPolling: true,
+});
 export const storage = getStorage(app);
 export const functions = getFunctions(app, 'southamerica-east1');
 
@@ -32,3 +34,32 @@ export async function testConnection() {
     }
   }
 }
+
+// ── Global Error Interceptor → Admin Activity Log ───────────────────────────
+// Captures unhandled errors and rejected promises so they appear in the admin
+// live feed instead of being silently swallowed by the browser console.
+
+import { activityLogger } from '../services/ActivityLogger';
+
+function getErrorDigest(error: unknown): { message: string; stack?: string; code?: string } {
+  if (error instanceof Error) {
+    return { message: error.message, stack: error.stack, code: (error as any).code };
+  }
+  return { message: String(error) };
+}
+
+window.addEventListener('error', (event) => {
+  const { message, stack, code } = getErrorDigest(event.error ?? event.message);
+  activityLogger.logAdmin('system', 'unhandled_error', `[GLOBAL_ERROR] ${message}`, {
+    stack, code, filename: event.filename, lineno: event.lineno, colno: event.colno,
+  });
+});
+
+window.addEventListener('unhandledrejection', (event) => {
+  const { message, stack, code } = getErrorDigest(event.reason);
+  // Skip noisy Firestore internal transport retries that auto-resolve
+  if (message.includes('Failed to fetch') || message.includes('access control checks')) return;
+  activityLogger.logAdmin('system', 'unhandled_rejection', `[PROMISE_ERROR] ${message}`, {
+    stack, code,
+  });
+});

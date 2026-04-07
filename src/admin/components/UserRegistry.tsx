@@ -71,8 +71,9 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
       if (details.stats) {
         setUserStats((prev) => ({ ...prev, [uid]: details.stats }));
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error loading user tapes:", error);
+      activityLogger.logAdmin('gm.mpg', 'error_load_tapes', `Erro ao carregar tapes do usuário ${uid}: ${error?.message || error}`, { uid, errorCode: error?.code });
     }
   };
 
@@ -94,8 +95,9 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
     setConfirmDeleteUid(null);
     try {
       await userService.deleteUser(uid);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error deleting user:", error);
+      activityLogger.logAdmin('gm.mpg', 'error_delete_user', `Erro ao deletar usuário ${uid}: ${error?.message || error}`, { uid, errorCode: error?.code });
     }
   };
 
@@ -111,8 +113,9 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error creating backup:", error);
+      activityLogger.logAdmin('gm.mpg', 'error_backup', `Erro ao criar backup de ${user.displayName || user.username}: ${error?.message || error}`, { uid: user.uid, errorCode: error?.code });
       showAlert('Erro de Backup', 'Falha ao criar o backup. Verifique o console.');
     }
   };
@@ -121,15 +124,17 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
     e.preventDefault();
     if (!editingUser || !isAdmin) return;
     try {
+      const name = editingUser.displayName || editingUser.username || '';
       await userService.updateUserRole(editingUser.uid, {
-        displayName: editingUser.displayName,
-        username: editingUser.displayName,
-        role: editingUser.role,
-        spotifyPlaylistUrl: editingUser.spotifyPlaylistUrl || '',
+        displayName: name,
+        username: name,
+        role: editingUser.role || 'member',
+        spotifyPlaylistUrl: editingUser.spotifyPlaylistUrl ?? '',
       });
       setEditingUser(null);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error updating user:", error);
+      activityLogger.logAdmin('gm.mpg', 'error_update_user', `Erro ao atualizar usuário ${editingUser.uid}: ${error?.message || error}`, { uid: editingUser.uid, errorCode: error?.code, errorMessage: error?.message });
       showAlert('Erro ao Atualizar', 'Falha ao atualizar dados do usuário.');
     }
   };
@@ -144,8 +149,9 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
     try {
       await userService.removeUserTape(uid, tapeId);
       loadUserTapes(uid);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error removing tape:", error);
+      activityLogger.logAdmin('gm.mpg', 'error_remove_tape', `Erro ao remover tape ${tapeId} do usuário ${uid}: ${error?.message || error}`, { uid, tapeId, errorCode: error?.code });
     }
   };
 
@@ -161,8 +167,9 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
       loadUserTapes(addTapeModal);
       setAddTapeModal(null);
       setSelectedAudioId("");
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error adding tape:", error);
+      activityLogger.logAdmin('gm.mpg', 'error_add_tape', `Erro ao adicionar tape ${selectedAudioId} ao usuário ${addTapeModal}: ${error?.message || error}`, { uid: addTapeModal, tapeId: selectedAudioId, errorCode: error?.code });
     }
   };
 
