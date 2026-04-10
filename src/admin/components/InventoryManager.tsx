@@ -425,7 +425,7 @@ export default function InventoryManager() {
                               {item.tapeId}
                             </span>
                             <button
-                              onClick={() => setConfirmRemove(item)}
+                              onClick={() => executeRemove(item)}
                               className="material-symbols-outlined text-sm text-zinc-700 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
                               title="Remover do inventário"
                             >
@@ -487,7 +487,7 @@ export default function InventoryManager() {
                                 </div>
                               )}
                               <button
-                                onClick={() => setConfirmRemove(item)}
+                                onClick={() => executeRemove(item)}
                                 className="material-symbols-outlined text-sm text-zinc-700 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
                                 title="Remover do inventário"
                               >
@@ -507,40 +507,6 @@ export default function InventoryManager() {
       </div>
 
       {/* ── Confirm Remove Modal ──────────────────────────────────────────────── */}
-      {confirmRemove && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
-          <div className="bg-surface-container-low border border-red-500/40 p-6 w-full max-w-sm machined-edge">
-            <div className="flex items-center gap-3 mb-4">
-              <span className="material-symbols-outlined text-red-400 text-xl">warning</span>
-              <h3 className="font-headline text-lg text-red-400">REMOVE_ITEM</h3>
-            </div>
-            <p className="font-body text-sm text-zinc-300 mb-2">
-              Remover do inventário de{' '}
-              <span className="text-purple-300 font-bold">
-                {selectedUser?.displayName || selectedUser?.username}
-              </span>
-              :
-            </p>
-            <p className="font-headline text-sm text-orange-400 font-bold mb-6">
-              {confirmRemove.label}
-            </p>
-            <div className="flex justify-end gap-3">
-              <button
-                onClick={() => setConfirmRemove(null)}
-                className="px-4 py-2 text-xs font-label text-zinc-400 hover:text-white border border-zinc-700 hover:border-zinc-500 transition-colors"
-              >
-                CANCELAR
-              </button>
-              <button
-                onClick={() => executeRemove(confirmRemove)}
-                className="px-4 py-2 text-xs font-label bg-red-900/60 text-red-300 font-bold tracking-wider hover:bg-red-800/60 transition-all border border-red-700/30"
-              >
-                CONFIRMAR
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ── Add Item Modal ────────────────────────────────────────────────────── */}
       {showAddModal && selectedUser && (

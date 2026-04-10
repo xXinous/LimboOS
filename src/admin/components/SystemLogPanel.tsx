@@ -112,13 +112,6 @@ export default function SystemLogPanel() {
   };
 
   const handleClearLogs = async () => {
-    const ok = await showConfirm(
-      'Limpar Logs do Sistema',
-      'Todos os logs de atividade serão removidos permanentemente. Isso não pode ser desfeito. Continuar?',
-      'Sim, Limpar Tudo'
-    );
-    if (!ok) return;
-
     setIsClearing(true);
     try {
       const snap = await getDocs(collection(db, 'activityLog'));

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { collection, doc, setDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
-import { setTerminalStateForUsers, setMacStateForUsers, fetchLimboGlobalState, resetLimboSeized, LimboGlobalState, PlayerMeta } from '../../store/firestore';
+import { setTerminalStateForUsers, setMacStateForUsers, fetchLimboGlobalState, setLimboMilitarySeizureGlobal, LimboGlobalState, PlayerMeta } from '../../store/firestore';
 import { Terminal, ShieldBan, ShieldCheck, UserCheck, Apple } from 'lucide-react';
 import { activityLogger } from '../../services/ActivityLogger';
 
@@ -84,12 +84,11 @@ export default function TerminalPanel() {
     setSelectedUids(new Set());
   };
 
-  const handleResetGlobalLimbo = async () => {
-    if (confirm('Tem certeza que deseja desativar o bloqueio militar do Limbo para todo o mundo?')) {
-      activityLogger.logTrace('gm.mpg', 'limbo_reset_step', `Enviando requisição de reset global do Limbo para Firestore...`);
-      await resetLimboSeized();
-      activityLogger.logAdmin('gm.mpg', 'limbo_reset', 'Resetou evento global LIMBO SEIZED');
-    }
+  const toggleLimboMilitary = async () => {
+    const next = !limboState.seized;
+    activityLogger.logTrace('gm.mpg', 'limbo_military_step', `Limbo USArmy → ${next ? 'ATIVO' : 'INATIVO'}`);
+    await setLimboMilitarySeizureGlobal(next);
+    activityLogger.logAdmin('gm.mpg', 'limbo_military_toggle', `Limbo USArmy ${next ? 'ATIVADO' : 'DESATIVADO'} globalmente`, { seized: next });
   };
 
   const toggleDiskRepair = async () => {
@@ -112,16 +111,24 @@ export default function TerminalPanel() {
           <div className={`p-4 border machined-edge flex flex-col gap-4 ${limboState.seized ? 'bg-red-900/20 border-red-500' : 'bg-surface-container-highest border-zinc-800'}`}>
             <h3 className="font-label uppercase text-xs tracking-widest text-zinc-400">Status Global LIMBO_01</h3>
             <div className="flex items-center gap-2 font-bold uppercase text-lg">
-              {limboState.seized ? <span className="text-red-500 flex items-center gap-2"><ShieldBan size={20}/> MILITARY SEIZED</span> : <span className="text-green-500 flex items-center gap-2"><ShieldCheck size={20}/> NORMAL</span>}
+              {limboState.seized ? <span className="text-red-500 flex items-center gap-2"><ShieldBan size={20}/> USArmy / BLOQUEADO</span> : <span className="text-green-500 flex items-center gap-2"><ShieldCheck size={20}/> ACESSÍVEL</span>}
             </div>
-            {limboState.seized && (
-              <button onClick={handleResetGlobalLimbo} className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white font-bold uppercase text-xs tracking-widest transition-colors machined-edge">
-                Resetar Evento Global
+            <p className="text-xs text-zinc-500">
+              O bloqueio global é **colaborativo**. Ele é ativado quando todos os tópicos forem explorados pela comunidade. Como administrador, você tem controle total sobre este estado.
+            </p>
+            <div className="flex items-center justify-between p-3 bg-surface-container border border-zinc-700/50 rounded-sm">
+              <div>
+                <p className="font-bold text-sm text-zinc-300 uppercase">{limboState.seized ? 'Restaurar Acesso' : 'Forçar Bloqueio'}</p>
+                <p className="text-[10px] text-zinc-500">{limboState.seized ? 'O sistema voltará ao normal' : 'Ativa a tela militar para todos'}</p>
+              </div>
+              <button
+                type="button"
+                onClick={toggleLimboMilitary}
+                className={`px-4 py-2 border font-label uppercase text-[10px] tracking-wider transition-all ${limboState.seized ? 'bg-red-600 border-red-400 text-white hover:bg-red-500' : 'bg-zinc-800 border-zinc-600 text-zinc-300 hover:bg-zinc-700'} active:scale-95`}
+              >
+                {limboState.seized ? 'Reset System' : 'Activate Seize'}
               </button>
-            )}
-            {!limboState.seized && (
-               <p className="text-xs text-zinc-500">Nenhum evento em andamento. Administre os terminais individuais à direita.</p>
-            )}
+            </div>
           </div>
 
           {/* RPG Events */}

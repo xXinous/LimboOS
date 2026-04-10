@@ -29,9 +29,15 @@ service cloud.firestore {
     // SYSTEM SETTINGS (limboState, etc)
     // ==========================================
     match /system/{document=**} {
-      // Anyone can read system state (like limbo), but only admin writes
+      // Anyone can read system state (like limbo)
       allow read: if true;
+      // Only admin can write to most system docs
       allow write: if isAdmin();
+    }
+
+    match /system/limboState {
+      // Authenticated users can update global progress
+      allow update: if isAuthenticated();
     }
 
     // ==========================================
