@@ -132,7 +132,9 @@ window.addEventListener('error', (event) => {
 window.addEventListener('unhandledrejection', (event) => {
   const { message, stack, code } = getErrorDigest(event.reason);
   if (
-    message.includes('[ActivityLogger]')
+    message.includes('[ActivityLogger]') ||
+    message.includes('Missing or insufficient permissions') ||
+    message.includes('permission-denied')
   ) return;
   if (_isLogging) return;
   _isLogging = true;

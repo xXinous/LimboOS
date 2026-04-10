@@ -139,7 +139,8 @@ export class AnalyticsTracker {
     const newAchievements = checkNewAchievements(profile, tapes, scanTimes.length);
 
     if (newAchievements.length > 0) {
-      firestoreGrantAchievements(this.playerData.uid, newAchievements.map(a => a.id));
+      firestoreGrantAchievements(this.playerData.uid, newAchievements.map(a => a.id))
+        .catch(err => console.warn('[AnalyticsTracker] Failed to grant achievements:', err));
       this.forceSyncToServer();
 
       newAchievements.forEach(ach => {
@@ -154,8 +155,9 @@ export class AnalyticsTracker {
   public grantAchievement(id: string) {
     if (!this.playerData || !this.localStats) return;
     if (this.playerData.achievementIds.includes(id)) return;
-
-    firestoreGrantAchievements(this.playerData.uid, [id]);
+  
+    firestoreGrantAchievements(this.playerData.uid, [id])
+      .catch(err => console.warn('[AnalyticsTracker] Failed to grant achievement:', err));
     this.playerData.achievementIds = [...this.playerData.achievementIds, id];
     
     activityLogger.logAction(this.playerData.uid, this.playerData.username || this.playerData.uid, 'achievement', `Conquista desbloqueada: ${id}`, { achievementId: id });

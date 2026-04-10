@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { setLimboSeized, firestoreGrantAchievements } from '../store/firestore';
+import { firestoreMarkThreadReadGlobal, firestoreGrantAchievements } from '../store/firestore';
 
 interface LimboBoardProps {
   uid: string;
   onClose: () => void;
   globalSeizedStatus: boolean;
+  readThreadIds: string[];
   onBackToTerminal?: () => void;
 }
 
@@ -133,10 +134,9 @@ const THREADS: Thread[] = [
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export default function LimboBoard({ uid, onClose, globalSeizedStatus, onBackToTerminal }: LimboBoardProps) {
-  const [view, setView] = useState<'intro' | 'forum' | 'thread' | 'military'>('intro');
+export default function LimboBoard({ uid, onClose, globalSeizedStatus, readThreadIds, onBackToTerminal }: LimboBoardProps) {
+  const [view, setView] = useState<'intro' | 'forum' | 'thread' | 'military'>(globalSeizedStatus ? 'military' : 'intro');
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
-  const [readThreads, setReadThreads] = useState<Set<string>>(new Set());
   const [onlineUsers, setOnlineUsers] = useState(84);
   const [matrixLog, setMatrixLog] = useState('');
 
@@ -144,8 +144,15 @@ export default function LimboBoard({ uid, onClose, globalSeizedStatus, onBackToT
  ˇƒµ             }       !1A  Qa "q 2Åë° #B±¡ R—$3brÇ	`;
 
   useEffect(() => {
-    if (globalSeizedStatus) { setView('military'); }
-  }, [globalSeizedStatus]);
+    if (globalSeizedStatus && view !== 'military') {
+      setView('military');
+      setActiveThreadId(null);
+    } else if (!globalSeizedStatus && view === 'military') {
+      setView('forum');
+    }
+  }, [globalSeizedStatus, view]);
+
+  const effectiveView = globalSeizedStatus ? 'military' : view;
 
   useEffect(() => {
     if (view !== 'intro' || globalSeizedStatus) return;
@@ -177,21 +184,14 @@ export default function LimboBoard({ uid, onClose, globalSeizedStatus, onBackToT
   }, []);
 
   const openThread = (id: string) => {
-    setReadThreads(prev => new Set(prev).add(id));
+    firestoreMarkThreadReadGlobal(id).catch(console.error);
     setActiveThreadId(id);
     setView('thread');
   };
 
   const closeThread = () => {
-    const newRead = new Set(readThreads).add(activeThreadId!);
-    if (newRead.size >= THREADS.length && !globalSeizedStatus) {
-      setLimboSeized(uid);
-      firestoreGrantAchievements(uid, ['ACH-LIMBO-READ']).catch(console.error);
-      setView('military');
-    } else {
-      setView('forum');
-      setActiveThreadId(null);
-    }
+    setView(globalSeizedStatus ? 'military' : 'forum');
+    setActiveThreadId(null);
   };
 
   const activeThread = THREADS.find(t => t.id === activeThreadId);
@@ -210,34 +210,34 @@ export default function LimboBoard({ uid, onClose, globalSeizedStatus, onBackToT
       `}</style>
 
       {/* Disconnect button */}
-      {view !== 'intro' && (
+      {effectiveView !== 'intro' && (
         <div className="fixed top-2 right-4 z-50 flex gap-2">
           {onBackToTerminal && (
              <button
                onClick={onBackToTerminal}
-               className={`border px-2 py-1 uppercase text-xs transition-colors ${view === 'military' ? 'text-red-500 border-red-500 hover:bg-red-500 hover:text-black' : 'text-[#33FF33] border-[#33FF33] hover:bg-[#33FF33] hover:text-[#050505]'}`}
+               className={`border px-2 py-1 uppercase text-xs transition-colors ${effectiveView === 'military' ? 'text-red-500 border-red-500 hover:bg-red-500 hover:text-black' : 'text-[#33FF33] border-[#33FF33] hover:bg-[#33FF33] hover:text-[#050505]'}`}
              >
                [ VOLTAR AO PC_ ]
              </button>
           )}
           <button
             onClick={onClose}
-            className={`border px-2 py-1 uppercase text-xs transition-colors ${view === 'military' ? 'text-red-500 border-red-500 hover:bg-red-500 hover:text-black' : 'text-[#33FF33] border-[#33FF33] hover:bg-[#33FF33] hover:text-[#050505]'}`}
+            className={`border px-2 py-1 uppercase text-xs transition-colors ${effectiveView === 'military' ? 'text-red-500 border-red-500 hover:bg-red-500 hover:text-black' : 'text-[#33FF33] border-[#33FF33] hover:bg-[#33FF33] hover:text-[#050505]'}`}
           >
-            {view === 'military' ? '[ ABORT CONNECTION ]' : '[ DESCONECTAR_ ]'}
+            {effectiveView === 'military' ? '[ ABORT CONNECTION ]' : '[ DESCONECTAR_ ]'}
           </button>
         </div>
       )}
 
       {/* Intro: Matrix log */}
-      {view === 'intro' && (
+      {effectiveView === 'intro' && (
         <div className="w-full h-full p-4 whitespace-pre-wrap text-[10px] sm:text-xs opacity-70 text-[#00FF41] overflow-hidden">
           {matrixLog}
         </div>
       )}
 
       {/* Military Seizure view */}
-      {view === 'military' && (
+      {effectiveView === 'military' && (
         <div className="mt-12 mx-auto max-w-4xl text-center text-red-600">
           <pre className="text-[10px] mx-auto inline-block text-left mb-6">{`
    / \\
@@ -256,7 +256,7 @@ export default function LimboBoard({ uid, onClose, globalSeizedStatus, onBackToT
       )}
 
       {/* Forum + Thread views */}
-      {(view === 'forum' || view === 'thread') && (
+      {(effectiveView === 'forum' || effectiveView === 'thread') && (
         <div className="max-w-4xl mx-auto border-2 border-[#33FF33] p-2 sm:p-6 mt-8 sm:mt-12 bg-black min-h-[85vh] flex flex-col">
 
           {/* ASCII Header */}
@@ -282,7 +282,7 @@ export default function LimboBoard({ uid, onClose, globalSeizedStatus, onBackToT
           <p className="text-xs mb-4">&gt; CONECTADO VIA IP: 212.45.01.01</p>
 
           {/* Forum List */}
-          {view === 'forum' && (
+          {effectiveView === 'forum' && (
             <div className="flex-1">
               <h2 className="text-xs sm:text-sm font-bold border-b border-[#33FF33] pb-2 mb-4">&gt;&gt; BBS BOARD: DISCUSSÕES GERAIS E ANOMALIAS GLOBAIS</h2>
               <div className="overflow-x-auto">
@@ -300,9 +300,9 @@ export default function LimboBoard({ uid, onClose, globalSeizedStatus, onBackToT
                         <td className="p-2">
                           <button
                             onClick={() => openThread(t.id)}
-                            className={`text-left w-full hover:text-black hover:bg-[#33FF33] px-1 ${readThreads.has(t.id) ? 'text-green-800 line-through' : 'text-[#33FF33] underline'}`}
+                            className={`text-left w-full hover:text-black hover:bg-[#33FF33] px-1 ${readThreadIds.includes(t.id) ? 'text-green-800 line-through' : 'text-[#33FF33] underline'}`}
                           >
-                            {readThreads.has(t.id) ? '[X]' : '[+]'} {t.title}
+                            {readThreadIds.includes(t.id) ? '[X]' : '[+]'} {t.title}
                           </button>
                         </td>
                         <td className="p-2 hidden sm:table-cell">{t.author}</td>
@@ -312,12 +312,12 @@ export default function LimboBoard({ uid, onClose, globalSeizedStatus, onBackToT
                   </tbody>
                 </table>
               </div>
-              <p className="mt-6 text-xs text-green-800">&gt; Sistema monitorando leitura de arquivos... [{readThreads.size}/{THREADS.length}]</p>
+              <p className="mt-6 text-xs text-green-800">&gt; Sistema monitorando leitura global de dados... [{readThreadIds.length}/{THREADS.length}]</p>
             </div>
           )}
 
           {/* Thread View */}
-          {view === 'thread' && activeThread && (
+          {effectiveView === 'thread' && activeThread && (
             <div className="flex-1 flex flex-col">
               <div className="flex justify-between items-start mb-4 gap-4">
                 <h2 className="text-xs sm:text-sm font-bold">&gt;&gt; TÓPICO: {activeThread.title}</h2>

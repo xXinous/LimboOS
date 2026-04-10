@@ -1,8 +1,11 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { checkMacClosed, firestoreUnlockTape } from '../store/firestore';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { db } from '../lib/firebase';
+import { checkMacClosed, firestoreUnlockTape, GameEventsState } from '../store/firestore';
 import { analyticsTracker } from '../services/AnalyticsTracker';
 import { activityLogger } from '../services/ActivityLogger';
+import { DISK_REPAIR_CORRUPTED_TEXT, DISK_REPAIR_REPAIRED_TEXT } from './DiskRepairApp';
 
 interface Windows95AppProps {
   uid: string;
@@ -171,16 +174,177 @@ export default function Windows95App({ uid, onClose }: Windows95AppProps) {
   );
 }
 
-function DesktopIcon({ icon, label, onClick }: { icon: string, label: string, onClick: () => void }) {
+function DesktopIcon({ icon, label, onClick, labelOnLight }: { icon: string, label: string, onClick: () => void, labelOnLight?: boolean }) {
   return (
     <div 
       className="w-20 flex flex-col items-center gap-1 cursor-pointer group pointer-events-auto active:opacity-70"
       onClick={onClick}
     >
       <div className="text-4xl">{icon}</div>
-      <span className="text-[11px] text-white text-center leading-tight bg-transparent group-active:bg-[#000080] px-1 selection:bg-[#000080]">
+      <span
+        className={
+          labelOnLight
+            ? 'text-[11px] text-black text-center leading-tight bg-transparent px-1 group-active:bg-[#000080] group-active:text-white selection:bg-[#000080] selection:text-white'
+            : 'text-[11px] text-white text-center leading-tight bg-transparent group-active:bg-[#000080] px-1 selection:bg-[#000080]'
+        }
+      >
         {label}
       </span>
+    </div>
+  );
+}
+
+function DiskRepairWin95Content({ uid }: { uid: string }) {
+  const [phase, setPhase] = useState<'intro' | 'loading' | 'viewer' | 'repairing' | 'result'>('intro');
+  const [diskRepairAllowed, setDiskRepairAllowed] = useState(false);
+  const [resultStatus, setResultStatus] = useState<'success' | 'fail' | null>(null);
+  const [progress, setProgress] = useState(0);
+  const [scrambleText, setScrambleText] = useState('');
+
+  useEffect(() => {
+    analyticsTracker.grantAchievement('ACH-REPAIR-APP');
+  }, []);
+
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, 'system', 'gameEvents'), (snap) => {
+      if (snap.exists()) {
+        const data = snap.data() as GameEventsState;
+        setDiskRepairAllowed(!!data.diskRepairAllowed);
+      }
+    });
+    return () => unsub();
+  }, []);
+
+  const generateScramble = () => DISK_REPAIR_CORRUPTED_TEXT;
+
+  const handleAnalyze = () => {
+    activityLogger.logAction(uid, 'Sistema', 'diskrepair', 'Analisou disquete (Windows 95)');
+    setPhase('loading');
+    setProgress(0);
+    let p = 0;
+    const interval = setInterval(() => {
+      p += 15 + Math.random() * 20;
+      if (p >= 100) {
+        clearInterval(interval);
+        setScrambleText(generateScramble());
+        setPhase('viewer');
+        analyticsTracker.grantAchievement('ACH-REPAIR-FAIL');
+        firestoreUnlockTape(uid, 'evidence-disk-01-corrupted').catch(console.error);
+      } else {
+        setProgress(p);
+      }
+    }, 400);
+  };
+
+  const handleRepair = () => {
+    activityLogger.logAction(uid, 'Sistema', 'diskrepair', 'Iniciou desmagnetização (Windows 95)');
+    setPhase('repairing');
+    setProgress(0);
+    let p = 0;
+    const interval = setInterval(() => {
+      p += 5 + Math.random() * 10;
+      if (Math.random() > 0.5) setScrambleText(generateScramble());
+      if (p >= 100) {
+        clearInterval(interval);
+        setPhase('result');
+        const success = diskRepairAllowed;
+        setResultStatus(success ? 'success' : 'fail');
+        if (success) {
+          analyticsTracker.grantAchievement('ACH-REPAIR-SUCCESS');
+          firestoreUnlockTape(uid, 'evidence-disk-01').catch(console.error);
+        }
+      } else {
+        setProgress(p);
+      }
+    }, 300);
+  };
+
+  const handleRetry = () => {
+    setPhase('intro');
+    setResultStatus(null);
+  };
+
+  return (
+    <div className="flex flex-col gap-3 text-left text-black text-xs">
+      {phase === 'intro' && (
+        <div className="flex flex-col gap-3 items-center text-center">
+          <h3 className="font-bold text-sm w-full">Desmagnetizador de Disco v1.4</h3>
+          <div className="text-5xl">💾</div>
+          <p className="max-w-[220px] text-[#404040]">
+            Nenhum disquete inserido. Por favor, coloque um disco no Drive A: e clique em Analisar.
+          </p>
+          <button type="button" onClick={handleAnalyze} className="win95-button py-1 px-6 font-bold uppercase">
+            Analisar
+          </button>
+        </div>
+      )}
+
+      {(phase === 'loading' || phase === 'repairing') && (
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-2">
+            <div className="w-5 h-5 border-2 border-[#000080] border-t-transparent rounded-full animate-spin shrink-0" />
+            <p className="font-bold text-[11px]">
+              {phase === 'loading' ? 'Lendo setores do disco...' : 'Desmagnetizando MFT...'}
+            </p>
+          </div>
+          <div className="h-4 w-full bg-white win95-border-in p-px">
+            <div className="h-full bg-[#000080]" style={{ width: `${Math.min(progress, 100)}%` }} />
+          </div>
+        </div>
+      )}
+
+      {phase === 'viewer' && (
+        <div className="flex flex-col gap-2">
+          <div className="flex items-start gap-2">
+            <span className="text-2xl shrink-0">⚠️</span>
+            <div>
+              <h2 className="font-bold text-red-600 text-[11px] leading-tight">Erro de Leitura (CRC)</h2>
+              <p className="text-[10px] mt-0.5 text-[#404040]">
+                O volume está ilegível. Use Desmagnetizar para tentar recuperar os dados.
+              </p>
+            </div>
+          </div>
+          <div className="h-28 bg-black text-[#00ff00] font-mono text-[9px] p-1.5 overflow-hidden break-all win95-border-in">
+            {scrambleText}
+          </div>
+          <div className="flex justify-end gap-2 mt-1">
+            <button type="button" onClick={handleRetry} className="win95-button py-0.5 px-3 text-[11px]">
+              Cancelar
+            </button>
+            <button type="button" onClick={handleRepair} className="win95-button py-0.5 px-3 font-bold text-[11px]">
+              Desmagnetizar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {phase === 'result' && resultStatus === 'fail' && (
+        <div className="flex flex-col gap-2 items-center text-center py-2">
+          <span className="text-4xl">🛑</span>
+          <h2 className="font-bold text-red-600">Não é possível ler o disquete.</h2>
+          <p className="text-[11px] text-[#404040]">
+            Os danos magnéticos foram extensos. O evento DiskRepair.exe precisa estar ativo no painel para permitir a recuperação.
+          </p>
+          <button type="button" onClick={handleRetry} className="win95-button py-1 px-6 font-bold mt-2">
+            OK
+          </button>
+        </div>
+      )}
+
+      {phase === 'result' && resultStatus === 'success' && (
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-2 bg-[#000080] text-white p-2">
+            <span className="text-2xl">✅</span>
+            <div>
+              <h2 className="font-bold text-[11px]">Disquete recuperado!</h2>
+              <p className="text-[10px] opacity-90">MFT reconstruída.</p>
+            </div>
+          </div>
+          <div className="h-32 bg-white text-black font-mono text-[10px] p-2 overflow-y-auto win95-border-in whitespace-pre-wrap">
+            {DISK_REPAIR_REPAIRED_TEXT}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -235,19 +399,12 @@ function Window({ type, isFocused, onFocus, onClose, uid, key }: { type: WindowT
       <div className="flex-1 bg-white m-0.5 win95-border-in overflow-auto p-4 flex flex-col">
         {type === 'myComputer' && (
           <div className="grid grid-cols-3 gap-6">
-            <DesktopIcon icon="💽" label="Disco Local (C:)" onClick={() => {}} />
-            <DesktopIcon icon="💿" label="Drive CD (D:)" onClick={() => {}} />
-            <DesktopIcon icon="💾" label="Disquete (A:)" onClick={() => {}} />
+            <DesktopIcon icon="💽" label="Disco Local (C:)" onClick={() => {}} labelOnLight />
+            <DesktopIcon icon="💿" label="Drive CD (D:)" onClick={() => {}} labelOnLight />
+            <DesktopIcon icon="💾" label="Disquete (A:)" onClick={() => {}} labelOnLight />
           </div>
         )}
-        {type === 'diskRepair' && (
-          <div className="flex flex-col gap-4 text-center items-center">
-            <h3 className="font-bold text-sm">Desmagnetizador de Disco v1.4</h3>
-            <div className="text-5xl my-4">💾</div>
-            <p className="text-xs max-w-[200px]">Nenhum disquete inserido. Por favor, coloque um disco no Drive A: para começar.</p>
-            <button className="win95-button py-1 px-8 mt-4 font-bold text-xs uppercase">Analisar</button>
-          </div>
-        )}
+        {type === 'diskRepair' && <DiskRepairWin95Content uid={uid} />}
         {type === 'recycleBin' && (
           <div className="flex flex-col items-center justify-center py-12 opacity-30">
             <span className="text-6xl mb-4">🗑️</span>

@@ -219,7 +219,7 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
       showAlert('Não Autorizado', 'Você não tem permissão para deletar este arquivo.');
       return;
     }
-    setConfirmDeleteAudio(audio);
+    executeDelete(audio);
   };
 
   const executeDelete = async (audio: AudioData) => {
@@ -448,35 +448,6 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
         )}
       </div>
 
-      {/* Confirm Delete Audio Modal */}
-      {confirmDeleteAudio && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
-          <div className="bg-surface-container-low border border-error/40 p-6 w-full max-w-sm machined-edge">
-            <div className="flex items-center gap-3 mb-4">
-              <span className="material-symbols-outlined text-error text-xl">warning</span>
-              <h3 className="font-headline text-lg text-error">DELETE_AUDIO_FILE</h3>
-            </div>
-            <p className="font-body text-sm text-zinc-300 mb-6">
-              Remover permanentemente o arquivo de áudio{" "}
-              <span className="text-orange-400 font-bold">{confirmDeleteAudio.originalName}</span>?
-            </p>
-            <div className="flex justify-end gap-3">
-              <button
-                onClick={() => setConfirmDeleteAudio(null)}
-                className="px-4 py-2 text-xs font-label text-zinc-400 hover:text-white border border-zinc-700 hover:border-zinc-500 transition-colors"
-              >
-                CANCELAR
-              </button>
-              <button
-                onClick={() => executeDelete(confirmDeleteAudio)}
-                className="px-4 py-2 text-xs font-label bg-error text-white font-bold tracking-wider hover:brightness-110 transition-all"
-              >
-                CONFIRMAR_DELETE
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* QR Code Modal */}
       {qrCodeModal && (

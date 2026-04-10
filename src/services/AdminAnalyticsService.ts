@@ -67,26 +67,41 @@ export class AdminAnalyticsService {
     };
 
     const unsubs = [
-      onSnapshot(collection(db, "playEvents"), (snap) => {
-        playEvents = snap.docs.map(d => d.data() as PlayEvent);
-        notify();
-      }),
-      onSnapshot(collection(db, "users"), (snap) => {
-        users = snap.docs.map(d => d.data() as UserData);
-        notify();
-      }),
-      onSnapshot(collection(db, "audios"), (snap) => {
-        audios = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
-        notify();
-      }),
-      onSnapshot(collectionGroup(db, "achievements"), (snap) => {
-        unlockedAchievements = snap.docs.map(d => d.data() as UserAchievement);
-        notify();
-      }),
-      onSnapshot(collectionGroup(db, "stats"), (snap) => {
-        stats = snap.docs.map(d => d.data() as PlayerStats);
-        notify();
-      })
+      onSnapshot(collection(db, "playEvents"), 
+        (snap) => {
+          playEvents = snap.docs.map(d => d.data() as PlayEvent);
+          notify();
+        },
+        (err) => console.warn('[AdminAnalyticsService] playEvents listener error:', err)
+      ),
+      onSnapshot(collection(db, "users"), 
+        (snap) => {
+          users = snap.docs.map(d => d.data() as UserData);
+          notify();
+        },
+        (err) => console.warn('[AdminAnalyticsService] users listener error:', err)
+      ),
+      onSnapshot(collection(db, "audios"), 
+        (snap) => {
+          audios = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
+          notify();
+        },
+        (err) => console.warn('[AdminAnalyticsService] audios listener error:', err)
+      ),
+      onSnapshot(collectionGroup(db, "achievements"), 
+        (snap) => {
+          unlockedAchievements = snap.docs.map(d => d.data() as UserAchievement);
+          notify();
+        },
+        (err) => console.warn('[AdminAnalyticsService] achievements listener error:', err)
+      ),
+      onSnapshot(collectionGroup(db, "stats"), 
+        (snap) => {
+          stats = snap.docs.map(d => d.data() as PlayerStats);
+          notify();
+        },
+        (err) => console.warn('[AdminAnalyticsService] stats listener error:', err)
+      )
     ];
 
     return () => unsubs.forEach(u => u());

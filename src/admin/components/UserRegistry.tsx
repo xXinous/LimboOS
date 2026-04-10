@@ -88,7 +88,7 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
 
   const handleDelete = (uid: string) => {
     if (!isAdmin) return;
-    setConfirmDeleteUid(uid);
+    executeDelete(uid);
   };
 
   const executeDelete = async (uid: string) => {
@@ -141,7 +141,7 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
 
   const handleDeleteTape = (uid: string, tapeId: string) => {
     if (!isAdmin) return;
-    setConfirmDeleteTape({ uid, tapeId });
+    executeDeleteTape(uid, tapeId);
   };
 
   const executeDeleteTape = async (uid: string, tapeId: string) => {
@@ -487,32 +487,6 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
       )}
 
       {/* Delete User/Tape Modals... */}
-      {confirmDeleteUid && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
-          <div className="bg-surface-container-low border border-error/40 p-6 w-full max-w-md machined-edge">
-            <div className="flex items-center gap-3 mb-4"><span className="material-symbols-outlined text-error text-xl">warning</span><h3 className="font-headline text-lg text-error">DELETE_USER_PROFILE</h3></div>
-            <p className="font-body text-sm text-zinc-300 mb-2">Isso irá deletar permanentemente o perfil do usuário e todos os dados associados:</p>
-            <ul className="text-xs font-label text-zinc-500 list-disc list-inside mb-6 space-y-1"><li>Tapes desbloqueadas</li><li>Achievements</li><li>Play events</li></ul>
-            <div className="flex justify-end gap-3">
-              <button onClick={() => setConfirmDeleteUid(null)} className="px-4 py-2 text-xs font-label text-zinc-400 hover:text-white border border-zinc-700 hover:border-zinc-500 transition-colors">CANCELAR</button>
-              <button onClick={() => executeDelete(confirmDeleteUid)} className="px-4 py-2 text-xs font-label bg-error text-white font-bold tracking-wider hover:brightness-110 transition-all">CONFIRMAR_DELETE</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {confirmDeleteTape && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
-          <div className="bg-surface-container-low border border-zinc-700 p-6 w-full max-w-sm machined-edge">
-            <div className="flex items-center gap-3 mb-4"><span className="material-symbols-outlined text-orange-400 text-xl">album</span><h3 className="font-headline text-base text-zinc-200">REMOVER_TAPE</h3></div>
-            <p className="font-body text-sm text-zinc-400 mb-6">Remover tape <span className="text-orange-400 font-bold">{confirmDeleteTape.tapeId}</span> do usuário?</p>
-            <div className="flex justify-end gap-3">
-              <button onClick={() => setConfirmDeleteTape(null)} className="px-4 py-2 text-xs font-label text-zinc-400 hover:text-white border border-zinc-700 hover:border-zinc-500 transition-colors">CANCELAR</button>
-              <button onClick={() => executeDeleteTape(confirmDeleteTape.uid, confirmDeleteTape.tapeId)} className="px-4 py-2 text-xs font-label bg-orange-600 text-white font-bold tracking-wider hover:brightness-110 transition-all">CONFIRMAR</button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {addTapeModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">

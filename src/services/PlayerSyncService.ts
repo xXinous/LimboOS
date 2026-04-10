@@ -29,66 +29,81 @@ export class PlayerSyncService {
     if (!uid) return;
 
     // 1. Tapes Listener
-    const unsubTapes = onSnapshot(collection(db, 'users', uid, 'tapes'), (snapshot) => {
-      const tapeIds = snapshot.docs.map((d) => d.id).sort();
-      onPlayerDataUpdate({ unlockedTapeIds: tapeIds });
-    });
+    const unsubTapes = onSnapshot(collection(db, 'users', uid, 'tapes'), 
+      (snapshot) => {
+        const tapeIds = snapshot.docs.map((d) => d.id).sort();
+        onPlayerDataUpdate({ unlockedTapeIds: tapeIds });
+      },
+      (error) => {
+        console.warn('[PlayerSyncService] Tapes listener error:', error);
+      }
+    );
 
     // 2. User Settings / Flags Listener
-    const unsubUser = onSnapshot(doc(db, 'users', uid), (snap) => {
-      if (snap.exists()) {
-        const data = snap.data();
-        
-        // Handle forced screen transitions based on new flags
-        if (data.forceTerminalOpen) {
-          onScreenChange((prev) => {
-            if (prev !== 'bios' && prev !== 'limbo' && prev !== 'diskRepair') {
-              activityLogger.logSystem(uid, data.username || uid, 'sync', 'Terminal forçado pelo servidor', { triggeredBy: 'forceTerminalOpen' });
-              return 'bios';
-            }
-            return prev;
-          });
-        } else if (data.forceMacOpen) {
-          onScreenChange((prev) => {
-            if (prev !== 'macos') {
-              activityLogger.logSystem(uid, data.username || uid, 'sync', 'MacOS forçado pelo servidor', { triggeredBy: 'forceMacOpen' });
-              return 'macos';
-            }
-            return prev;
-          });
-        } else {
-          onScreenChange((prev) => {
-            if (['bios', 'limbo', 'diskRepair', 'macos'].includes(prev)) {
-               activityLogger.logSystem(uid, data.username || uid, 'sync', 'Acesso remoto encerrado pelo servidor', { triggeredBy: 'forceOpenRemoved' });
-               return 'player';
-            }
-            return prev;
-          });
+    const unsubUser = onSnapshot(doc(db, 'users', uid), 
+      (snap) => {
+        if (snap.exists()) {
+          const data = snap.data();
+          
+          // Handle forced screen transitions based on new flags
+          if (data.forceTerminalOpen) {
+            onScreenChange((prev) => {
+              if (prev !== 'bios' && prev !== 'limbo' && prev !== 'diskRepair') {
+                activityLogger.logSystem(uid, data.username || uid, 'sync', 'Terminal forçado pelo servidor', { triggeredBy: 'forceTerminalOpen' });
+                return 'bios';
+              }
+              return prev;
+            });
+          } else if (data.forceMacOpen) {
+            onScreenChange((prev) => {
+              if (prev !== 'macos') {
+                activityLogger.logSystem(uid, data.username || uid, 'sync', 'MacOS forçado pelo servidor', { triggeredBy: 'forceMacOpen' });
+                return 'macos';
+              }
+              return prev;
+            });
+          } else {
+            onScreenChange((prev) => {
+              if (['bios', 'limbo', 'diskRepair', 'macos'].includes(prev)) {
+                 activityLogger.logSystem(uid, data.username || uid, 'sync', 'Acesso remoto encerrado pelo servidor', { triggeredBy: 'forceOpenRemoved' });
+                 return 'player';
+              }
+              return prev;
+            });
+          }
+  
+          const updatedData: Partial<PlayerData> = {
+            hasTerminalAccess: !!data.hasTerminalAccess,
+            hasMacAccess: !!data.hasMacAccess,
+            forceTerminalOpen: !!data.forceTerminalOpen,
+            forceMacOpen: !!data.forceMacOpen,
+            username: data.username,
+            achievementsRevealed: !!data.achievementsRevealed,
+          };
+  
+          onPlayerDataUpdate(updatedData);
         }
-
-        const updatedData: Partial<PlayerData> = {
-          hasTerminalAccess: !!data.hasTerminalAccess,
-          hasMacAccess: !!data.hasMacAccess,
-          forceTerminalOpen: !!data.forceTerminalOpen,
-          forceMacOpen: !!data.forceMacOpen,
-          username: data.username,
-          achievementsRevealed: !!data.achievementsRevealed,
-        };
-
-        onPlayerDataUpdate(updatedData);
+      },
+      (error) => {
+        console.warn('[PlayerSyncService] User listener error:', error);
       }
-    });
+    );
 
     // 3. System Limbo Listener
-    const unsubLimbo = onSnapshot(doc(db, 'system', 'limboState'), (snap) => {
-      if (snap.exists()) {
-        const lState = snap.data() as LimboGlobalState;
+    const unsubLimbo = onSnapshot(doc(db, 'system', 'limboState'), 
+      (snap) => {
+        const lState: LimboGlobalState = snap.exists()
+          ? (snap.data() as LimboGlobalState)
+          : { seized: false };
         onLimboUpdate(lState);
         if (lState.seized) {
-          onScreenChange(() => 'limbo');
+          onScreenChange((prev) => (prev === 'limbo' ? 'limbo' : prev));
         }
+      },
+      (error) => {
+        console.warn('[PlayerSyncService] Limbo listener error:', error);
       }
-    });
+    );
 
     this.unsubs.push(unsubTapes, unsubUser, unsubLimbo);
   }

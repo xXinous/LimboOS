@@ -64,26 +64,32 @@ export class UserService {
   }
 
   public subscribeToUsers(callback: (users: UserData[]) => void): () => void {
-    return onSnapshot(collection(db, "users"), (snapshot) => {
-      const users: UserData[] = [];
-      snapshot.forEach((doc) => {
-        users.push(doc.data() as UserData);
-      });
-      callback(users);
-    });
+    return onSnapshot(collection(db, "users"), 
+      (snapshot) => {
+        const users: UserData[] = [];
+        snapshot.forEach((doc) => {
+          users.push(doc.data() as UserData);
+        });
+        callback(users);
+      },
+      (err) => console.warn('[UserService] users listener error:', err)
+    );
   }
 
   public subscribeToUserTotalPlays(callback: (counts: Record<string, number>) => void): () => void {
-    return onSnapshot(collection(db, "playEvents"), (snapshot) => {
-      const counts: Record<string, number> = {};
-      snapshot.forEach((doc) => {
-        const data = doc.data();
-        if (data.uid) {
-          counts[data.uid] = (counts[data.uid] || 0) + 1;
-        }
-      });
-      callback(counts);
-    });
+    return onSnapshot(collection(db, "playEvents"), 
+      (snapshot) => {
+        const counts: Record<string, number> = {};
+        snapshot.forEach((doc) => {
+          const data = doc.data();
+          if (data.uid) {
+            counts[data.uid] = (counts[data.uid] || 0) + 1;
+          }
+        });
+        callback(counts);
+      },
+      (err) => console.warn('[UserService] playEvents listener error:', err)
+    );
   }
 
   public async loadUserDetails(uid: string): Promise<{

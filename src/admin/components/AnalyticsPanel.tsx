@@ -14,13 +14,6 @@ export default function AnalyticsPanel() {
   const { showConfirm, showAlert, modal } = useModal();
 
   const handleReset = async () => {
-    const ok = await showConfirm(
-      'Zerar Painel BI',
-      'Todos os logs de play e as estatísticas de uso (tempo, cliques, etc.) de TODOS os jogadores serão apagados permanentemente. Deseja continuar?',
-      'Sim, Zerar Tudo'
-    );
-    if (!ok) return;
-    
     setIsResetting(true);
     try {
       await adminAnalyticsService.resetAnalytics();

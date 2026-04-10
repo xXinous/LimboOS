@@ -57,19 +57,26 @@ export default function App() {
   // ── Auth & Data Loading ──────────────────────────────────────────────────
   useEffect(() => {
     const unsub = onAuthStateChanged(async (user) => {
-      if (user) {
-        if (user.email === 'gm.mpg@runningman.local') {
-          window.location.href = '/admin';
-          return;
+      try {
+        if (user) {
+          if (user.email === 'gm.mpg@runningman.local') {
+            window.location.href = '/admin';
+            return;
+          }
+          const data = await loadPlayerData(user.uid);
+          setPlayerData(data);
+          setLocalStats(data.stats);
+          setScreen('player');
+          activityLogger.logAuth(data.uid, data.username, 'login', `${data.username} entrou no sistema`);
+        } else {
+          setPlayerData(undefined);
+          setLocalStats(null);
+          setScreen('login');
         }
-        const data = await loadPlayerData(user.uid);
-        setPlayerData(data);
-        setLocalStats(data.stats);
-        setScreen('player');
-        activityLogger.logAuth(data.uid, data.username, 'login', `${data.username} entrou no sistema`);
-      } else {
+      } catch (err) {
+        console.warn('[Auth] Error during post-login data fetch:', err);
+        // Fallback or retry logic if needed, but at least it's caught.
         setPlayerData(undefined);
-        setLocalStats(null);
         setScreen('login');
       }
     });
@@ -350,7 +357,13 @@ export default function App() {
           </motion.div>
         ) : screen === 'limbo' ? (
           <motion.div key="limbo" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-50">
-            <LimboBoard uid={playerData.uid} onClose={() => { activityLogger.logNavigation(playerData.uid, playerData.username, 'limbo', 'player'); setScreen('player'); }} onBackToTerminal={() => { activityLogger.logNavigation(playerData.uid, playerData.username, 'limbo', 'bios'); setScreen('bios'); }} globalSeizedStatus={limboStatus.seized} />
+            <LimboBoard 
+              uid={playerData.uid} 
+              onClose={() => { activityLogger.logNavigation(playerData.uid, playerData.username, 'limbo', 'player'); setScreen('player'); }} 
+              onBackToTerminal={() => { activityLogger.logNavigation(playerData.uid, playerData.username, 'limbo', 'bios'); setScreen('bios'); }} 
+              globalSeizedStatus={limboStatus.seized}
+              readThreadIds={limboStatus.readThreadIds || []}
+            />
           </motion.div>
         ) : screen === 'diskRepair' ? (
           <motion.div key="diskRepair" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-50">

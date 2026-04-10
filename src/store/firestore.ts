@@ -16,6 +16,7 @@ import {
   serverTimestamp,
   Timestamp,
   deleteDoc,
+  arrayUnion,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { Tape, resolveTapes } from '../data/tapes';
@@ -36,8 +37,9 @@ export interface PlayerMeta {
 
 export interface LimboGlobalState {
   seized: boolean;
-  seizedBy?: string;
-  seizedAt?: Timestamp;
+  seizedBy?: string | null;
+  seizedAt?: Timestamp | null;
+  readThreadIds?: string[];
 }
 
 export interface GameEventsState {
@@ -63,32 +65,39 @@ export interface PlayerData extends PlayerMeta {
 
 /** Load full player data for the authenticated uid. */
 export async function loadPlayerData(uid: string): Promise<PlayerData> {
-  const metaSnap = await getDoc(doc(db, 'users', uid));
-  const meta = metaSnap.exists()
-    ? (metaSnap.data() as PlayerMeta)
-    : { uid, username: uid, createdAt: null, achievementsRevealed: false, forceTerminalOpen: false, hasTerminalAccess: false, forceMacOpen: false, hasMacAccess: false };
+  try {
+    const metaSnap = await getDoc(doc(db, 'users', uid));
+    const meta = metaSnap.exists()
+      ? (metaSnap.data() as PlayerMeta)
+      : { uid, username: uid, createdAt: null, achievementsRevealed: false, forceTerminalOpen: false, hasTerminalAccess: false, forceMacOpen: false, hasMacAccess: false };
 
-  const tapesSnap = await getDocs(collection(db, 'users', uid, 'tapes'));
-  const achievementsSnap = await getDocs(collection(db, 'users', uid, 'achievements'));
-  const statsSnap = await getDoc(doc(db, 'users', uid, 'stats', 'main'));
+    const [tapesSnap, achievementsSnap, statsSnap] = await Promise.all([
+      getDocs(collection(db, 'users', uid, 'tapes')),
+      getDocs(collection(db, 'users', uid, 'achievements')),
+      getDoc(doc(db, 'users', uid, 'stats', 'main'))
+    ]);
 
-  const defaultStats: PlayerStats = {
-    totalListenTime: 0,
-    screwClicks: 0,
-    fidgetClicks: 0,
-    ejectWithoutPlay: 0,
-    maxVolumeTime: 0,
-    zeroVolumeTime: 0,
-  };
-  const stats = statsSnap.exists() ? { ...defaultStats, ...(statsSnap.data() as Partial<PlayerStats>) } : defaultStats;
+    const defaultStats: PlayerStats = {
+      totalListenTime: 0,
+      screwClicks: 0,
+      fidgetClicks: 0,
+      ejectWithoutPlay: 0,
+      maxVolumeTime: 0,
+      zeroVolumeTime: 0,
+    };
+    const stats = statsSnap.exists() ? { ...defaultStats, ...(statsSnap.data() as Partial<PlayerStats>) } : defaultStats;
 
-  return {
-    ...meta,
-    uid,
-    unlockedTapeIds: tapesSnap.docs.map((d) => d.id),
-    achievementIds: achievementsSnap.docs.map((d) => d.id),
-    stats,
-  };
+    return {
+      ...meta,
+      uid,
+      unlockedTapeIds: tapesSnap.docs.map((d) => d.id),
+      achievementIds: achievementsSnap.docs.map((d) => d.id),
+      stats,
+    };
+  } catch (error) {
+    console.error(`[Firestore] Failed to load player data for ${uid}:`, error);
+    throw error; // Re-throw so the caller (Player.tsx) can handle it
+  }
 }
 
 // ── Write ────────────────────────────────────────────────────────────────────
@@ -205,8 +214,51 @@ export async function resetLimboSeized(): Promise<void> {
   await setDoc(doc(db, 'system', 'limboState'), {
     seized: false,
     seizedBy: null,
-    seizedAt: null
+    seizedAt: null,
+    readThreadIds: []
   }, { merge: true });
+}
+
+/** Marca um tópico como lido globalmente e ativa o bloqueio se todos forem lidos. */
+export async function firestoreMarkThreadReadGlobal(threadId: string): Promise<void> {
+  const TOTAL_THREADS = 11; 
+  const docRef = doc(db, 'system', 'limboState');
+
+  // Adiciona o tópico à lista global (sem duplicatas via arrayUnion)
+  await setDoc(docRef, {
+    readThreadIds: arrayUnion(threadId)
+  }, { merge: true });
+
+  // Verifica se o limite foi atingido para disparar o bloqueio automático
+  const snap = await getDoc(docRef);
+  if (snap.exists()) {
+    const data = snap.data() as LimboGlobalState;
+    const currentReads = data.readThreadIds || [];
+    if (currentReads.length >= TOTAL_THREADS && !data.seized) {
+      await setDoc(docRef, {
+        seized: true,
+        seizedBy: 'system_auto',
+        seizedAt: serverTimestamp(),
+      }, { merge: true });
+    }
+  }
+}
+
+/** Liga ou desliga o bloqueio USArmy global (LIMBO_01) para todos os jogadores — painel admin. */
+export async function setLimboMilitarySeizureGlobal(active: boolean): Promise<void> {
+  if (!active) {
+    await resetLimboSeized();
+    return;
+  }
+  await setDoc(
+    doc(db, 'system', 'limboState'),
+    {
+      seized: true,
+      seizedBy: 'admin',
+      seizedAt: serverTimestamp(),
+    },
+    { merge: true }
+  );
 }
 
 export async function fetchGameEventsState(): Promise<GameEventsState> {
