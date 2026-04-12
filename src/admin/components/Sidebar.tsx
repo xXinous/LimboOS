@@ -14,6 +14,7 @@ export default function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
     { id: 'analytics', label: 'Analytics / BI', icon: 'insights' },
     { id: 'terminals', label: 'Controle de Sistemas', icon: 'terminal' },
     { id: 'logs', label: 'System Logs', icon: 'list_alt' },
+    { id: 'redirects', label: 'QR Redirects', icon: 'alt_route' },
     { id: 'settings', label: 'System Config', icon: 'settings_suggest' },
   ];
 

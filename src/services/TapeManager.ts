@@ -1,7 +1,7 @@
 import type { Tape } from '../data/tapes';
 import type { PlayerData } from '../store/firestore';
 import { getTapeByCode } from '../data/tapes';
-import { fetchAudioTapeById, resolveAllTapesAsync, firestoreUnlockTape } from '../store/firestore';
+import { fetchAudioTapeById, resolveAllTapesAsync, firestoreUnlockTape, fetchQrRedirect } from '../store/firestore';
 
 export class TapeManager {
   private static instance: TapeManager;
@@ -19,9 +19,12 @@ export class TapeManager {
    * Resolves a tape configuration from a local static database or remote Firestore.
    */
   public async resolveTape(code: string): Promise<Tape | null> {
-    let tape = getTapeByCode(code);
+    const redirectedId = await fetchQrRedirect(code);
+    const finalCode = redirectedId || code;
+
+    let tape = getTapeByCode(finalCode);
     if (!tape) {
-      tape = await fetchAudioTapeById(code);
+      tape = await fetchAudioTapeById(finalCode);
     }
     return tape;
   }

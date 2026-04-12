@@ -11,6 +11,7 @@ import AchievementsPanel from './AchievementsPanel';
 import TerminalPanel from './TerminalPanel';
 import InventoryManager from './InventoryManager';
 import SystemLogPanel from './SystemLogPanel';
+import RedirectsPanel from './RedirectsPanel';
 
 interface DashboardProps {
   user: User | null;
@@ -125,6 +126,9 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
           {activeTab === 'terminals' && <TerminalPanel />}
           {activeTab === 'logs' && (
             <SystemLogPanel />
+          )}
+          {activeTab === 'redirects' && (
+            <RedirectsPanel />
           )}
           {activeTab === 'settings' && (
             <AudioBuffer user={user} isAdmin={isAdmin} />

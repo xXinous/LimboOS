@@ -44,14 +44,22 @@ class ActivityLogger {
 
   // ── Private write ──────────────────────────────────────────────────────────
 
-  private sanitizeData(obj: any): any {
-    if (obj === null || obj === undefined) return obj;
+  /** Recursively remove undefined (Firestore rejects undefined everywhere, including inside arrays). */
+  private sanitizeData(obj: unknown): unknown {
+    if (obj === undefined) return undefined;
+    if (obj === null) return null;
     if (typeof obj !== 'object') return obj;
-    if (Array.isArray(obj)) return obj.map((v) => this.sanitizeData(v));
-    const result: Record<string, any> = {};
-    for (const [k, v] of Object.entries(obj)) {
-      if (v !== undefined) {
-        result[k] = this.sanitizeData(v);
+    if (Array.isArray(obj)) {
+      return obj
+        .map((item) => this.sanitizeData(item))
+        .filter((item) => item !== undefined);
+    }
+    const result: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
+      if (v === undefined) continue;
+      const cleaned = this.sanitizeData(v);
+      if (cleaned !== undefined) {
+        result[k] = cleaned;
       }
     }
     return result;
@@ -59,7 +67,15 @@ class ActivityLogger {
 
   private async write(event: Omit<ActivityEvent, 'timestamp'>): Promise<void> {
     try {
-      const cleanEvent = this.sanitizeData(event);
+      const cleanEvent = this.sanitizeData(event) as Record<string, unknown>;
+      if (
+        cleanEvent.metadata !== undefined &&
+        typeof cleanEvent.metadata === 'object' &&
+        cleanEvent.metadata !== null &&
+        Object.keys(cleanEvent.metadata).length === 0
+      ) {
+        delete cleanEvent.metadata;
+      }
       await addDoc(collection(db, 'activityLog'), {
         ...cleanEvent,
         timestamp: serverTimestamp(),
