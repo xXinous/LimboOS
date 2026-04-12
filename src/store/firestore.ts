@@ -314,3 +314,30 @@ export async function resolveAllTapesAsync(ids: string[]): Promise<Tape[]> {
 
   return [...localTapes, ...remoteTapes.filter((t): t is Tape => t !== null)];
 }
+
+// ── QR Redirection ───────────────────────────────────────────────────────────
+
+export async function fetchQrRedirect(sourceId: string): Promise<string | null> {
+  const snap = await getDoc(doc(db, 'system', 'qrRedirects', sourceId));
+  if (snap.exists()) {
+    return snap.data().targetId || null;
+  }
+  return null;
+}
+
+export async function saveQrRedirect(sourceId: string, targetId: string, reason?: string): Promise<void> {
+  await setDoc(doc(db, 'system', 'qrRedirects', sourceId), {
+    targetId,
+    updatedAt: serverTimestamp(),
+    reason: reason || ''
+  });
+}
+
+export async function deleteQrRedirect(sourceId: string): Promise<void> {
+  await deleteDoc(doc(db, 'system', 'qrRedirects', sourceId));
+}
+
+export async function fetchAllQrRedirects(): Promise<any[]> {
+  const snap = await getDocs(collection(db, 'system', 'qrRedirects'));
+  return snap.docs.map(d => ({ sourceId: d.id, ...d.data() }));
+}

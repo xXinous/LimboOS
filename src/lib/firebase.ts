@@ -63,7 +63,10 @@ function logGlobalBrowserError(tag: string, fullMessage: string, stack?: string,
   if (summary.length > 150) summary = summary.slice(0, 147) + '...';
   
   const finalMessage = `[${tag}] ${summary}`;
-  const metadata = { fullMessage, stack, code, extraArgs };
+  const metadata: Record<string, unknown> = { fullMessage };
+  if (stack !== undefined) metadata.stack = stack;
+  if (code !== undefined) metadata.code = code;
+  if (extraArgs !== undefined) metadata.extraArgs = extraArgs;
 
   // Only log to Firestore when there is an authenticated user.
   // Writing without auth causes a permission-denied error, which would
