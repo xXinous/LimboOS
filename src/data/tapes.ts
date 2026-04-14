@@ -9,8 +9,9 @@ export interface Tape {
   audioUrl: string;
   duration: number; 
   isSecret?: boolean;
-  type?: 'audio' | 'disk';
+  type?: 'audio' | 'disk' | 'gallery-pista';
   content?: string;
+  imageUrl?: string;
 }
 const EVIDENCE_TAPES: Tape[] = [
   {

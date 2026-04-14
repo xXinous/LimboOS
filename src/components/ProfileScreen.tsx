@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft, LogOut, Trophy, Music, Pencil, Check, X, ExternalLink } from 'lucide-react';
+import { ArrowLeft, LogOut, Trophy, Music, Pencil, Check, X, ExternalLink, Image } from 'lucide-react';
 import { ALL_ACHIEVEMENTS } from '../data/achievements';
+import PlayerGallery from './PlayerGallery';
+import type { GalleryImage } from '../store/firestore';
 interface ProfileData {
   id: string;
   username: string;
@@ -9,6 +11,7 @@ interface ProfileData {
   achievementIds: string[];
   achievementsRevealed?: boolean;
   spotifyPlaylistUrl?: string;
+  galleryImages?: GalleryImage[];
 }
 interface ProfileScreenProps {
   profile: ProfileData;
@@ -202,6 +205,14 @@ export default function ProfileScreen({ profile, onBack, onLogout, onUpdateSpoti
               </motion.div>
             )}
           </AnimatePresence>
+        </div>
+        {}
+        <div className="px-4 pt-4 pb-2">
+          <div className="flex items-center gap-2 mb-3">
+            <Image size={14} className="text-cyan-400" />
+            <h2 className="text-cyan-400 text-xs font-bold uppercase tracking-widest">Galeria</h2>
+          </div>
+          <PlayerGallery images={profile.galleryImages || []} />
         </div>
         {}
         <div className="px-4 pt-4 pb-6">

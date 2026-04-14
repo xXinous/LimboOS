@@ -12,6 +12,7 @@ import TerminalPanel from './TerminalPanel';
 import InventoryManager from './InventoryManager';
 import SystemLogPanel from './SystemLogPanel';
 import RedirectsPanel from './RedirectsPanel';
+import GalleryPanel from './GalleryPanel';
 interface DashboardProps {
   user: User | null;
   onLogout: () => void;
@@ -104,6 +105,9 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
           )}
           {activeTab === 'redirects' && (
             <RedirectsPanel />
+          )}
+          {activeTab === 'gallery' && (
+            <GalleryPanel />
           )}
           {activeTab === 'settings' && (
             <AudioBuffer user={user} isAdmin={isAdmin} />
