@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useSwipeable } from 'react-swipeable';
 import LoginScreen from './components/LoginScreen';
@@ -22,8 +22,8 @@ import { activityLogger } from './services/ActivityLogger';
 import { tapeManager } from './services/TapeManager';
 import { playerSyncService } from './services/PlayerSyncService';
 import { onAuthStateChanged, logout } from './store/profile';
-import type { PlayerData, PlayerStats, LimboGlobalState } from './store/firestore';
-import { loadPlayerData, firestoreUpdateSpotifyPlaylist } from './store/firestore';
+import type { PlayerData, PlayerStats, LimboGlobalState, GalleryImage } from './store/firestore';
+import { loadPlayerData, firestoreUpdateSpotifyPlaylist, fetchPlayerGalleryImages } from './store/firestore';
 import type { Tape } from './data/tapes';
 import type { AppScreen, TapeState, DisplayMode } from './types/player';
 export default function Player() {
@@ -42,6 +42,7 @@ export default function Player() {
   const [ownedTapes, setOwnedTapes]   = useState<Tape[]>([]);
   const [limboStatus, setLimboStatus] = useState<LimboGlobalState>({ seized: false });
   const [activeEvidence, setActiveEvidence] = useState<Tape | null>(null);
+  const [galleryImages, setGalleryImages] = useState<GalleryImage[]>([]);
   const hasPlayedCurrentTape = useRef(false);
   const prevScreenRef = useRef<AppScreen>('login');
   useEffect(() => {
@@ -110,6 +111,32 @@ export default function Player() {
       setOwnedTapes([]);
     }
   }, [playerData?.unlockedTapeIds]);
+  useEffect(() => {
+    if (playerData && playerData.unlockedGalleryIds && playerData.unlockedGalleryIds.length > 0) {
+      fetchPlayerGalleryImages(playerData.uid)
+        .then(setGalleryImages)
+        .catch(console.error);
+    } else {
+      setGalleryImages([]);
+    }
+  }, [playerData?.unlockedGalleryIds]);
+  const allTapesWithPistas = useMemo(() => {
+    const pistaTapes: Tape[] = galleryImages
+      .filter(img => img.category === 'pistas')
+      .map(img => ({
+        id: `gallery-pista-${img.id}`,
+        title: img.title,
+        artist: 'Pista',
+        npc: 'Pista',
+        chapter: 'Pistas',
+        description: img.description,
+        audioUrl: '',
+        duration: 0,
+        type: 'gallery-pista' as const,
+        imageUrl: img.imageUrl,
+      }));
+    return [...ownedTapes, ...pistaTapes];
+  }, [ownedTapes, galleryImages]);
   useEffect(() => {
     audioEngine.setOnEnded(() => {
       setIsPlaying(false);
@@ -202,6 +229,14 @@ export default function Player() {
     analyticsTracker.forceSyncToServer();
   };
   const handleTapeSelect = (tape: Tape) => {
+    if (tape.type === 'gallery-pista') {
+      const pistaImg = galleryImages.find(img => `gallery-pista-${img.id}` === tape.id);
+      if (pistaImg) {
+        setActiveEvidence({ ...tape, content: pistaImg.description, imageUrl: pistaImg.imageUrl });
+        if (playerData) activityLogger.logAction(playerData.uid, playerData.username, 'pista_open', `Abriu pista: ${tape.title}`, { tapeId: tape.id });
+      }
+      return;
+    }
     if (tape.type === 'disk') {
       setActiveEvidence(tape);
       if (playerData) activityLogger.logAction(playerData.uid, playerData.username, 'evidence_open', `Abriu evidência: ${tape.title}`, { tapeId: tape.id });
@@ -215,7 +250,7 @@ export default function Player() {
     if (playerData) activityLogger.logAction(playerData.uid, playerData.username, 'tape_select', `Selecionou fita: ${tape.title}`, { tapeId: tape.id });
   };
   const handleModeChange = (dir: 'up' | 'down') => {
-    const modes: DisplayMode[] = ['default', 'title', 'chapter'];
+    const modes: DisplayMode[] = ['default', 'title', 'chapter', 'type'];
     const idx = modes.indexOf(displayMode);
     setDisplayMode(modes[(idx + (dir === 'up' ? 1 : -1) + modes.length) % modes.length]);
   };
@@ -276,7 +311,7 @@ export default function Player() {
             className="w-full h-full flex items-center justify-center"
           >
             <ProfileScreen 
-              profile={playerData} 
+              profile={{ ...playerData, galleryImages }} 
               onBack={() => { activityLogger.logNavigation(playerData.uid, playerData.username, 'profile', 'player'); setScreen('player'); }} 
               onLogout={handleLogout} 
               onUpdateSpotify={async (url) => { 
@@ -356,7 +391,7 @@ export default function Player() {
               username={playerData.username}
             />
             <TapeLibrary 
-              tapes={ownedTapes} 
+              tapes={allTapesWithPistas} 
               currentTapeId={currentTape?.id ?? null}
               isPlaying={isPlaying} 
               displayMode={displayMode} 

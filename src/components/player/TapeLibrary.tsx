@@ -8,9 +8,12 @@ export default function TapeLibrary({ tapes, currentTapeId, isPlaying, displayMo
   onTapeSelect: (tape: Tape) => void;
   uid: string; username: string;
 }) {
+  const typeOrder = (t: Tape) => t.type === 'gallery-pista' ? 2 : t.type === 'disk' ? 1 : 0;
+  const typeLabel = (t: Tape) => t.type === 'gallery-pista' ? '📷 Imagens' : t.type === 'disk' ? '💾 Textos' : '📼 Áudio';
   const sorted = React.useMemo(() => {
     if (displayMode === 'title') return [...tapes].sort((a, b) => a.title.localeCompare(b.title));
     if (displayMode === 'chapter') return [...tapes].sort((a, b) => a.chapter.localeCompare(b.chapter));
+    if (displayMode === 'type') return [...tapes].sort((a, b) => typeOrder(a) - typeOrder(b) || a.title.localeCompare(b.title));
     return tapes;
   }, [tapes, displayMode]);
   return (
@@ -21,7 +24,7 @@ export default function TapeLibrary({ tapes, currentTapeId, isPlaying, displayMo
           <h2 className="text-orange-500 text-sm font-bold tracking-tight">Lista de Provas</h2>
         </div>
         <span className="text-[9px] text-gray-500 font-bold uppercase tracking-widest">
-          {displayMode === 'default' ? 'Original' : displayMode === 'title' ? 'A-Z' : 'Cap.'}
+          {displayMode === 'default' ? 'Original' : displayMode === 'title' ? 'A-Z' : displayMode === 'chapter' ? 'Cap.' : 'Tipo'}
         </span>
       </div>
       <div className="flex-1 overflow-y-auto">
@@ -35,28 +38,38 @@ export default function TapeLibrary({ tapes, currentTapeId, isPlaying, displayMo
             </div>
           ) : (
             <AnimatePresence mode="popLayout">
-              {sorted.map((tape) => (
-                <motion.div layout key={tape.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                  onClick={() => {
-                    activityLogger.logAction(uid, username, 'player', `Selecionou fita: ${tape.title}`, { tapeId: tape.id, tapeTitle: tape.title });
-                    onTapeSelect(tape);
-                  }}
-                  className={`p-2 border-b border-[#222] cursor-pointer transition-colors flex justify-between items-center ${tape.id === currentTapeId ? 'bg-orange-900/20 border-orange-500/50' : 'hover:bg-[#222]'}`}>
-                  <div className="flex flex-col min-w-0 pr-2">
-                    <span className={`text-xs font-bold truncate ${tape.id === currentTapeId ? 'text-orange-500' : 'text-gray-200'}`}>{tape.title}</span>
-                    <span className="text-[10px] text-orange-400 opacity-80 truncate">{tape.chapter}</span>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    {tape.id === currentTapeId && isPlaying && (
-                      <motion.div animate={{ opacity: [0, 1] }} transition={{ repeat: Infinity, duration: 0.5 }}
-                        className="w-0 h-0 border-t-4 border-t-transparent border-l-[6px] border-l-orange-500 border-b-4 border-b-transparent" />
+              {sorted.map((tape, idx) => {
+                const showGroupHeader = displayMode === 'type' && (idx === 0 || typeOrder(sorted[idx - 1]) !== typeOrder(tape));
+                return (
+                  <React.Fragment key={tape.id}>
+                    {showGroupHeader && (
+                      <div className="px-3 py-1.5 bg-[#111] border-b border-[#333] sticky top-0 z-10">
+                        <span className="text-[9px] text-orange-500/80 font-bold uppercase tracking-widest">{typeLabel(tape)}</span>
+                      </div>
                     )}
-                    <div className={`w-8 h-8 rounded border flex items-center justify-center text-sm ${tape.type === 'disk' ? 'bg-orange-600/30 border-orange-500 shadow-[0_0_10px_rgba(234,88,12,0.3)]' : 'bg-[#222] border-[#333]'}`}>
-                      {tape.type === 'disk' ? '💾' : '📼'}
-                    </div>
-                  </div>
-                </motion.div>
-              ))}
+                    <motion.div layout initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                      onClick={() => {
+                        activityLogger.logAction(uid, username, 'player', `Selecionou fita: ${tape.title}`, { tapeId: tape.id, tapeTitle: tape.title });
+                        onTapeSelect(tape);
+                      }}
+                      className={`p-2 border-b border-[#222] cursor-pointer transition-colors flex justify-between items-center ${tape.id === currentTapeId ? 'bg-orange-900/20 border-orange-500/50' : 'hover:bg-[#222]'}`}>
+                      <div className="flex flex-col min-w-0 pr-2">
+                        <span className={`text-xs font-bold truncate ${tape.id === currentTapeId ? 'text-orange-500' : 'text-gray-200'}`}>{tape.title}</span>
+                        <span className="text-[10px] text-orange-400 opacity-80 truncate">{tape.chapter}</span>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {tape.id === currentTapeId && isPlaying && (
+                          <motion.div animate={{ opacity: [0, 1] }} transition={{ repeat: Infinity, duration: 0.5 }}
+                            className="w-0 h-0 border-t-4 border-t-transparent border-l-[6px] border-l-orange-500 border-b-4 border-b-transparent" />
+                        )}
+                        <div className={`w-8 h-8 rounded border flex items-center justify-center text-sm ${tape.type === 'disk' ? 'bg-orange-600/30 border-orange-500 shadow-[0_0_10px_rgba(234,88,12,0.3)]' : tape.type === 'gallery-pista' ? 'bg-cyan-600/30 border-cyan-500 shadow-[0_0_10px_rgba(6,182,212,0.3)]' : 'bg-[#222] border-[#333]'}`}>
+                          {tape.type === 'disk' ? '💾' : tape.type === 'gallery-pista' ? '📷' : '📼'}
+                        </div>
+                      </div>
+                    </motion.div>
+                  </React.Fragment>
+                );
+              })}
             </AnimatePresence>
           )}
         </div>

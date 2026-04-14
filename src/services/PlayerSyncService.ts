@@ -89,7 +89,16 @@ export class PlayerSyncService {
         console.warn('[PlayerSyncService] Limbo listener error:', error);
       }
     );
-    this.unsubs.push(unsubTapes, unsubUser, unsubLimbo);
+    const unsubGallery = onSnapshot(collection(db, 'users', uid, 'gallery'),
+      (snapshot) => {
+        const galleryIds = snapshot.docs.map((d) => d.id).sort();
+        onPlayerDataUpdate({ unlockedGalleryIds: galleryIds });
+      },
+      (error) => {
+        console.warn('[PlayerSyncService] Gallery listener error:', error);
+      }
+    );
+    this.unsubs.push(unsubTapes, unsubUser, unsubLimbo, unsubGallery);
   }
   public stopAll() {
     this.unsubs.forEach((unsub) => unsub());

@@ -10,8 +10,12 @@ import {
   deleteDoc,
   arrayUnion,
   writeBatch,
-  runTransaction
+  runTransaction,
+  query,
+  where
 } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
+import { storage } from '../lib/firebase';
 import { db } from '../lib/firebase';
 import { Tape, resolveTapes } from '../data/tapes';
 export interface PlayerMeta {
@@ -46,6 +50,17 @@ export interface PlayerData extends PlayerMeta {
   unlockedTapeIds: string[];
   achievementIds: string[];
   stats: PlayerStats;
+  unlockedGalleryIds: string[];
+}
+export type GalleryCategory = 'locais' | 'pistas' | 'pessoas' | 'itens';
+export interface GalleryImage {
+  id: string;
+  category: GalleryCategory;
+  title: string;
+  description: string;
+  imageUrl: string;
+  createdAt?: Timestamp;
+  createdBy?: string;
 }
 export interface QrRedirect {
   sourceId: string;
@@ -66,10 +81,11 @@ export async function loadPlayerData(uid: string): Promise<PlayerData> {
   const meta = metaSnap.exists()
     ? (metaSnap.data() as PlayerMeta)
     : { uid, username: uid, createdAt: null, achievementsRevealed: false, forceTerminalOpen: false, hasTerminalAccess: false, forceMacOpen: false, hasMacAccess: false };
-  const [tapesSnap, achievementsSnap, statsSnap] = await Promise.all([
+  const [tapesSnap, achievementsSnap, statsSnap, gallerySnap] = await Promise.all([
     getDocs(collection(db, 'users', uid, 'tapes')),
     getDocs(collection(db, 'users', uid, 'achievements')),
-    getDoc(doc(db, 'users', uid, 'stats', 'main'))
+    getDoc(doc(db, 'users', uid, 'stats', 'main')),
+    getDocs(collection(db, 'users', uid, 'gallery'))
   ]);
   const stats = statsSnap.exists() ? { ...DEFAULT_STATS, ...(statsSnap.data() as Partial<PlayerStats>) } : DEFAULT_STATS;
   return {
@@ -78,6 +94,7 @@ export async function loadPlayerData(uid: string): Promise<PlayerData> {
     unlockedTapeIds: tapesSnap.docs.map((d) => d.id),
     achievementIds: achievementsSnap.docs.map((d) => d.id),
     stats,
+    unlockedGalleryIds: gallerySnap.docs.map((d) => d.id),
   };
 }
 export async function createUserDoc(uid: string, username: string): Promise<void> {
@@ -241,4 +258,84 @@ export async function deleteQrRedirect(sourceId: string): Promise<void> {
 export async function fetchAllQrRedirects(): Promise<QrRedirect[]> {
   const snap = await getDocs(collection(db, 'qrRedirects'));
   return snap.docs.map(d => ({ sourceId: d.id, ...d.data() } as QrRedirect));
+}
+export async function uploadGalleryImage(
+  file: File,
+  category: GalleryCategory,
+  title: string,
+  description: string,
+  createdBy: string
+): Promise<GalleryImage> {
+  const imageId = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const storageRef = ref(storage, `gallery/${imageId}`);
+  await uploadBytes(storageRef, file);
+  const imageUrl = await getDownloadURL(storageRef);
+  const data = {
+    category,
+    title,
+    description,
+    imageUrl,
+    createdAt: serverTimestamp(),
+    createdBy,
+  };
+  await setDoc(doc(db, 'gallery', imageId), data);
+  return { id: imageId, ...data, imageUrl } as GalleryImage;
+}
+export async function deleteGalleryImage(imageId: string): Promise<void> {
+  try {
+    const storageRef = ref(storage, `gallery/${imageId}`);
+    await deleteObject(storageRef);
+  } catch (_) {}
+  const usersSnap = await getDocs(collection(db, 'users'));
+  const batch = writeBatch(db);
+  for (const userDoc of usersSnap.docs) {
+    batch.delete(doc(db, 'users', userDoc.id, 'gallery', imageId));
+  }
+  batch.delete(doc(db, 'gallery', imageId));
+  await batch.commit();
+}
+export async function fetchAllGalleryImages(): Promise<GalleryImage[]> {
+  const snap = await getDocs(collection(db, 'gallery'));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() } as GalleryImage));
+}
+export async function grantGalleryImage(uid: string, imageId: string): Promise<void> {
+  await setDoc(doc(db, 'users', uid, 'gallery', imageId), {
+    imageId,
+    unlockedAt: serverTimestamp(),
+  });
+}
+export async function revokeGalleryImage(uid: string, imageId: string): Promise<void> {
+  await deleteDoc(doc(db, 'users', uid, 'gallery', imageId));
+}
+export async function grantGalleryImageToMultiple(uids: string[], imageId: string): Promise<void> {
+  const batch = writeBatch(db);
+  uids.forEach(uid => {
+    batch.set(doc(db, 'users', uid, 'gallery', imageId), {
+      imageId,
+      unlockedAt: serverTimestamp(),
+    });
+  });
+  await batch.commit();
+}
+export async function fetchPlayerGalleryImages(uid: string): Promise<GalleryImage[]> {
+  const grantSnap = await getDocs(collection(db, 'users', uid, 'gallery'));
+  const imageIds = grantSnap.docs.map(d => d.id);
+  if (imageIds.length === 0) return [];
+  const images: GalleryImage[] = [];
+  for (const id of imageIds) {
+    const imgSnap = await getDoc(doc(db, 'gallery', id));
+    if (imgSnap.exists()) {
+      images.push({ id: imgSnap.id, ...imgSnap.data() } as GalleryImage);
+    }
+  }
+  return images;
+}
+export async function fetchUserGalleryGrants(imageId: string): Promise<string[]> {
+  const usersSnap = await getDocs(collection(db, 'users'));
+  const grantedUids: string[] = [];
+  for (const userDoc of usersSnap.docs) {
+    const grantSnap = await getDoc(doc(db, 'users', userDoc.id, 'gallery', imageId));
+    if (grantSnap.exists()) grantedUids.push(userDoc.id);
+  }
+  return grantedUids;
 }

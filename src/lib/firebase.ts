@@ -41,6 +41,7 @@ function logGlobalBrowserError(tag: string, fullMessage: string, stack?: string,
   const user = auth?.currentUser;
   const lines = fullMessage.split('\n');
   let summary = lines[0] || 'Unknown Error';
+  
   if (summary.length > 150) summary = summary.slice(0, 147) + '...';
   const finalMessage = `[${tag}] ${summary}`;
   const metadata: Record<string, unknown> = { fullMessage };
@@ -64,8 +65,7 @@ console.error = (...args: unknown[]) => {
     const msg = argsToString(args);
     if (
       msg.includes('[ActivityLogger]') ||
-      msg.includes('access control checks') ||
-      msg.includes('Missing or insufficient permissions')
+      msg.includes('access control checks')
     ) { _isLogging = false; return; }
     logGlobalBrowserError('CONSOLE.ERROR', msg, undefined, undefined, args.length > 1 ? args : undefined);
   } finally { _isLogging = false; }
@@ -79,8 +79,6 @@ console.warn = (...args: unknown[]) => {
     const msg = argsToString(args);
     if (
       msg.includes('access control checks') ||
-      msg.includes('Failed to fetch') ||
-      msg.includes('Missing or insufficient permissions') ||
       msg.includes('[ActivityLogger]')
     ) { _isLogging = false; return; }
     logGlobalBrowserError('CONSOLE.WARN', msg, undefined, undefined, args.length > 1 ? args : undefined);

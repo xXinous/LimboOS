@@ -13,6 +13,7 @@ export default function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
     { id: 'terminals', label: 'Controle de Sistemas', icon: 'terminal' },
     { id: 'logs', label: 'Logs do Sistema', icon: 'list_alt' },
     { id: 'redirects', label: 'Redirecionamentos QR', icon: 'alt_route' },
+    { id: 'gallery', label: 'Galeria de Imagens', icon: 'photo_library' },
     { id: 'settings', label: 'Configuração do Sistema', icon: 'settings_suggest' },
   ];
   return (
