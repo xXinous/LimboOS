@@ -4,13 +4,11 @@ import { db } from '../../lib/firebase';
 import { setTerminalStateForUsers, setMacStateForUsers, fetchLimboGlobalState, setLimboMilitarySeizureGlobal, LimboGlobalState, PlayerMeta } from '../../store/firestore';
 import { Terminal, ShieldBan, ShieldCheck, UserCheck, Apple } from 'lucide-react';
 import { activityLogger } from '../../services/ActivityLogger';
-
 export default function TerminalPanel() {
   const [users, setUsers] = useState<PlayerMeta[]>([]);
   const [selectedUids, setSelectedUids] = useState<Set<string>>(new Set());
   const [limboState, setLimboState] = useState<LimboGlobalState>({ seized: false });
   const [diskRepairAllowed, setDiskRepairAllowed] = useState(false);
-
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'users'), (snap) => {
       const u = snap.docs.map(d => d.data() as PlayerMeta);
@@ -18,12 +16,10 @@ export default function TerminalPanel() {
     });
     return () => unsub();
   }, []);
-
   useEffect(() => {
     fetchLimboGlobalState().then(setLimboState);
     const unsubLimbo = onSnapshot(collection(db, 'system'), (snap) => {
       fetchLimboGlobalState().then(setLimboState);
-      
       const gameEventsDoc = snap.docs.find(d => d.id === 'gameEvents');
       if (gameEventsDoc) {
         setDiskRepairAllowed(!!gameEventsDoc.data().diskRepairAllowed);
@@ -31,19 +27,16 @@ export default function TerminalPanel() {
     });
     return () => unsubLimbo();
   }, []);
-
   const toggleSelect = (uid: string) => {
     const newSet = new Set(selectedUids);
     if (newSet.has(uid)) newSet.delete(uid);
     else newSet.add(uid);
     setSelectedUids(newSet);
   };
-
   const selectAll = () => {
     if (selectedUids.size === users.length) setSelectedUids(newSet => new Set());
     else setSelectedUids(new Set(users.map(u => u.uid)));
   };
-
   const handleForceTerminal = async () => {
     if (selectedUids.size === 0) return;
     const uids: string[] = [...selectedUids];
@@ -53,7 +46,6 @@ export default function TerminalPanel() {
     activityLogger.logAdmin('gm.mpg', 'force_terminal', `Forçou terminal DOS para: ${names}`, { uids });
     setSelectedUids(new Set());
   };
-
   const handleRevokeAccess = async () => {
     if (selectedUids.size === 0) return;
     const uids: string[] = [...selectedUids];
@@ -63,7 +55,6 @@ export default function TerminalPanel() {
     activityLogger.logAdmin('gm.mpg', 'revoke_terminal', `Revogou acesso DOS de: ${names}`, { uids });
     setSelectedUids(new Set());
   };
-
   const handleForceMac = async () => {
     if (selectedUids.size === 0) return;
     const uids: string[] = [...selectedUids];
@@ -73,7 +64,6 @@ export default function TerminalPanel() {
     activityLogger.logAdmin('gm.mpg', 'force_mac', `Forçou MacOS para: ${names}`, { uids });
     setSelectedUids(new Set());
   };
-
   const handleRevokeMac = async () => {
     if (selectedUids.size === 0) return;
     const uids: string[] = [...selectedUids];
@@ -83,30 +73,25 @@ export default function TerminalPanel() {
     activityLogger.logAdmin('gm.mpg', 'revoke_mac', `Revogou acesso Mac de: ${names}`, { uids });
     setSelectedUids(new Set());
   };
-
   const toggleLimboMilitary = async () => {
     const next = !limboState.seized;
     activityLogger.logTrace('gm.mpg', 'limbo_military_step', `Limbo USArmy → ${next ? 'ATIVO' : 'INATIVO'}`);
     await setLimboMilitarySeizureGlobal(next);
     activityLogger.logAdmin('gm.mpg', 'limbo_military_toggle', `Limbo USArmy ${next ? 'ATIVADO' : 'DESATIVADO'} globalmente`, { seized: next });
   };
-
   const toggleDiskRepair = async () => {
     const newState = !diskRepairAllowed;
     await setDoc(doc(db, 'system', 'gameEvents'), { diskRepairAllowed: newState }, { merge: true });
     activityLogger.logAdmin('gm.mpg', 'disk_repair_toggle', `DiskRepair ${newState ? 'ATIVADO' : 'DESATIVADO'}`, { diskRepairAllowed: newState });
   };
-
   return (
     <div className="bg-surface-container border border-zinc-800 p-6 machined-edge mb-8">
       <div className="flex items-center gap-3 mb-6">
         <Terminal className="text-orange-500" size={24} />
         <h2 className="text-xl font-headline font-black text-on-surface uppercase tracking-tight">Controle de Terminais</h2>
       </div>
-
       <div className="flex flex-col lg:flex-row gap-8">
-        
-        {/* Global Controls */}
+        {}
         <div className="lg:w-1/3 flex flex-col gap-4">
           <div className={`p-4 border machined-edge flex flex-col gap-4 ${limboState.seized ? 'bg-red-900/20 border-red-500' : 'bg-surface-container-highest border-zinc-800'}`}>
             <h3 className="font-label uppercase text-xs tracking-widest text-zinc-400">Status Global LIMBO_01</h3>
@@ -126,12 +111,11 @@ export default function TerminalPanel() {
                 onClick={toggleLimboMilitary}
                 className={`px-4 py-2 border font-label uppercase text-[10px] tracking-wider transition-all ${limboState.seized ? 'bg-red-600 border-red-400 text-white hover:bg-red-500' : 'bg-zinc-800 border-zinc-600 text-zinc-300 hover:bg-zinc-700'} active:scale-95`}
               >
-                {limboState.seized ? 'Reset System' : 'Activate Seize'}
+                {limboState.seized ? 'Resetar Sistema' : 'Ativar Bloqueio'}
               </button>
             </div>
           </div>
-
-          {/* RPG Events */}
+          {}
           <div className="p-4 border machined-edge bg-surface-container-highest border-zinc-800 flex flex-col gap-4">
             <h3 className="font-label uppercase text-xs tracking-widest text-zinc-400">Eventos de RPG (Mestre)</h3>
             <div className="flex items-center justify-between p-3 bg-surface-container border border-zinc-700/50">
@@ -147,10 +131,8 @@ export default function TerminalPanel() {
               </button>
             </div>
           </div>
-
         </div>
-
-        {/* User Selection */}
+        {}
         <div className="lg:w-2/3 flex flex-col">
           <div className="flex flex-wrap gap-4 mb-4">
              <button onClick={handleForceTerminal} disabled={selectedUids.size === 0} className="px-4 py-2 bg-primary text-on-primary font-label uppercase text-xs tracking-wider machined-edge hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2">
@@ -167,7 +149,6 @@ export default function TerminalPanel() {
                 Revogar Mac
              </button>
           </div>
-
           <div className="bg-surface-container-lowest border border-zinc-800 overflow-hidden">
             <table className="w-full text-left text-sm">
               <thead className="bg-surface-container-highest border-b border-zinc-800">
@@ -209,7 +190,6 @@ export default function TerminalPanel() {
             </table>
           </div>
         </div>
-
       </div>
     </div>
   );

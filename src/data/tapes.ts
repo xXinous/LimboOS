@@ -1,4 +1,4 @@
-// Evidences, disks, or other non-audio functional items the application needs locally.
+
 export interface Tape {
   id: string;
   title: string;
@@ -7,12 +7,11 @@ export interface Tape {
   chapter: string;
   description: string;
   audioUrl: string;
-  duration: number; // seconds
+  duration: number; 
   isSecret?: boolean;
   type?: 'audio' | 'disk';
   content?: string;
 }
-
 const EVIDENCE_TAPES: Tape[] = [
   {
     id: 'evidence-disk-01-corrupted',
@@ -47,41 +46,28 @@ M̶e̷ ̷a̵c̵h̴e̶m̷ ̴n̶o̵ ̵z̴e̴r̶o̵.̶`
     type: 'disk',
     content: `A Teoria das Cordas diz que existem 11 dimensões, mas todo mundo está ignorando o óbvio: o zero é a ponte.
 Eu percebi que o que está acontecendo agora é uma colisão. É a minha frequência analógica (do walkman mesmo) batendo de frente com esse "reset" digital do Bug do Milênio. Se a onda sonora atingir o infinito no exato milisegundo em que o erro temporal acontecer... a gente vai ver a verdade.
-
 O Multiverso não é uma linha reta, como ensinam na escola. É um loop de código. 1900 foi um erro de sintaxe. 2000 é o próximo.
-
 O LIMBO_01 é a fenda que abriu. E o Malware... ele não é um vírus comum. Ele é algo que vive no espaço "entre" os zeros. Ele se alimenta de sinal, por isso ele odeia tudo o que é analógico. A fita cassete é a minha única âncora aqui.
-
 Cálculo de transição: (E=h⋅f)/Y2K_Bug=ACESSO
-
 Se eu sumir hoje, significa que a frequência funcionou. Não me procurem no futuro. Me achem no zero.`
   }
 ];
-
 const ALL_TAPES = EVIDENCE_TAPES;
-
-/** Returns a tape by its QR code value (case-insensitive). */
 export function getTapeByCode(code: string): Tape | null {
   const normalized = code.trim().toUpperCase();
   return ALL_TAPES.find((t) => t.id.toUpperCase() === normalized) ?? null;
 }
-
-/** Resolve a list of tape IDs into full Tape objects (for the player library). */
 export function resolveTapes(ids: string[]): Tape[] {
   return ids
     .map((id) => ALL_TAPES.find((t) => t.id === id))
     .filter((t): t is Tape => t !== undefined);
 }
-
-/** Admin-facing minimal shape of an evidence tape item. */
 export interface EvidenceTapeAdmin {
   id: string;
   title: string;
   chapter: string;
   type: 'audio' | 'disk';
 }
-
-/** Simplified list of all evidence items for the admin Inventory Manager. */
 export const EVIDENCE_TAPES_FOR_ADMIN: EvidenceTapeAdmin[] = EVIDENCE_TAPES.map((t) => ({
   id: t.id,
   title: t.title,

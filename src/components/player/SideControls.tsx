@@ -3,7 +3,6 @@ import { motion, useMotionValue, useTransform, animate } from 'motion/react';
 import { User } from 'lucide-react';
 import { analyticsTracker } from '../../services/AnalyticsTracker';
 import { activityLogger } from '../../services/ActivityLogger';
-
 export default function SideControls({ volume, setVolume, onModeChange, onProfileOpen, uid, username }: {
   volume: number; setVolume: (v: number) => void;
   onModeChange: (dir: 'up' | 'down') => void; onProfileOpen: () => void;
@@ -13,40 +12,32 @@ export default function SideControls({ volume, setVolume, onModeChange, onProfil
   const firedRef = useRef(false);
   const upArrowColor = useTransform(dragY, (v: number) => v < -5 ? '#ea580c' : '#6b7280');
   const downArrowColor = useTransform(dragY, (v: number) => v > 5 ? '#ea580c' : '#6b7280');
-  
-  // Volume Debounce Logging
   const lastLoggedVolume = useRef(volume);
   const volumeTimer = useRef<NodeJS.Timeout | null>(null);
-
   useEffect(() => {
     if (volume === lastLoggedVolume.current) return;
     if (volumeTimer.current) clearTimeout(volumeTimer.current);
-
     volumeTimer.current = setTimeout(() => {
       activityLogger.logAction(uid, username, 'player', `Volume ajustado para ${volume}%`, { volume });
       lastLoggedVolume.current = volume;
     }, 1500);
-
     return () => { if (volumeTimer.current) clearTimeout(volumeTimer.current); };
   }, [volume, uid, username]);
-
   return (
     <div className="absolute right-2 top-[240px] bottom-20 flex flex-col items-center justify-center gap-6 w-16">
       <button onClick={onProfileOpen} className="w-10 h-10 rounded-full bg-[#333] border-2 border-[#1a1a1a] flex items-center justify-center hover:bg-orange-900/30 transition-colors shrink-0">
         <User size={16} className="text-orange-500" />
       </button>
-      
-      {/* Mode Switch Container */}
+      {}
       <div className="relative w-14 h-14 shrink-0 flex items-center justify-center z-20">
-        {/* Static Arrows */}
+        {}
         <motion.div style={{ color: upArrowColor }} className="absolute -top-4 pointer-events-none transition-colors">
           <div className="w-0 h-0 border-l-4 border-l-transparent border-r-4 border-r-transparent border-b-[6px] border-b-current" />
         </motion.div>
         <motion.div style={{ color: downArrowColor }} className="absolute -bottom-4 pointer-events-none transition-colors">
           <div className="w-0 h-0 border-l-4 border-l-transparent border-r-4 border-r-transparent border-t-[6px] border-t-current" />
         </motion.div>
-
-        {/* Draggable Switch — custom pointer drag for auto-return */}
+        {}
         <motion.div
           style={{ y: dragY, touchAction: 'none' }}
           className="relative w-14 h-14 rounded-full bg-[#333] border-4 border-[#1a1a1a] shadow-lg flex items-center justify-center group cursor-ns-resize"
@@ -56,15 +47,10 @@ export default function SideControls({ volume, setVolume, onModeChange, onProfil
             const el = e.currentTarget;
             let startY = e.clientY;
             firedRef.current = false;
-
             const onMove = (me: PointerEvent) => {
               me.preventDefault();
-              if (firedRef.current) return; // Lock in center until finger is released
-
-              // Limite físico de 20 pixels
+              if (firedRef.current) return; 
               const delta = Math.max(-20, Math.min(20, me.clientY - startY));
-
-              // Gatilho de mudança em 18 pixels
               if (delta <= -18) {
                 onModeChange('up');
                 activityLogger.logAction(uid, username, 'player', 'Alterado modo de exibição (Cima)');
@@ -81,14 +67,12 @@ export default function SideControls({ volume, setVolume, onModeChange, onProfil
                 dragY.set(delta);
               }
             };
-
             const onUp = () => {
               animate(dragY, 0, { type: 'spring', stiffness: 400, damping: 25 });
               firedRef.current = false;
               el.removeEventListener('pointermove', onMove);
               el.removeEventListener('pointerup', onUp);
             };
-
             el.addEventListener('pointermove', onMove);
             el.addEventListener('pointerup', onUp);
           }}>
@@ -98,7 +82,6 @@ export default function SideControls({ volume, setVolume, onModeChange, onProfil
           </div>
         </motion.div>
       </div>
-
       <div className="w-8 flex-1 max-h-40 bg-[#1a1a1a] rounded-full border-2 border-[#333] relative flex flex-col items-center py-2 shrink-0" style={{ touchAction: 'none' }}>
         <span className="text-[10px] text-gray-500 font-bold mb-1">+</span>
         <div className="flex-1 w-1 bg-[#222] rounded-full relative overflow-visible cursor-pointer"

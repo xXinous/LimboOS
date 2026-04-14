@@ -1,25 +1,21 @@
 import { db } from "../lib/firebase";
 import { collection, onSnapshot, getDocs, collectionGroup, writeBatch, doc } from "firebase/firestore";
 import { ALL_ACHIEVEMENTS } from "../data/achievements";
-
 export interface PlayEvent {
   uid: string;
   tapeId: string;
   playedAt: any;
   completed?: boolean;
 }
-
 export interface AudioMetadata {
   id: string;
   size: number;
   title?: string;
   originalName?: string;
 }
-
 export interface UserAchievement {
   achievementId: string;
 }
-
 export interface PlayerStats {
   totalListenTime?: number;
   screwClicks?: number;
@@ -27,7 +23,6 @@ export interface PlayerStats {
   maxVolumeTime?: number;
   zeroVolumeTime?: number;
 }
-
 export interface UserData {
   uid: string;
   displayName?: string;
@@ -36,19 +31,15 @@ export interface UserData {
   createdAt?: any;
   lastLogin?: any;
 }
-
 export class AdminAnalyticsService {
   private static instance: AdminAnalyticsService;
-
   private constructor() {}
-
   public static getInstance(): AdminAnalyticsService {
     if (!AdminAnalyticsService.instance) {
       AdminAnalyticsService.instance = new AdminAnalyticsService();
     }
     return AdminAnalyticsService.instance;
   }
-
   public subscribeToRawData(callback: (data: {
     playEvents: PlayEvent[];
     users: UserData[];
@@ -61,11 +52,9 @@ export class AdminAnalyticsService {
     let audios: AudioMetadata[] = [];
     let unlockedAchievements: UserAchievement[] = [];
     let stats: PlayerStats[] = [];
-
     const notify = () => {
       callback({ playEvents, users, audios, unlockedAchievements, stats });
     };
-
     const unsubs = [
       onSnapshot(collection(db, "playEvents"), 
         (snap) => {
@@ -103,15 +92,12 @@ export class AdminAnalyticsService {
         (err) => console.warn('[AdminAnalyticsService] stats listener error:', err)
       )
     ];
-
     return () => unsubs.forEach(u => u());
   }
-
   public async resetAnalytics(): Promise<void> {
     const playEventsSnap = await getDocs(collection(db, 'playEvents'));
     let batch = writeBatch(db);
     let count = 0;
-    
     playEventsSnap.docs.forEach((docSnap) => {
       batch.delete(docSnap.ref);
       count++;
@@ -121,7 +107,6 @@ export class AdminAnalyticsService {
       }
     });
     await batch.commit();
-
     const usersSnap = await getDocs(collection(db, 'users'));
     batch = writeBatch(db);
     count = 0;
@@ -142,7 +127,6 @@ export class AdminAnalyticsService {
     });
     await batch.commit();
   }
-
   public computeAnalytics(
     playEvents: PlayEvent[],
     users: UserData[],
@@ -152,12 +136,10 @@ export class AdminAnalyticsService {
   ) {
     const now = new Date();
     const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-
     const activeUsers = users.filter((u) => {
       if (!u.lastLogin?.toDate) return false;
       return u.lastLogin.toDate() >= sevenDaysAgo;
     }).length;
-
     const tapePlayMap: Record<string, number> = {};
     playEvents.forEach((e) => {
       tapePlayMap[e.tapeId] = (tapePlayMap[e.tapeId] || 0) + 1;
@@ -165,7 +147,6 @@ export class AdminAnalyticsService {
     const mostPlayed = Object.entries(tapePlayMap)
       .sort(([, a], [, b]) => b - a)
       .slice(0, 10);
-
     const userPlayMap: Record<string, number> = {};
     playEvents.forEach((e) => {
       userPlayMap[e.uid] = (userPlayMap[e.uid] || 0) + 1;
@@ -177,7 +158,6 @@ export class AdminAnalyticsService {
         const user = users.find((u) => u.uid === uid);
         return { uid, name: user?.displayName || user?.username || uid.slice(0, 8), count };
       });
-
     const dailyPlays: Record<string, number> = {};
     for (let i = 0; i < 30; i++) {
       const d = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
@@ -194,7 +174,6 @@ export class AdminAnalyticsService {
     });
     const dailyPlaysSorted = Object.entries(dailyPlays).sort(([a], [b]) => a.localeCompare(b));
     const maxDailyPlays = Math.max(...Object.values(dailyPlays), 1);
-
     const weeklyGrowth: Record<string, number> = {};
     users.forEach((u) => {
       if (u.createdAt?.toDate) {
@@ -205,7 +184,6 @@ export class AdminAnalyticsService {
         weeklyGrowth[key] = (weeklyGrowth[key] || 0) + 1;
       }
     });
-
     const achCountMap: Record<string, number> = {};
     unlockedAchievements.forEach(a => {
       achCountMap[a.achievementId] = (achCountMap[a.achievementId] || 0) + 1;
@@ -215,7 +193,6 @@ export class AdminAnalyticsService {
       count: achCountMap[a.id] || 0,
       percentage: users.length > 0 ? ((achCountMap[a.id] || 0) / users.length) * 100 : 0
     })).sort((a, b) => a.count - b.count);
-
     const hourMap: Record<number, number> = {};
     for (let i = 0; i < 24; i++) hourMap[i] = 0;
     playEvents.forEach(e => {
@@ -226,21 +203,17 @@ export class AdminAnalyticsService {
     });
     const peakHours = Object.entries(hourMap).map(([h, count]) => ({ hour: parseInt(h), count }));
     const maxHourCount = Math.max(...Object.values(hourMap), 1);
-
     const completedPlays = playEvents.filter(e => e.completed).length;
     const completionRate = playEvents.length > 0 ? (completedPlays / playEvents.length) * 100 : 0;
-
     const totalStorageSize = audios.reduce((acc, a) => acc + (a.size || 0), 0);
     const storageLimit = 5 * 1024 * 1024 * 1024;
     const storagePercentage = (totalStorageSize / storageLimit) * 100;
-
     const totalListenSecs = stats.reduce((acc, s) => acc + (s.totalListenTime || 0), 0);
     const avgListenSecs = users.length > 0 ? totalListenSecs / users.length : 0;
     const totalScrews = stats.reduce((acc, s) => acc + (s.screwClicks || 0), 0);
     const totalEjects = stats.reduce((acc, s) => acc + (s.ejectWithoutPlay || 0), 0);
     const totalMacVolSecs = stats.reduce((acc, s) => acc + (s.maxVolumeTime || 0), 0);
     const totalZeroVolSecs = stats.reduce((acc, s) => acc + (s.zeroVolumeTime || 0), 0);
-    
     let maxObsessionCount = 0;
     const userTapePlays: Record<string, number> = {};
     playEvents.forEach(e => {
@@ -248,7 +221,6 @@ export class AdminAnalyticsService {
        userTapePlays[key] = (userTapePlays[key] || 0) + 1;
        if (userTapePlays[key] > maxObsessionCount) maxObsessionCount = userTapePlays[key];
     });
-
     return { 
       activeUsers, 
       mostPlayed, 
@@ -274,5 +246,4 @@ export class AdminAnalyticsService {
     };
   }
 }
-
 export const adminAnalyticsService = AdminAnalyticsService.getInstance();

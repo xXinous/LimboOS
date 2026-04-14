@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { db } from '../../lib/firebase';
 import {
   collection,
@@ -15,7 +15,6 @@ import { format } from 'date-fns';
 import { useModal } from './ConfirmModal';
 import { EVIDENCE_TAPES_FOR_ADMIN, type EvidenceTapeAdmin } from '../../data/tapes';
 import { activityLogger } from '../../services/ActivityLogger';
-
 interface UserData {
   uid: string;
   displayName: string;
@@ -23,7 +22,6 @@ interface UserData {
   email: string;
   role: string;
 }
-
 interface AudioData {
   id: string;
   originalName: string;
@@ -32,7 +30,6 @@ interface AudioData {
   chapter?: string;
   duration?: number;
 }
-
 interface InventoryItem {
   tapeId: string;
   unlockedAt?: any;
@@ -41,39 +38,23 @@ interface InventoryItem {
   sublabel?: string;
   icon: string;
 }
-
 type AddTabType = 'audio' | 'evidence';
-
 export default function InventoryManager() {
   const { showAlert, modal } = useModal();
-
-  // ── Players ────────────────────────────────────────────────────────────────
   const [users, setUsers] = useState<UserData[]>([]);
   const [selectedUser, setSelectedUser] = useState<UserData | null>(null);
   const [playerSearch, setPlayerSearch] = useState('');
-
-  // ── Audio catalog ──────────────────────────────────────────────────────────
   const [allAudios, setAllAudios] = useState<AudioData[]>([]);
-
-  // ── Inventory of selected player ───────────────────────────────────────────
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [inventoryLoading, setInventoryLoading] = useState(false);
-
-  // ── Play counts ────────────────────────────────────────────────────────────
   const [playCounts, setPlayCounts] = useState<Record<string, number>>({});
-
-  // ── Confirm remove ─────────────────────────────────────────────────────────
   const [confirmRemove, setConfirmRemove] = useState<InventoryItem | null>(null);
-
-  // ── Add Item modal ─────────────────────────────────────────────────────────
   const [showAddModal, setShowAddModal] = useState(false);
   const [addTab, setAddTab] = useState<AddTabType>('audio');
   const [addSearch, setAddSearch] = useState('');
   const [selectedToAdd, setSelectedToAdd] = useState<Set<string>>(new Set());
   const [addLoading, setAddLoading] = useState(false);
   const [addFeedback, setAddFeedback] = useState<string | null>(null);
-
-  // ── Load users ─────────────────────────────────────────────────────────────
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'users'), (snap) => {
       const list: UserData[] = [];
@@ -82,8 +63,6 @@ export default function InventoryManager() {
     });
     return () => unsub();
   }, []);
-
-  // ── Load audio catalog ─────────────────────────────────────────────────────
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'audios'), (snap) => {
       const list: AudioData[] = [];
@@ -102,8 +81,6 @@ export default function InventoryManager() {
     });
     return () => unsub();
   }, []);
-
-  // ── Load play counts ───────────────────────────────────────────────────────
   useEffect(() => {
     if (!selectedUser) return;
     const q = query(collection(db, 'playEvents'), where('uid', '==', selectedUser.uid));
@@ -116,19 +93,14 @@ export default function InventoryManager() {
       setPlayCounts(counts);
     });
   }, [selectedUser]);
-
-  // ── Load inventory for selected player ─────────────────────────────────────
   const loadInventory = useCallback(async (uid: string) => {
     setInventoryLoading(true);
     try {
       const snap = await getDocs(collection(db, 'users', uid, 'tapes'));
       const items: InventoryItem[] = [];
-
       snap.forEach((d) => {
         const tapeId = d.id;
         const data = d.data();
-
-        // Check if it's an evidence tape
         const evidenceTape = EVIDENCE_TAPES_FOR_ADMIN.find((e) => e.id === tapeId);
         if (evidenceTape) {
           items.push({
@@ -141,8 +113,6 @@ export default function InventoryManager() {
           });
           return;
         }
-
-        // Otherwise, it's an audio tape — look it up in catalog
         const audio = allAudios.find((a) => a.id === tapeId);
         items.push({
           tapeId,
@@ -153,13 +123,10 @@ export default function InventoryManager() {
           icon: 'album',
         });
       });
-
-      // Sort: evidence first, then audio; alphabetically within each group
       items.sort((a, b) => {
         if (a.type !== b.type) return a.type === 'evidence' ? -1 : 1;
         return a.label.localeCompare(b.label);
       });
-
       setInventory(items);
     } catch (err) {
       console.error('Error loading inventory:', err);
@@ -167,20 +134,15 @@ export default function InventoryManager() {
       setInventoryLoading(false);
     }
   }, [allAudios]);
-
   const handleSelectUser = (user: UserData) => {
     setSelectedUser(user);
     setInventory([]);
     setPlayCounts({});
     loadInventory(user.uid);
   };
-
-  // Reload when allAudios changes and a user is selected
   useEffect(() => {
     if (selectedUser) loadInventory(selectedUser.uid);
-  }, [allAudios]); // eslint-disable-line
-
-  // ── Remove item ────────────────────────────────────────────────────────────
+  }, [allAudios]); 
   const executeRemove = async (item: InventoryItem) => {
     if (!selectedUser) return;
     setConfirmRemove(null);
@@ -194,8 +156,6 @@ export default function InventoryManager() {
       showAlert('Erro', 'Falha ao remover item do inventário.');
     }
   };
-
-  // ── Add items ──────────────────────────────────────────────────────────────
   const openAddModal = () => {
     setShowAddModal(true);
     setAddTab('audio');
@@ -203,7 +163,6 @@ export default function InventoryManager() {
     setSelectedToAdd(new Set());
     setAddFeedback(null);
   };
-
   const toggleAddSelection = (id: string) => {
     setSelectedToAdd((prev) => {
       const next = new Set(prev);
@@ -212,10 +171,9 @@ export default function InventoryManager() {
       return next;
     });
   };
-
   const executeAddItems = async () => {
     if (!selectedUser || selectedToAdd.size === 0) return;
-    const uid = selectedUser.uid; // captured before async so TS knows it's string
+    const uid = selectedUser.uid; 
     setAddLoading(true);
     setAddFeedback(null);
     activityLogger.logTrace('gm.mpg', 'inventory_add_step', `Iniciando injeção de ${selectedToAdd.size} item(s) no inventário de ${uid}...`);
@@ -239,77 +197,69 @@ export default function InventoryManager() {
       setAddLoading(false);
     }
   };
-
-  // ── Derived data ───────────────────────────────────────────────────────────
-  const inventoryIds = new Set(inventory.map((i) => i.tapeId));
-
-  const filteredAudiosForAdd = allAudios.filter((a) => {
+  const inventoryIds = useMemo(() => new Set(inventory.map((i) => i.tapeId)), [inventory]);
+  
+  const filteredAudiosForAdd = useMemo(() => allAudios.filter((a) => {
     const q = addSearch.toLowerCase();
-    const matches =
+    return (
       (a.title || a.originalName || '').toLowerCase().includes(q) ||
-      (a.artist || '').toLowerCase().includes(q);
-    return matches;
-  });
+      (a.artist || '').toLowerCase().includes(q)
+    );
+  }), [allAudios, addSearch]);
 
-  const filteredEvidenceForAdd = EVIDENCE_TAPES_FOR_ADMIN.filter((e) => {
+  const filteredEvidenceForAdd = useMemo(() => EVIDENCE_TAPES_FOR_ADMIN.filter((e) => {
     const q = addSearch.toLowerCase();
     return e.title.toLowerCase().includes(q) || e.chapter.toLowerCase().includes(q);
-  });
+  }), [addSearch]);
 
-  const filteredPlayers = users.filter((u) => {
+  const filteredPlayers = useMemo(() => users.filter((u) => {
     const q = playerSearch.toLowerCase();
     return (
       (u.displayName || '').toLowerCase().includes(q) ||
       (u.username || '').toLowerCase().includes(q) ||
       (u.email || '').toLowerCase().includes(q)
     );
-  });
+  }), [users, playerSearch]);
 
-  const audioItems = inventory.filter((i) => i.type === 'audio');
-  const evidenceItems = inventory.filter((i) => i.type === 'evidence');
-
+  const audioItems = useMemo(() => inventory.filter((i) => i.type === 'audio'), [inventory]);
+  const evidenceItems = useMemo(() => inventory.filter((i) => i.type === 'evidence'), [inventory]);
   const formatDuration = (secs: number) => {
     const m = Math.floor(secs / 60);
     const s = secs % 60;
     return `${m}:${s.toString().padStart(2, '0')}`;
   };
-
   return (
     <section className="space-y-0">
       {modal}
-
-      {/* ── Header ───────────────────────────────────────────────────────── */}
+      {}
       <div className="flex items-center gap-4 mb-6">
         <div className="w-2 h-6 bg-purple-500" />
         <h2 className="font-headline font-bold uppercase tracking-widest text-lg">
-          Inventory_Manager
+          Gerenciador_de_Inventário
         </h2>
         <span className="text-[10px] font-label text-zinc-500 tracking-wider">
-          {users.length} PLAYERS • {allAudios.length} AUDIOS • {EVIDENCE_TAPES_FOR_ADMIN.length} EVIDENCE_ITEMS
+          {users.length} JOGADORES • {allAudios.length} ÁUDIOS • {EVIDENCE_TAPES_FOR_ADMIN.length} ITENS_DE_EVIDÊNCIA
         </span>
       </div>
-
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6" style={{ minHeight: '70vh' }}>
-
-        {/* ── Left: Player list ─────────────────────────────────────────── */}
+        {}
         <div className="lg:col-span-1 bg-surface-container-lowest border border-zinc-800 machined-edge flex flex-col">
           <div className="p-4 border-b border-zinc-800">
             <p className="text-[9px] font-label uppercase tracking-widest text-zinc-500 mb-2">
-              Select_Player
+              Selecionar_Jogador
             </p>
             <input
               type="text"
-              placeholder="SEARCH_PLAYER..."
+              placeholder="BUSCAR_JOGADOR..."
               value={playerSearch}
               onChange={(e) => setPlayerSearch(e.target.value)}
               className="w-full bg-zinc-900 border border-zinc-800 text-[10px] font-label uppercase tracking-widest focus:ring-1 focus:ring-purple-500 focus:border-purple-500 placeholder:text-zinc-700 text-zinc-300 px-3 py-2"
             />
           </div>
-
           <div className="flex-1 overflow-y-auto">
             {filteredPlayers.length === 0 ? (
               <div className="p-6 text-center text-zinc-600 font-label text-xs tracking-widest">
-                NO_PLAYERS_FOUND
+                NENHUM_JOGADOR_ENCONTRADO
               </div>
             ) : (
               filteredPlayers.map((u) => {
@@ -345,29 +295,27 @@ export default function InventoryManager() {
             )}
           </div>
         </div>
-
-        {/* ── Right: Inventory ──────────────────────────────────────────── */}
+        {}
         <div className="lg:col-span-2 flex flex-col gap-4">
-
           {!selectedUser ? (
             <div className="flex-1 bg-surface-container-lowest border border-zinc-800 machined-edge flex items-center justify-center" style={{ minHeight: '400px' }}>
               <div className="text-center">
                 <span className="material-symbols-outlined text-4xl text-zinc-700 block mb-3">inventory_2</span>
                 <p className="font-label text-xs uppercase tracking-widest text-zinc-600">
-                  Select_a_player_to_manage_inventory
+                  Selecione_um_jogador_para_gerenciar_o_inventário
                 </p>
               </div>
             </div>
           ) : (
             <>
-              {/* Player header */}
+              {}
               <div className="bg-surface-container-lowest border border-zinc-800 machined-edge p-4 flex items-center justify-between">
                 <div>
                   <p className="font-headline font-bold text-base text-zinc-100">
                     {selectedUser.displayName || selectedUser.username}
                   </p>
                   <p className="text-[9px] font-label text-zinc-500 mt-0.5">
-                    {selectedUser.email} · {inventory.length} ITEM(S)
+                    {selectedUser.email} · {inventory.length} ITEM(NS)
                   </p>
                 </div>
                 <button
@@ -378,26 +326,24 @@ export default function InventoryManager() {
                   ADD_ITEM
                 </button>
               </div>
-
               {inventoryLoading ? (
                 <div className="bg-surface-container-lowest border border-zinc-800 machined-edge p-12 text-center">
                   <span className="material-symbols-outlined text-2xl text-zinc-600 animate-spin block mb-2">sync</span>
-                  <p className="font-label text-xs text-zinc-600 tracking-widest">LOADING_INVENTORY...</p>
+                  <p className="font-label text-xs text-zinc-600 tracking-widest">CARREGANDO_INVENTÁRIO...</p>
                 </div>
               ) : (
                 <>
-                  {/* Evidence section */}
+                  {}
                   <div className="bg-surface-container-lowest border border-zinc-800 machined-edge">
                     <div className="flex items-center gap-2 px-4 py-3 border-b border-zinc-800">
                       <span className="material-symbols-outlined text-yellow-500 text-sm">save</span>
                       <h3 className="font-label text-[10px] uppercase tracking-widest text-zinc-400">
-                        Evidence_Items ({evidenceItems.length})
+                        Itens_de_Evidência ({evidenceItems.length})
                       </h3>
                     </div>
-
                     {evidenceItems.length === 0 ? (
                       <div className="p-6 text-center text-zinc-700 font-label text-xs tracking-widest">
-                        NO_EVIDENCE_IN_INVENTORY
+                        NENHUMA_EVIDÊNCIA_NO_INVENTÁRIO
                       </div>
                     ) : (
                       <div className="divide-y divide-zinc-800/50">
@@ -436,19 +382,17 @@ export default function InventoryManager() {
                       </div>
                     )}
                   </div>
-
-                  {/* Audio tapes section */}
+                  {}
                   <div className="bg-surface-container-lowest border border-zinc-800 machined-edge">
                     <div className="flex items-center gap-2 px-4 py-3 border-b border-zinc-800">
                       <span className="material-symbols-outlined text-orange-500 text-sm">album</span>
                       <h3 className="font-label text-[10px] uppercase tracking-widest text-zinc-400">
-                        Audio_Tapes ({audioItems.length})
+                        Fitas_de_Áudio ({audioItems.length})
                       </h3>
                     </div>
-
                     {audioItems.length === 0 ? (
                       <div className="p-6 text-center text-zinc-700 font-label text-xs tracking-widest">
-                        NO_AUDIO_TAPES_IN_INVENTORY
+                        NENHUMA_FITA_DE_ÁUDIO_NO_INVENTÁRIO
                       </div>
                     ) : (
                       <div className="divide-y divide-zinc-800/50">
@@ -505,15 +449,12 @@ export default function InventoryManager() {
           )}
         </div>
       </div>
-
-      {/* ── Confirm Remove Modal ──────────────────────────────────────────────── */}
-
-      {/* ── Add Item Modal ────────────────────────────────────────────────────── */}
+      {}
+      {}
       {showAddModal && selectedUser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
           <div className="bg-surface-container-low border border-purple-500/30 w-full max-w-xl machined-edge flex flex-col max-h-[85vh]">
-
-            {/* Modal header */}
+            {}
             <div className="px-6 pt-5 pb-4 border-b border-zinc-800">
               <div className="flex items-center gap-3 mb-1">
                 <span className="material-symbols-outlined text-purple-400 text-xl">add_circle</span>
@@ -526,8 +467,7 @@ export default function InventoryManager() {
                 </span>
               </p>
             </div>
-
-            {/* Tabs */}
+            {}
             <div className="flex border-b border-zinc-800">
               {(['audio', 'evidence'] as AddTabType[]).map((tab) => (
                 <button
@@ -546,23 +486,21 @@ export default function InventoryManager() {
                 </button>
               ))}
             </div>
-
-            {/* Search */}
+            {}
             <div className="px-5 py-3 border-b border-zinc-800">
               <input
                 type="text"
-                placeholder="SEARCH..."
+                placeholder="BUSCAR..."
                 value={addSearch}
                 onChange={(e) => setAddSearch(e.target.value)}
                 className="w-full bg-zinc-900 border border-zinc-800 text-[10px] font-label uppercase tracking-widest focus:ring-1 focus:ring-purple-500 focus:border-purple-500 placeholder:text-zinc-700 text-zinc-300 px-3 py-2"
               />
             </div>
-
-            {/* Item list */}
+            {}
             <div className="flex-1 overflow-y-auto min-h-0">
               {addTab === 'audio' ? (
                 filteredAudiosForAdd.length === 0 ? (
-                  <div className="p-8 text-center text-zinc-600 font-label text-xs tracking-widest">NO_AUDIO_FOUND</div>
+                  <div className="p-8 text-center text-zinc-600 font-label text-xs tracking-widest">NENHUM_ÁUDIO_ENCONTRADO</div>
                 ) : (
                   filteredAudiosForAdd.map((a) => {
                     const alreadyHas = inventoryIds.has(a.id);
@@ -597,7 +535,7 @@ export default function InventoryManager() {
                         </div>
                         {alreadyHas && (
                           <span className="text-[8px] font-label text-emerald-500 border border-emerald-500/30 px-1.5 py-0.5 shrink-0">
-                            IN_INV
+                            NO_INV
                           </span>
                         )}
                       </div>
@@ -606,7 +544,7 @@ export default function InventoryManager() {
                 )
               ) : (
                 filteredEvidenceForAdd.length === 0 ? (
-                  <div className="p-8 text-center text-zinc-600 font-label text-xs tracking-widest">NO_EVIDENCE_FOUND</div>
+                  <div className="p-8 text-center text-zinc-600 font-label text-xs tracking-widest">NENHUMA_EVIDÊNCIA_ENCONTRADA</div>
                 ) : (
                   filteredEvidenceForAdd.map((e) => {
                     const alreadyHas = inventoryIds.has(e.id);
@@ -641,7 +579,7 @@ export default function InventoryManager() {
                         </div>
                         {alreadyHas && (
                           <span className="text-[8px] font-label text-emerald-500 border border-emerald-500/30 px-1.5 py-0.5 shrink-0">
-                            IN_INV
+                            NO_INV
                           </span>
                         )}
                       </div>
@@ -650,8 +588,7 @@ export default function InventoryManager() {
                 )
               )}
             </div>
-
-            {/* Footer */}
+            {}
             <div className="px-5 py-4 border-t border-zinc-800">
               {addFeedback && (
                 <p className={`text-[10px] font-label tracking-wider mb-3 text-center ${

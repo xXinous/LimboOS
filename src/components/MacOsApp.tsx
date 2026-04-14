@@ -4,9 +4,6 @@ import { FaApple } from 'react-icons/fa';
 import { checkMacClosed, firestoreUnlockTape } from '../store/firestore';
 import { analyticsTracker } from '../services/AnalyticsTracker';
 import { activityLogger } from '../services/ActivityLogger';
-
-// ── Constants ──────────────────────────────────────────────────────────────
-
 const TEXTO_CORROMPIDO = `S̸e̵ ̸o̸n̵d̴a̷ ̶s̵o̵n̵o̶r̶a̷ ̷a̶t̶i̵n̵g̷e̸ ̴∇̸ ̴∞̵ ̵n̷o̵ ̵m̶i̶l̶i̴s̸s̶e̵g̷u̴n̸d̸o̵ ̴d̵o̴ ̷e̶r̵r̵o̸ ̶t̴e̵m̴p̴o̶r̵a̵l̴.̶.̶.̷
 O̵ ̵█̶█̶█̶█̶█̶█̶█̶█̶█̶█̶ ̷n̵ã̷o̵ ̷é̴ ̵l̵i̶n̴h̷a̴.̵ ̶É̸ ̴u̶m̸ ̷l̶o̵o̵p̸ ̷d̵e̴ ̶c̵ó̸d̵i̴g̵o̵.̶
 1̷9̶0̶0̶ ̶▒̶░̶▓̶ ̶E̷R̵R̴O̷ ̸S̷I̸N̸T̸A̶X̵E̴ ̴▓̸░̸▒̸ ̶2̶0̶0̶0̵
@@ -17,25 +14,14 @@ C̷á̴l̴c̶u̵l̸o̸ ̴t̵r̶a̷n̶s̴i̷ç̸ã̶o̴:̷
 (̵E̶ ̸≠ ̷h̷*̸f̴)̷ ̶/̵ █̶▓̶▒̶░̵▄̵▀̶▒̵▓̵█̶ ̵∇̵∞̶ ̵∂̷Ω̶∑̸ ̶¥̸§̷ÿ̷¢̶¿̶ ̶█̶▀̶▄̷█̴▓̷▒̷ ̸R̸E̵A̷L̷I̷D̴A̶D̵E̴ ̸O̴U̵T̶R̶A̷ ̵▒̵▓̴█̸▄̵▀̴ ̷█̴▓̷▒̷ ̵S̵Ω̸Λ̷M̷∂̴ ̸█̶█̶█̶█̶█̶█̶█̶█̶ ̶▓̴▒̸░̷ ̶A̸ ̵C̸ ̸E̷ ̸S̴ ̵S̵ ̵O̵ ̶▓̴▒̷█̴▀̸▄̵ ̶█̶▓̶▒̸ ̴S̵Ω̷Λ̸M̸∂̶ ̸░̷▄̶▀̷▒̷▓̵█̸ ̴∇̷∞̴ ̵∂̸Ω̶∑̴ ̸¥̵§̸ÿ̸¢̸¿̵ ̴█̴▀̵▄̵█̴▓̶▒̶ ̷R̷E̵A̸L̵I̷D̴A̴D̵E̴ ̵O̵U̸T̵R̶A̶ ̸▒̸▓̸█̴▄̵▀̴ ̵
 S̵e̷ ̴e̷u̷ ̶s̸u̷m̷i̴r̶,̴ ̶f̴r̶e̵q̵u̶ê̵n̵c̶i̵a̶ ̵f̶u̵n̶c̸i̶o̸n̸o̷u̷.̶
 M̶e̷ ̷a̵c̵h̴e̶m̷ ̴n̶o̵ ̵z̴e̴r̶o̵.̶`;
-
 const TEXTO_LIMPO = `A Teoria das Cordas diz que existem 11 dimensões, mas todo mundo está ignorando o óbvio: o zero é a ponte.
-
 Eu percebi que o que está acontecendo agora é uma colisão. É a minha frequência analógica (do walkman mesmo) batendo de frente com esse "reset" digital do Bug do Milênio. Se a onda sonora atingir o infinito no exato milisegundo em que o erro temporal acontecer... a gente vai ver a verdade.
-
 O Multiverso não é uma linha reta, como ensinam na escola. É um loop de código. 1900 foi um erro de sintaxe. 2000 é o próximo.
-
 O LIMBO_01 é a fenda que abriu. E o Malware... ele não é um vírus comum. Ele é algo que vive no espaço "entre" os zeros. Ele se alimenta de sinal, por isso ele odeia tudo o que é analógico. A fita cassete é a minha única âncora aqui.
-
 Cálculo de transição: (E=h⋅f)/Y2K_Bug=ACESSO
-
 Se eu sumir hoje, significa que a frequência funcionou. Não me procurem no futuro. Me achem no zero.`;
-
 type RepairStep = 'idle' | 'reading' | 'corrupted' | 'repairing' | 'restored';
 type ActiveWindow = null | 'controlPanel' | 'diskRepair';
-
-// ── Sub-components ─────────────────────────────────────────────────────────
-
-/** Classic Mac OS window title bar with pinstripes and close button */
 function WindowTitleBar({ title, onClose }: { title: string; onClose: () => void }) {
   return (
     <div
@@ -52,10 +38,11 @@ function WindowTitleBar({ title, onClose }: { title: string; onClose: () => void
     </div>
   );
 }
-
-/** 3D-raised Platinum-style button */
-function PlatinumButton(props: { children: React.ReactNode; disabled?: boolean; onClick?: () => void }) {
-  const { children, disabled = false, onClick } = props;
+const PlatinumButton: React.FC<{
+  disabled?: boolean;
+  onClick?: () => void;
+  children?: React.ReactNode;
+}> = ({ children, disabled = false, onClick }) => {
   return (
     <button
       disabled={disabled}
@@ -71,9 +58,7 @@ function PlatinumButton(props: { children: React.ReactNode; disabled?: boolean; 
       {children}
     </button>
   );
-}
-
-/** A clickable desktop icon */
+};
 function DesktopIcon({ emoji, label, highlighted, onClick }: { emoji: string; label: string; highlighted?: boolean; onClick?: () => void }) {
   return (
     <div className="flex flex-col items-center gap-1 cursor-pointer group" onClick={onClick}>
@@ -92,34 +77,23 @@ function DesktopIcon({ emoji, label, highlighted, onClick }: { emoji: string; la
     </div>
   );
 }
-
-// ── Main Component ─────────────────────────────────────────────────────────
-
 interface MacOsAppProps {
   uid: string;
   onClose: () => void;
 }
-
 export default function MacOsApp({ uid, onClose }: MacOsAppProps) {
   const [phase, setPhase] = useState<'login' | 'desktop'>('login');
   const [currentTime, setCurrentTime] = useState(new Date());
   const [activeWindow, setActiveWindow] = useState<ActiveWindow>(null);
   const [appleMenuOpen, setAppleMenuOpen] = useState(false);
-
-  // DiskRepair state
   const [repairStep, setRepairStep] = useState<RepairStep>('idle');
   const [repairProgress, setRepairProgress] = useState(0);
-
-  // Clock
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 60000);
     return () => clearInterval(timer);
   }, []);
-
-  // Repair progress animation
   useEffect(() => {
     if (repairStep !== 'repairing') return;
-
     const interval = setInterval(() => {
       setRepairProgress(prev => {
         const next = prev + Math.random() * 8;
@@ -135,27 +109,21 @@ export default function MacOsApp({ uid, onClose }: MacOsAppProps) {
         return next;
       });
     }, 200);
-
     return () => clearInterval(interval);
   }, [repairStep, uid]);
-
-  // Close all menus when clicking anywhere on the desktop
   const handleDesktopClick = useCallback(() => {
     setAppleMenuOpen(false);
   }, []);
-
   const handleClose = useCallback(async () => {
     activityLogger.logAction(uid, 'Sistema', 'macos', 'Solicitou desligamento do MacOS');
     await checkMacClosed(uid);
     onClose();
   }, [uid, onClose]);
-
   const handleLogin = useCallback(() => {
     if (navigator.vibrate) navigator.vibrate(20);
     activityLogger.logAction(uid, 'Sistema', 'macos', 'Entrou no Desktop MacOS');
     setPhase('desktop');
   }, [uid]);
-
   const insertDisk = useCallback(() => {
     activityLogger.logAction(uid, 'Sistema', 'diskrepair', 'Inseriu disquete para análise');
     setRepairStep('reading');
@@ -165,22 +133,18 @@ export default function MacOsApp({ uid, onClose }: MacOsAppProps) {
       firestoreUnlockTape(uid, 'evidence-disk-01-corrupted').catch(console.error);
     }, 1500);
   }, [uid]);
-
   const startRepair = useCallback(() => {
     activityLogger.logAction(uid, 'Sistema', 'diskrepair', 'Iniciou reconstrução de setores');
     setRepairStep('repairing');
     setRepairProgress(0);
   }, [uid]);
-
   const openDiskRepair = useCallback(() => {
     activityLogger.logAction(uid, 'Sistema', 'macos', 'Abriu aplicativo: DiskRepair Pro');
     setActiveWindow('diskRepair');
     setRepairStep('idle');
     analyticsTracker.grantAchievement('ACH-REPAIR-APP');
   }, [uid]);
-
   const closeWindow = useCallback(() => setActiveWindow(null), []);
-
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -192,7 +156,7 @@ export default function MacOsApp({ uid, onClose }: MacOsAppProps) {
         fontFamily: '"Chicago", "Geneva", sans-serif',
       }}
     >
-      {/* Dot pattern (login only) */}
+
       {phase === 'login' && (
         <div
           className="absolute inset-0 opacity-20 pointer-events-none"
@@ -200,18 +164,16 @@ export default function MacOsApp({ uid, onClose }: MacOsAppProps) {
         />
       )}
 
-      {/* ── Menu Bar ─────────────────────────────────────────────────── */}
       <div className="h-6 shrink-0 bg-[#eee] border-b border-black flex items-center justify-between px-3 text-[12px] font-bold relative z-50">
         <div className="flex items-center gap-0 relative">
-          {/* Apple Menu */}
+    
           <div
             className={`flex items-center px-2 py-px cursor-pointer transition-colors ${appleMenuOpen ? 'bg-black text-white' : ''}`}
             onClick={(e) => { e.stopPropagation(); setAppleMenuOpen(prev => !prev); }}
           >
             <span className="text-sm"><FaApple /></span>
           </div>
-
-          {/* Apple Dropdown Menu */}
+    
           <AnimatePresence>
             {appleMenuOpen && (
               <motion.div
@@ -236,7 +198,6 @@ export default function MacOsApp({ uid, onClose }: MacOsAppProps) {
               </motion.div>
             )}
           </AnimatePresence>
-
           {phase === 'desktop' && (
             <>
               <div className="cursor-default px-2 hover:bg-black hover:text-white transition-colors">Arquivo</div>
@@ -248,10 +209,9 @@ export default function MacOsApp({ uid, onClose }: MacOsAppProps) {
         <span>{currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
       </div>
 
-      {/* ── Content Area (below menu bar) ────────────────────────────── */}
       <div className="flex-1 relative overflow-hidden" onClick={handleDesktopClick}>
         <AnimatePresence mode="wait">
-          {/* ── Login Screen ──────────────────────────────────────── */}
+    
           {phase === 'login' && (
             <motion.div
               key="login"
@@ -264,7 +224,7 @@ export default function MacOsApp({ uid, onClose }: MacOsAppProps) {
                 style={{ boxShadow: '2px 2px 0 rgba(0,0,0,1)' }}
               >
                 <div className="text-5xl text-black py-2"><FaApple /></div>
-                <h2 className="font-bold text-lg tracking-tight">Welcome to Macintosh</h2>
+                <h2 className="font-bold text-lg tracking-tight">Bem-vindo ao Macintosh</h2>
                 <div
                   className="w-full h-8 border border-black flex items-center justify-center text-xs font-black tracking-widest uppercase"
                   style={{ background: 'repeating-linear-gradient(45deg, #eee, #eee 1px, #fff 1px, #fff 2px)' }}
@@ -281,8 +241,7 @@ export default function MacOsApp({ uid, onClose }: MacOsAppProps) {
               </div>
             </motion.div>
           )}
-
-          {/* ── Desktop ───────────────────────────────────────────── */}
+    
           {phase === 'desktop' && (
             <motion.div
               key="desktop"
@@ -290,7 +249,7 @@ export default function MacOsApp({ uid, onClose }: MacOsAppProps) {
               animate={{ opacity: 1 }}
               className="absolute inset-0"
             >
-              {/* Desktop Icons (right column) */}
+        
               <div className="absolute right-0 top-0 bottom-0 w-24 p-4 flex flex-col items-center gap-8 z-10">
                 <DesktopIcon emoji="💿" label="Macintosh HD" onClick={() => setActiveWindow('controlPanel')} />
                 <DesktopIcon emoji="💾" label="DiskRepair Pro" highlighted onClick={openDiskRepair} />
@@ -298,11 +257,10 @@ export default function MacOsApp({ uid, onClose }: MacOsAppProps) {
                   <DesktopIcon emoji="🗑️" label="Lixo" />
                 </div>
               </div>
-
-              {/* Windows Layer — uses padding to avoid overlapping the menu bar area */}
+        
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none px-4 py-2 z-30">
                 <AnimatePresence>
-                  {/* Control Panel Window */}
+            
                   {activeWindow === 'controlPanel' && (
                     <motion.div
                       initial={{ scale: 0.9, opacity: 0 }}
@@ -322,8 +280,7 @@ export default function MacOsApp({ uid, onClose }: MacOsAppProps) {
                       </div>
                     </motion.div>
                   )}
-
-                  {/* DiskRepair Window */}
+            
                   {activeWindow === 'diskRepair' && (
                     <motion.div
                       initial={{ scale: 0.9, opacity: 0 }}
@@ -333,9 +290,8 @@ export default function MacOsApp({ uid, onClose }: MacOsAppProps) {
                       style={{ boxShadow: '2px 2px 0 rgba(0,0,0,0.5)' }}
                     >
                       <WindowTitleBar title="DiskRepair Pro 4.0" onClose={closeWindow} />
-
                       <div className="p-3 sm:p-4 flex flex-col min-h-0 flex-1 overflow-hidden">
-                        {/* Toolbar */}
+                  
                         <div className="flex gap-2 mb-3 pb-2 shrink-0" style={{ borderBottom: '2px groove #fff' }}>
                           <PlatinumButton 
                             disabled={repairStep !== 'idle'} 
@@ -350,20 +306,17 @@ export default function MacOsApp({ uid, onClose }: MacOsAppProps) {
                             Reconstruir Setores
                           </PlatinumButton>
                         </div>
-
-                        {/* Content Area */}
+                  
                         {repairStep === 'idle' && (
                           <div className="flex-1 flex items-center justify-center text-center text-sm font-bold opacity-60">
                             Nenhum volume montado.<br />Por favor, insira uma mídia magnética.
                           </div>
                         )}
-
                         {repairStep === 'reading' && (
                           <div className="flex-1 flex items-center justify-center text-center text-sm font-bold animate-pulse">
                             Lendo blocos do volume &apos;DISQUETE_NIL&apos;...
                           </div>
                         )}
-
                         {(repairStep === 'corrupted' || repairStep === 'restored') && (
                           <div className="flex-1 min-h-0 overflow-y-auto bg-white p-2 font-mono text-[11px] sm:text-[12px] whitespace-pre-wrap"
                             style={{ border: '2px inset #888' }}
@@ -375,7 +328,6 @@ export default function MacOsApp({ uid, onClose }: MacOsAppProps) {
                             {repairStep === 'corrupted' ? TEXTO_CORROMPIDO : TEXTO_LIMPO}
                           </div>
                         )}
-
                         {repairStep === 'repairing' && (
                           <div className="flex-1 flex flex-col items-center justify-center gap-4">
                             <div className="text-sm font-bold text-center">Isolando setores defeituosos...<br />Por favor, aguarde.</div>
@@ -384,7 +336,6 @@ export default function MacOsApp({ uid, onClose }: MacOsAppProps) {
                             </div>
                           </div>
                         )}
-
                         {repairStep === 'restored' && (
                           <div className="shrink-0 text-green-700 text-center font-bold text-xs mt-2 py-1 bg-green-50 border border-green-200 uppercase tracking-tight">
                             ✓ DISQUETE DESCORROMPIDO. Blocos lógicos restaurados.

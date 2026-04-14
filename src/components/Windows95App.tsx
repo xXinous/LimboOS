@@ -6,26 +6,20 @@ import { checkMacClosed, firestoreUnlockTape, GameEventsState } from '../store/f
 import { analyticsTracker } from '../services/AnalyticsTracker';
 import { activityLogger } from '../services/ActivityLogger';
 import { DISK_REPAIR_CORRUPTED_TEXT, DISK_REPAIR_REPAIRED_TEXT } from './DiskRepairApp';
-
 interface Windows95AppProps {
   uid: string;
   onClose: () => void;
 }
-
 type WindowType = 'myComputer' | 'diskRepair' | 'recycleBin';
-
 export default function Windows95App({ uid, onClose }: Windows95AppProps) {
   const [activeWindows, setActiveWindows] = useState<WindowType[]>([]);
   const [focusedWindow, setFocusedWindow] = useState<WindowType | null>(null);
   const [startMenuOpen, setStartMenuOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
-
-  // Clock
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
-
   const toggleWindow = (type: WindowType) => {
     if (activeWindows.includes(type)) {
       setFocusedWindow(type);
@@ -36,19 +30,16 @@ export default function Windows95App({ uid, onClose }: Windows95AppProps) {
     }
     setStartMenuOpen(false);
   };
-
   const closeWindow = (type: WindowType) => {
     activityLogger.logAction(uid, 'Sistema', 'windows95', `Fechou janela: ${getWindowLabel(type)}`, { window: type });
     setActiveWindows(prev => prev.filter(w => w !== type));
     if (focusedWindow === type) setFocusedWindow(null);
   };
-
   const handleShutdown = async () => {
     activityLogger.logAction(uid, 'Sistema', 'windows95', 'Solicitou desligamento do Windows 95');
-    await checkMacClosed(uid); // Reuse the same close check as Mac if appropriate
+    await checkMacClosed(uid); 
     onClose();
   };
-
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-[#008080] font-sans overflow-hidden select-none touch-none text-black">
       <style>{`
@@ -91,15 +82,13 @@ export default function Windows95App({ uid, onClose }: Windows95AppProps) {
             font-size: 14px;
         }
       `}</style>
-
-      {/* Desktop Icons */}
+      {}
       <div className="flex-1 p-4 flex flex-col gap-4 pointer-events-none">
         <DesktopIcon icon="💻" label="Meu Computador" onClick={() => toggleWindow('myComputer')} />
         <DesktopIcon icon="🗑️" label="Lixeira" onClick={() => toggleWindow('recycleBin')} />
         <DesktopIcon icon="💾" label="DiskRepair Pro" onClick={() => toggleWindow('diskRepair')} />
       </div>
-
-      {/* Windows Layer */}
+      {}
       <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
         <AnimatePresence>
           {activeWindows.map(win => (
@@ -114,8 +103,7 @@ export default function Windows95App({ uid, onClose }: Windows95AppProps) {
           ))}
         </AnimatePresence>
       </div>
-
-      {/* Taskbar */}
+      {}
       <div className="h-10 bg-[#c0c0c0] border-t-2 border-white flex items-center px-1 gap-1 z-50">
         <button 
           onClick={() => setStartMenuOpen(!startMenuOpen)}
@@ -123,7 +111,6 @@ export default function Windows95App({ uid, onClose }: Windows95AppProps) {
         >
           <span className="text-lg">🪟</span> Iniciar
         </button>
-
         <div className="flex-1 flex gap-1 h-8 overflow-hidden mx-1">
           {activeWindows.map(win => (
             <button 
@@ -136,15 +123,13 @@ export default function Windows95App({ uid, onClose }: Windows95AppProps) {
             </button>
           ))}
         </div>
-
-        {/* Tray */}
+        {}
         <div className="win95-border-in h-8 px-2 flex items-center gap-2 text-[11px] min-w-[70px] justify-center bg-[#c0c0c0]">
           <span>🔊</span>
           <span>{currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
         </div>
       </div>
-
-      {/* Start Menu */}
+      {}
       <AnimatePresence>
         {startMenuOpen && (
           <>
@@ -173,7 +158,6 @@ export default function Windows95App({ uid, onClose }: Windows95AppProps) {
     </div>
   );
 }
-
 function DesktopIcon({ icon, label, onClick, labelOnLight }: { icon: string, label: string, onClick: () => void, labelOnLight?: boolean }) {
   return (
     <div 
@@ -193,18 +177,15 @@ function DesktopIcon({ icon, label, onClick, labelOnLight }: { icon: string, lab
     </div>
   );
 }
-
 function DiskRepairWin95Content({ uid }: { uid: string }) {
   const [phase, setPhase] = useState<'intro' | 'loading' | 'viewer' | 'repairing' | 'result'>('intro');
   const [diskRepairAllowed, setDiskRepairAllowed] = useState(false);
   const [resultStatus, setResultStatus] = useState<'success' | 'fail' | null>(null);
   const [progress, setProgress] = useState(0);
   const [scrambleText, setScrambleText] = useState('');
-
   useEffect(() => {
     analyticsTracker.grantAchievement('ACH-REPAIR-APP');
   }, []);
-
   useEffect(() => {
     const unsub = onSnapshot(doc(db, 'system', 'gameEvents'), (snap) => {
       if (snap.exists()) {
@@ -214,9 +195,7 @@ function DiskRepairWin95Content({ uid }: { uid: string }) {
     });
     return () => unsub();
   }, []);
-
   const generateScramble = () => DISK_REPAIR_CORRUPTED_TEXT;
-
   const handleAnalyze = () => {
     activityLogger.logAction(uid, 'Sistema', 'diskrepair', 'Analisou disquete (Windows 95)');
     setPhase('loading');
@@ -235,7 +214,6 @@ function DiskRepairWin95Content({ uid }: { uid: string }) {
       }
     }, 400);
   };
-
   const handleRepair = () => {
     activityLogger.logAction(uid, 'Sistema', 'diskrepair', 'Iniciou desmagnetização (Windows 95)');
     setPhase('repairing');
@@ -258,12 +236,10 @@ function DiskRepairWin95Content({ uid }: { uid: string }) {
       }
     }, 300);
   };
-
   const handleRetry = () => {
     setPhase('intro');
     setResultStatus(null);
   };
-
   return (
     <div className="flex flex-col gap-3 text-left text-black text-xs">
       {phase === 'intro' && (
@@ -278,7 +254,6 @@ function DiskRepairWin95Content({ uid }: { uid: string }) {
           </button>
         </div>
       )}
-
       {(phase === 'loading' || phase === 'repairing') && (
         <div className="flex flex-col gap-2">
           <div className="flex items-center gap-2">
@@ -292,7 +267,6 @@ function DiskRepairWin95Content({ uid }: { uid: string }) {
           </div>
         </div>
       )}
-
       {phase === 'viewer' && (
         <div className="flex flex-col gap-2">
           <div className="flex items-start gap-2">
@@ -317,7 +291,6 @@ function DiskRepairWin95Content({ uid }: { uid: string }) {
           </div>
         </div>
       )}
-
       {phase === 'result' && resultStatus === 'fail' && (
         <div className="flex flex-col gap-2 items-center text-center py-2">
           <span className="text-4xl">🛑</span>
@@ -330,7 +303,6 @@ function DiskRepairWin95Content({ uid }: { uid: string }) {
           </button>
         </div>
       )}
-
       {phase === 'result' && resultStatus === 'success' && (
         <div className="flex flex-col gap-2">
           <div className="flex items-center gap-2 bg-[#000080] text-white p-2">
@@ -348,7 +320,6 @@ function DiskRepairWin95Content({ uid }: { uid: string }) {
     </div>
   );
 }
-
 function StartOption({ icon, label, onClick, subMenu }: { icon: string, label: string, onClick?: () => void, subMenu?: boolean }) {
   return (
     <div 
@@ -361,7 +332,6 @@ function StartOption({ icon, label, onClick, subMenu }: { icon: string, label: s
     </div>
   );
 }
-
 function Window({ type, isFocused, onFocus, onClose, uid, key }: { type: WindowType, isFocused: boolean, onFocus: () => void, onClose: () => void, uid: string, key?: React.Key }) {
   return (
     <motion.div 
@@ -371,7 +341,7 @@ function Window({ type, isFocused, onFocus, onClose, uid, key }: { type: WindowT
       style={{ zIndex: isFocused ? 45 : 35 }}
       onPointerDown={onFocus}
     >
-      {/* Title Bar */}
+      {}
       <div className={`h-[22px] flex items-center px-1 gap-1 ${isFocused ? 'bg-linear-to-r from-[#000080] to-[#1084d0]' : 'bg-[#808080]'}`}>
         <span className="text-xs px-1">{type === 'diskRepair' ? '💾' : type === 'recycleBin' ? '🗑️' : '💻'}</span>
         <span className="text-white font-bold text-[11px] flex-1 truncate select-none">{getWindowLabel(type)}</span>
@@ -386,16 +356,14 @@ function Window({ type, isFocused, onFocus, onClose, uid, key }: { type: WindowT
           </button>
         </div>
       </div>
-
-      {/* Menu Area (Simulated) */}
+      {}
       <div className="flex px-1 gap-3 text-[11px] h-5 items-center">
         <span className="hover:win95-border-in px-1 cursor-default">Arquivo</span>
         <span className="hover:win95-border-in px-1 cursor-default">Editar</span>
         <span className="hover:win95-border-in px-1 cursor-default">Exibir</span>
         <span className="hover:win95-border-in px-1 cursor-default">Ajuda</span>
       </div>
-
-      {/* Window Content */}
+      {}
       <div className="flex-1 bg-white m-0.5 win95-border-in overflow-auto p-4 flex flex-col">
         {type === 'myComputer' && (
           <div className="grid grid-cols-3 gap-6">
@@ -415,7 +383,6 @@ function Window({ type, isFocused, onFocus, onClose, uid, key }: { type: WindowT
     </motion.div>
   );
 }
-
 function getWindowLabel(type: WindowType): string {
   switch (type) {
     case 'myComputer': return 'Meu Computador';

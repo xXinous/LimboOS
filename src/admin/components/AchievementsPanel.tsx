@@ -4,15 +4,8 @@ import { collection, onSnapshot, getDocs, setDoc, updateDoc, deleteDoc, doc, ser
 import { format } from 'date-fns';
 import { ALL_ACHIEVEMENTS } from '../../data/achievements';
 import type { Achievement } from '../../services/AchievementManager';
-
-// ── Types ─────────────────────────────────────────────────────────────────────
-
 interface UserRow { uid: string; displayName: string; username?: string; achievementsRevealed?: boolean; }
 interface UserAchievement { achievementId: string; unlockedAt?: any; }
-
-// ── Sub-components ────────────────────────────────────────────────────────────
-
-/** Single card for one achievement definition */
 const AchCard: React.FC<{ ach: Achievement; count: number }> = ({ ach, count }) => (
   <div className="bg-surface-container-lowest border border-zinc-800 p-4 flex flex-col gap-3 machined-edge">
     <div className="flex items-start gap-3">
@@ -24,7 +17,7 @@ const AchCard: React.FC<{ ach: Achievement; count: number }> = ({ ach, count }) 
       </div>
       <div className="shrink-0 text-right">
         <p className="text-xl font-headline font-bold text-secondary">{count}</p>
-        <p className="text-[9px] font-label text-zinc-600">players</p>
+        <p className="text-[9px] font-label text-zinc-600">jogadores</p>
       </div>
     </div>
     <div className="bg-zinc-900/40 p-2 border border-zinc-800/50 mt-1">
@@ -33,8 +26,6 @@ const AchCard: React.FC<{ ach: Achievement; count: number }> = ({ ach, count }) 
     </div>
   </div>
 );
-
-/** Row in the per-user achievement editor */
 const UserAchRow: React.FC<{
   user: UserRow;
   userAchs: UserAchievement[];
@@ -46,7 +37,6 @@ const UserAchRow: React.FC<{
   user, userAchs, isSelected, onToggleSelect, onGrant, onRevoke,
 }) => {
   const [open, setOpen] = useState(false);
-
   return (
     <div className="border border-zinc-800 bg-surface-container-lowest machined-edge overflow-hidden">
       <div className="flex items-center w-full px-4 py-3 hover:bg-zinc-900/50 transition-colors">
@@ -73,10 +63,9 @@ const UserAchRow: React.FC<{
           <span className="material-symbols-outlined text-zinc-600 text-sm">{open ? 'expand_less' : 'expand_more'}</span>
         </button>
       </div>
-
       {open && (
         <div className="border-t border-zinc-800 bg-zinc-900/30 p-4 space-y-3">
-          {/* Granted list */}
+          {}
           <div className="flex flex-wrap gap-2">
             {userAchs.length === 0 && (
               <span className="text-[10px] font-label text-zinc-600">Nenhuma conquista.</span>
@@ -98,7 +87,7 @@ const UserAchRow: React.FC<{
               );
             })}
           </div>
-          {/* Grant button */}
+          {}
           <button
             onClick={() => onGrant(user.uid)}
             className="flex items-center gap-1.5 text-[10px] font-label uppercase tracking-widest text-secondary hover:text-white transition-colors"
@@ -111,9 +100,6 @@ const UserAchRow: React.FC<{
     </div>
   );
 };
-
-// ── Main Panel ────────────────────────────────────────────────────────────────
-
 export default function AchievementsPanel() {
   const [users, setUsers] = useState<UserRow[]>([]);
   const [userAchs, setUserAchs] = useState<Record<string, UserAchievement[]>>({});
@@ -121,13 +107,9 @@ export default function AchievementsPanel() {
   const [selectedId, setSelectedId] = useState('');
   const [search, setSearch] = useState('');
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
-
-  // Real-time user list
   useEffect(() => onSnapshot(collection(db, 'users'), snap => {
     setUsers(snap.docs.map(d => ({ uid: d.id, ...d.data() } as UserRow)));
   }), []);
-
-  // Load achievements for all users once users list is ready
   const loadAllAchs = useCallback(async (uids: string[]) => {
     const results: Record<string, UserAchievement[]> = {};
     await Promise.all(uids.map(async uid => {
@@ -136,9 +118,7 @@ export default function AchievementsPanel() {
     }));
     setUserAchs(results);
   }, []);
-
   useEffect(() => { if (users.length) loadAllAchs(users.map(u => u.uid)); }, [users, loadAllAchs]);
-
   const handleGrant = async () => {
     if (!grantTarget || !selectedId) return;
     await setDoc(doc(db, 'users', grantTarget, 'achievements', selectedId), {
@@ -148,29 +128,23 @@ export default function AchievementsPanel() {
     setSelectedId('');
     loadAllAchs(users.map(u => u.uid));
   };
-
   const handleRevoke = async (uid: string, achId: string) => {
     await deleteDoc(doc(db, 'users', uid, 'achievements', achId));
     loadAllAchs(users.map(u => u.uid));
   };
-
-  // Stats: how many players have each achievement
   const achCounts = ALL_ACHIEVEMENTS.reduce<Record<string, number>>((acc, ach) => {
     acc[ach.id] = (Object.values(userAchs) as UserAchievement[][]).filter(list => list.some(a => a.achievementId === ach.id)).length;
     return acc;
   }, {});
-
   const totalUnlocked = (Object.values(userAchs) as UserAchievement[][]).reduce((sum, list) => sum + list.length, 0);
   const filteredUsers = users.filter(u =>
     (u.displayName || u.username || u.uid).toLowerCase().includes(search.toLowerCase())
   );
-
   const handleToggleSelectUser = (uid: string) => {
     setSelectedUsers(prev => 
       prev.includes(uid) ? prev.filter(id => id !== uid) : [...prev, uid]
     );
   };
-
   const handleSelectAll = () => {
     if (selectedUsers.length === filteredUsers.length) {
       setSelectedUsers([]);
@@ -178,7 +152,6 @@ export default function AchievementsPanel() {
       setSelectedUsers(filteredUsers.map(u => u.uid));
     }
   };
-
   const handleSetRevealed = async (revealed: boolean) => {
     if (selectedUsers.length === 0) return;
     await Promise.all(selectedUsers.map(uid => 
@@ -186,21 +159,19 @@ export default function AchievementsPanel() {
     ));
     setSelectedUsers([]);
   };
-
   return (
     <section className="space-y-8">
-      {/* Header + stats */}
+      {}
       <div className="flex items-center gap-6">
         <div className="w-2 h-6 bg-secondary shrink-0" />
         <div>
-          <h2 className="font-headline font-bold uppercase tracking-widest text-lg">Achievement_Control</h2>
+          <h2 className="font-headline font-bold uppercase tracking-widest text-lg">Controle_de_Conquistas</h2>
           <p className="font-label text-[10px] text-zinc-500 tracking-wider">
             {ALL_ACHIEVEMENTS.length} TIPOS · {totalUnlocked} TOTAL DESBLOQUEADO
           </p>
         </div>
       </div>
-
-      {/* Achievement catalog */}
+      {}
       <div className="bg-surface border border-zinc-800">
         <div className="px-6 py-3 border-b border-zinc-800 bg-zinc-900/30 flex items-center gap-2">
           <span className="material-symbols-outlined text-secondary text-sm">stars</span>
@@ -212,15 +183,13 @@ export default function AchievementsPanel() {
           ))}
         </div>
       </div>
-
-      {/* Per-user editor */}
+      {}
       <div className="bg-surface border border-zinc-800">
         <div className="px-6 py-3 border-b border-zinc-800 bg-zinc-900/30 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <span className="material-symbols-outlined text-secondary text-sm">manage_accounts</span>
             <span className="font-label text-[10px] uppercase tracking-widest text-zinc-400">Por Jogador</span>
           </div>
-          
           {selectedUsers.length > 0 && (
             <div className="flex items-center gap-2">
               <span className="font-label text-[10px] text-secondary tracking-widest">{selectedUsers.length} SELECIONADOS</span>
@@ -232,7 +201,6 @@ export default function AchievementsPanel() {
               </button>
             </div>
           )}
-
           <input
             type="text"
             placeholder="BUSCAR_AGENTE..."
@@ -265,12 +233,11 @@ export default function AchievementsPanel() {
             />
           ))}
           {filteredUsers.length === 0 && (
-            <p className="text-zinc-600 text-xs font-label tracking-widest py-4 text-center">NO_RECORDS_FOUND</p>
+            <p className="text-zinc-600 text-xs font-label tracking-widest py-4 text-center">NENHUM_REGISTRO_ENCONTRADO</p>
           )}
         </div>
       </div>
-
-      {/* Grant Modal */}
+      {}
       {grantTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
           <div className="bg-surface-container-low border border-secondary/30 p-6 w-full max-w-md machined-edge">

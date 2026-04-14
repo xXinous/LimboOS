@@ -4,13 +4,10 @@ import { logout } from '../store/profile';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import Dashboard from './components/Dashboard';
-
 const ADMIN_CODENAME = 'gm.mpg';
-
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-
   useEffect(() => {
     testConnection();
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -35,21 +32,16 @@ export default function App() {
     });
     return () => unsubscribe();
   }, []);
-
-  // Login is handled in the main app; unauthenticated users will be redirected.
-
   if (loading) {
     return (
       <div className="min-h-screen bg-background text-on-background flex items-center justify-center font-headline">
-        <div className="animate-pulse text-primary-container text-2xl tracking-widest">INITIALIZING_SYSTEM...</div>
+        <div className="animate-pulse text-primary-container text-2xl tracking-widest">INICIALIZANDO_SISTEMA...</div>
       </div>
     );
   }
-
   if (!user) {
     window.location.href = '/';
     return null;
   }
-
   return <Dashboard user={user} onLogout={logout} />;
 }

@@ -6,7 +6,6 @@ import { User } from 'firebase/auth';
 import { parseBlob } from 'music-metadata';
 import { useModal } from './ConfirmModal';
 import QRCode from 'react-qr-code';
-
 interface AudioData {
   id: string;
   ownerUid: string;
@@ -18,7 +17,6 @@ interface AudioData {
   storagePath?: string;
   createdAt: any;
 }
-
 export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAdmin: boolean }) {
   const [audios, setAudios] = useState<AudioData[]>([]);
   const [isUploading, setIsUploading] = useState(false);
@@ -29,8 +27,6 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
   const [qrCodeModal, setQrCodeModal] = useState<AudioData | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { showAlert, modal } = useModal();
-
-  // Edit Metadata state
   const [editAudio, setEditAudio] = useState<AudioData | null>(null);
   const [editTitle, setEditTitle] = useState('');
   const [editArtist, setEditArtist] = useState('');
@@ -38,7 +34,6 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
   const [editChapter, setEditChapter] = useState('');
   const [editDescription, setEditDescription] = useState('');
   const [editSaving, setEditSaving] = useState(false);
-
   useEffect(() => {
     const q = query(collection(db, 'audios'), orderBy('createdAt', 'desc'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -50,8 +45,6 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
     });
     return () => unsubscribe();
   }, []);
-
-  // Load play counts for audios
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, 'playEvents'), (snap) => {
       const counts: Record<string, number> = {};
@@ -65,10 +58,7 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
     });
     return () => unsubscribe();
   }, []);
-
-  // ── Edit Metadata ──────────────────────────────────────────────────────────
   const openEditMetadata = async (audio: AudioData) => {
-    // Fetch fresh data from Firestore to get the metadata fields
     const snap = await getDoc(doc(db, 'audios', audio.id));
     const data = snap.exists() ? snap.data() : {};
     setEditTitle(data.title ?? '');
@@ -78,7 +68,6 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
     setEditDescription(data.description ?? '');
     setEditAudio(audio);
   };
-
   const saveEditMetadata = async () => {
     if (!editAudio) return;
     setEditSaving(true);
@@ -98,7 +87,6 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
       setEditSaving(false);
     }
   };
-
   const handleUploadClick = () => {
     if (!user) {
       showAlert('Login Necessário', 'Você precisa estar logado para fazer upload.');
@@ -106,31 +94,25 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
     }
     fileInputRef.current?.click();
   };
-
   const uploadFile = async (file: File) => {
     if (!user) return;
     if (file.size > 50 * 1024 * 1024) {
       showAlert('Arquivo muito grande', `O arquivo "${file.name}" excede o limite de 50MB.`);
       return;
     }
-
-    // Parse ID3 metadata in browser
     let parsedTitle = file.name.replace(/\.[^/.]+$/, "");
     let parsedArtist = '';
     let parsedChapter = '';
     let parsedDescription = '';
     let parsedIsSecret = false;
     let parsedDuration = 0;
-
     try {
       const meta = await parseBlob(file);
       const common = meta.common;
       const format = meta.format;
-
       if (common.title) parsedTitle = common.title;
       if (common.artist) parsedArtist = common.artist;
       if (common.album) parsedChapter = common.album;
-      
       const rawComment = common.comment;
       if (Array.isArray(rawComment)) {
         for (const c of rawComment) {
@@ -143,17 +125,14 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
       } else if (typeof rawComment === 'string' && !/^\s*([0-9A-Fa-f]{8}\s*){2,}/.test(rawComment as string)) {
         parsedDescription = (rawComment as string).trim();
       }
-
       if (format.duration) parsedDuration = Math.round(format.duration);
       parsedIsSecret = (common.genre?.[0] ?? '').trim().toLowerCase() === 'secret';
     } catch (err) {
       console.warn('ID3 parse in browser failed:', err);
     }
-
     const storageRef = ref(storage, `audios/${Date.now()}_${file.name}`);
     await uploadBytesResumable(storageRef, file);
     const downloadURL = await getDownloadURL(storageRef);
-
     await addDoc(collection(db, 'audios'), {
       ownerUid: user.uid,
       ownerName: user.displayName || 'Admin',
@@ -171,11 +150,9 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
       isSecret: parsedIsSecret,
     });
   };
-
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0 || !user) return;
-
     setIsUploading(true);
     try {
       for (const file of Array.from(files) as File[]) {
@@ -189,18 +166,15 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
-
   const handleDrop = useCallback(async (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragOver(false);
     if (!user) return;
-
     const files = (Array.from(e.dataTransfer.files) as File[]).filter(f => f.type.startsWith('audio/'));
     if (files.length === 0) {
       showAlert('Formato inválido', 'Apenas arquivos de áudio são aceitos.');
       return;
     }
-
     setIsUploading(true);
     try {
       for (const file of files) {
@@ -213,7 +187,6 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
       setIsUploading(false);
     }
   }, [user]);
-
   const handleDelete = (audio: AudioData) => {
     if (!isAdmin && audio.ownerUid !== user?.uid) {
       showAlert('Não Autorizado', 'Você não tem permissão para deletar este arquivo.');
@@ -221,7 +194,6 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
     }
     executeDelete(audio);
   };
-
   const executeDelete = async (audio: AudioData) => {
     setConfirmDeleteAudio(null);
     try {
@@ -237,7 +209,6 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
       showAlert('Erro ao Deletar', 'Falha ao deletar o arquivo de áudio.');
     }
   };
-
   const getQrCodeSvgDataUri = () => {
     const container = document.getElementById("qr-code-container");
     if (!container) return null;
@@ -246,7 +217,6 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
     const svgData = new XMLSerializer().serializeToString(svgElement);
     return "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svgData)));
   };
-
   const handleDownloadQrCode = () => {
     const dataUri = getQrCodeSvgDataUri();
     if (!dataUri) return;
@@ -270,7 +240,6 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
     };
     img.src = dataUri;
   };
-
   const handleCopyQrCode = () => {
     const dataUri = getQrCodeSvgDataUri();
     if (!dataUri) return;
@@ -302,33 +271,29 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
     };
     img.src = dataUri;
   };
-
   const formatSize = (bytes: number) => {
     const mb = bytes / (1024 * 1024);
     return mb >= 1 ? mb.toFixed(1) + ' MB' : (bytes / 1024).toFixed(0) + ' KB';
   };
-
   const filteredAudios = audios.filter((a) =>
     a.originalName.toLowerCase().includes(searchQuery.toLowerCase()) ||
     a.ownerName.toLowerCase().includes(searchQuery.toLowerCase())
   );
-
   const totalSize = audios.reduce((acc, a) => acc + a.size, 0);
-
   return (
     <section className="space-y-4">
       {modal}
-      {/* Header */}
+      {}
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-4">
           <div className="w-2 h-6 bg-zinc-400"></div>
-          <h2 className="font-headline font-bold uppercase tracking-widest text-lg">Audio_Stream_Buffer</h2>
-          <span className="text-[10px] font-label text-zinc-500 tracking-wider">{audios.length} FILES • {formatSize(totalSize)}</span>
+          <h2 className="font-headline font-bold uppercase tracking-widest text-lg">Buffer_de_Stream_de_Áudio</h2>
+          <span className="text-[10px] font-label text-zinc-500 tracking-wider">{audios.length} ARQUIVOS • {formatSize(totalSize)}</span>
         </div>
         <div className="flex items-center gap-3">
           <input
             type="text"
-            placeholder="SEARCH_AUDIO..."
+            placeholder="BUSCAR_ÁUDIO..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="bg-surface-container-lowest border-zinc-800 text-[10px] font-label uppercase tracking-widest focus:ring-1 focus:ring-orange-500 focus:border-orange-500 w-48 placeholder:text-zinc-700 text-zinc-300 px-3 py-2"
@@ -349,12 +314,11 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
             <span className="material-symbols-outlined text-xs group-hover:rotate-90 transition-transform">
               {isUploading ? 'sync' : 'add'}
             </span>
-            {isUploading ? 'UPLOADING...' : 'UPLOAD'}
+            {isUploading ? 'ENVIANDO...' : 'ENVIAR'}
           </button>
         </div>
       </div>
-
-      {/* Drag & Drop Zone */}
+      {}
       <div
         onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
         onDragLeave={() => setIsDragOver(false)}
@@ -369,12 +333,11 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
           {isDragOver ? 'downloading' : 'cloud_upload'}
         </span>
         <p className="text-zinc-500 text-[10px] font-label uppercase tracking-widest">
-          {isDragOver ? 'DROP_FILES_HERE' : 'DRAG_&_DROP_AUDIO_FILES_HERE'}
+          {isDragOver ? 'SOLTE_OS_ARQUIVOS_AQUI' : 'ARRASTE_E_SOLTE_ARQUIVOS_DE_ÁUDIO_AQUI'}
         </p>
-        <p className="text-zinc-700 text-[8px] font-label mt-1">MAX 50MB PER FILE</p>
+        <p className="text-zinc-700 text-[8px] font-label mt-1">MÁX 50MB POR ARQUIVO</p>
       </div>
-
-      {/* Audio List */}
+      {}
       <div className="grid grid-cols-1 gap-3">
         {filteredAudios.map((audio, index) => (
           <div key={audio.id} className={`bg-surface-container-low p-4 flex items-center justify-between border-l-2 machined-edge ${index % 2 === 0 ? 'border-orange-500' : 'border-zinc-700'}`}>
@@ -395,9 +358,9 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
               <div>
                 <h4 className="font-headline font-bold text-sm tracking-tight">{audio.originalName}</h4>
                 <p className="text-[10px] font-label uppercase text-zinc-500 tracking-tighter">
-                  Owner: <span className="text-zinc-300">{audio.ownerName}</span> • {formatSize(audio.size)}
+                  Proprietário: <span className="text-zinc-300">{audio.ownerName}</span> • {formatSize(audio.size)}
                   {playCountMap[audio.id] !== undefined && (
-                    <> • <span className="text-tertiary">{playCountMap[audio.id]} plays</span></>
+                    <> • <span className="text-tertiary">{playCountMap[audio.id]} reproduções</span></>
                   )}
                 </p>
               </div>
@@ -430,7 +393,7 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
                 <button 
                   onClick={() => handleDelete(audio)}
                   className="material-symbols-outlined text-zinc-500 hover:text-error transition-colors" 
-                  title="Delete Audio"
+                  title="Excluir Áudio"
                 >
                   delete
                 </button>
@@ -438,18 +401,15 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
             </div>
           </div>
         ))}
-        
         {filteredAudios.length === 0 && (
           <div className="bg-surface-container-low p-8 text-center border-l-2 border-zinc-800 machined-edge">
             <p className="text-zinc-500 font-label text-xs tracking-widest">
-              {searchQuery ? 'NO_MATCHING_AUDIO_FILES' : 'NO_AUDIO_FILES_FOUND'}
+              {searchQuery ? 'NENHUM_ARQUIVO_DE_ÁUDIO_CORRESPONDENTE' : 'NENHUM_ARQUIVO_DE_ÁUDIO_ENCONTRADO'}
             </p>
           </div>
         )}
       </div>
-
-
-      {/* QR Code Modal */}
+      {}
       {qrCodeModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
           <div className="bg-surface-container-low border border-zinc-700 p-6 w-full max-w-sm machined-edge flex flex-col items-center">
@@ -487,8 +447,7 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
           </div>
         </div>
       )}
-
-      {/* Edit Metadata Modal */}
+      {}
       {editAudio && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
           <div className="bg-surface-container-low border border-emerald-500/30 p-6 w-full max-w-md machined-edge flex flex-col">
@@ -499,13 +458,12 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
             <p className="font-body text-xs text-zinc-500 mb-5 truncate">
               Áudio: <span className="text-orange-400 font-bold">{editAudio.originalName}</span>
             </p>
-
             <div className="space-y-3 mb-6">
               {[
-                { label: 'TITLE', value: editTitle, set: setEditTitle, placeholder: 'Nome da fita' },
-                { label: 'ARTIST', value: editArtist, set: setEditArtist, placeholder: 'Artista / Autor' },
+                { label: 'TÍTULO', value: editTitle, set: setEditTitle, placeholder: 'Nome da fita' },
+                { label: 'ARTISTA', value: editArtist, set: setEditArtist, placeholder: 'Artista / Autor' },
                 { label: 'NPC', value: editNpc, set: setEditNpc, placeholder: 'NPC associado' },
-                { label: 'CHAPTER', value: editChapter, set: setEditChapter, placeholder: 'Capítulo / Álbum' },
+                { label: 'CAPÍTULO', value: editChapter, set: setEditChapter, placeholder: 'Capítulo / Álbum' },
               ].map(({ label, value, set, placeholder }) => (
                 <div key={label}>
                   <label className="block text-[9px] font-label uppercase tracking-widest text-zinc-500 mb-1">{label}</label>
@@ -519,7 +477,7 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
                 </div>
               ))}
               <div>
-                <label className="block text-[9px] font-label uppercase tracking-widest text-zinc-500 mb-1">DESCRIPTION</label>
+                <label className="block text-[9px] font-label uppercase tracking-widest text-zinc-500 mb-1">DESCRIÇÃO</label>
                 <textarea
                   value={editDescription}
                   onChange={(e) => setEditDescription(e.target.value)}
@@ -529,7 +487,6 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
                 />
               </div>
             </div>
-
             <div className="flex justify-end gap-3">
               <button
                 onClick={() => setEditAudio(null)}
@@ -549,7 +506,6 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
           </div>
         </div>
       )}
-
     </section>
   );
 }

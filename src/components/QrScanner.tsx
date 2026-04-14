@@ -2,13 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import { X } from 'lucide-react';
 import NimiqQrScanner from 'qr-scanner';
-
 interface QrScannerProps {
   onDetected: (code: string) => void;
   onCancel: () => void;
 }
-
-/** Região maior e mais pixels no downscale ajudam QR pequenos (Nimiq qr-scanner). */
 function calculateScanRegion(video: HTMLVideoElement): NimiqQrScanner.ScanRegion {
   const w = video.videoWidth;
   const h = video.videoHeight;
@@ -35,20 +32,16 @@ function calculateScanRegion(video: HTMLVideoElement): NimiqQrScanner.ScanRegion
     downScaledHeight: down,
   };
 }
-
 export default function QrScanner({ onDetected, onCancel }: QrScannerProps) {
   const onDetectedRef = useRef(onDetected);
   const onCancelRef = useRef(onCancel);
   onDetectedRef.current = onDetected;
   onCancelRef.current = onCancel;
-
   const videoRef = useRef<HTMLVideoElement>(null);
   const scannerRef = useRef<NimiqQrScanner | null>(null);
   const detectedRef = useRef(false);
-
   const wrapRef = useRef<HTMLDivElement>(null);
   const [scanBoxSize, setScanBoxSize] = useState(200);
-
   useEffect(() => {
     const el = wrapRef.current;
     if (!el) return;
@@ -61,14 +54,11 @@ export default function QrScanner({ onDetected, onCancel }: QrScannerProps) {
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
-
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
-
     let cancelled = false;
     detectedRef.current = false;
-
     const scanner = new NimiqQrScanner(
       video,
       (result) => {
@@ -85,13 +75,10 @@ export default function QrScanner({ onDetected, onCancel }: QrScannerProps) {
         maxScansPerSecond: 12,
         calculateScanRegion,
         onDecodeError: () => {
-          /* sem QR neste frame — esperado */
         },
       }
     );
-
     scannerRef.current = scanner;
-
     scanner
       .start()
       .then(() => {
@@ -105,7 +92,6 @@ export default function QrScanner({ onDetected, onCancel }: QrScannerProps) {
         scannerRef.current = null;
         if (!cancelled) onCancelRef.current();
       });
-
     return () => {
       cancelled = true;
       const s = scannerRef.current;
@@ -114,12 +100,10 @@ export default function QrScanner({ onDetected, onCancel }: QrScannerProps) {
         try {
           s.destroy();
         } catch {
-          /* ignore */
         }
       }
     };
   }, []);
-
   return (
     <div
       ref={wrapRef}
@@ -142,9 +126,7 @@ export default function QrScanner({ onDetected, onCancel }: QrScannerProps) {
           object-fit: cover !important;
         }
       `}</style>
-
       <video ref={videoRef} className="qr-scanner-video" />
-
       <div
         style={{
           position: 'absolute',
@@ -225,7 +207,6 @@ export default function QrScanner({ onDetected, onCancel }: QrScannerProps) {
           />
         </div>
       </div>
-
       <button
         type="button"
         onClick={onCancel}

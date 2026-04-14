@@ -1,20 +1,7 @@
-/**
- * ActivityLogger — writes structured activity events to Firestore `activityLog`.
- *
- * Event shape:
- *   uid, username, type, category, message, metadata?, timestamp, source
- *
- * Throttle: max 1 navigation event per 2 s per user to control Firestore costs.
- * Errors are always flushed immediately.
- */
 
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-
-// ── Types ────────────────────────────────────────────────────────────────────
-
 export type ActivityType = 'navigation' | 'action' | 'system' | 'error' | 'admin' | 'auth' | 'trace';
-
 export interface ActivityEvent {
   uid: string;
   username: string;
@@ -25,29 +12,21 @@ export interface ActivityEvent {
   timestamp: ReturnType<typeof serverTimestamp>;
   source: 'player' | 'admin';
 }
-
-// ── Service ──────────────────────────────────────────────────────────────────
-
 class ActivityLogger {
   private static instance: ActivityLogger;
   private lastNavTimestamp = 0;
   private readonly NAV_THROTTLE_MS = 2000;
-
   private constructor() {}
-
   static getInstance(): ActivityLogger {
     if (!ActivityLogger.instance) {
       ActivityLogger.instance = new ActivityLogger();
     }
     return ActivityLogger.instance;
   }
-
-  // ── Private write ──────────────────────────────────────────────────────────
-
-  /** Recursively remove undefined (Firestore rejects undefined everywhere, including inside arrays). */
   private sanitizeData(obj: unknown): unknown {
     if (obj === undefined) return undefined;
     if (obj === null) return null;
+    if (typeof obj === 'function') return undefined;
     if (typeof obj !== 'object') return obj;
     if (Array.isArray(obj)) {
       return obj
@@ -64,7 +43,6 @@ class ActivityLogger {
     }
     return result;
   }
-
   private async write(event: Omit<ActivityEvent, 'timestamp'>): Promise<void> {
     try {
       const cleanEvent = this.sanitizeData(event) as Record<string, unknown>;
@@ -81,14 +59,9 @@ class ActivityLogger {
         timestamp: serverTimestamp(),
       });
     } catch (err) {
-      // Silently fail to avoid cascading errors — log locally only
       console.error('[ActivityLogger] write failed:', err);
     }
   }
-
-  // ── Public API ─────────────────────────────────────────────────────────────
-
-  /** Screen transitions (throttled: max 1 per 2 s per user). */
   logNavigation(
     uid: string,
     username: string,
@@ -99,7 +72,6 @@ class ActivityLogger {
     const now = Date.now();
     if (now - this.lastNavTimestamp < this.NAV_THROTTLE_MS) return;
     this.lastNavTimestamp = now;
-
     this.write({
       uid,
       username,
@@ -110,8 +82,6 @@ class ActivityLogger {
       source: 'player',
     });
   }
-
-  /** Player actions (tape play, QR scan, eject, etc). */
   logAction(
     uid: string,
     username: string,
@@ -129,8 +99,6 @@ class ActivityLogger {
       source: 'player',
     });
   }
-
-  /** System-level events (login, logout, sync). */
   logSystem(
     uid: string,
     username: string,
@@ -148,8 +116,6 @@ class ActivityLogger {
       source: 'player',
     });
   }
-
-  /** Network errors or connectivity events. */
   logNetwork(
     uid: string,
     username: string,
@@ -166,8 +132,6 @@ class ActivityLogger {
       source: 'player',
     });
   }
-
-  /** Errors — always immediate, never throttled. */
   logError(
     uid: string,
     username: string,
@@ -185,8 +149,6 @@ class ActivityLogger {
       source: 'player',
     });
   }
-
-  /** Admin-initiated actions. */
   logAdmin(
     adminName: string,
     category: string,
@@ -203,8 +165,6 @@ class ActivityLogger {
       source: 'admin',
     });
   }
-
-  /** Auth events (login, logout) */
   logAuth(
     uid: string,
     username: string,
@@ -222,8 +182,6 @@ class ActivityLogger {
       source: 'player',
     });
   }
-
-  /** Detailed execution steps (trace level) */
   logTrace(
     adminName: string,
     category: string,
@@ -241,5 +199,4 @@ class ActivityLogger {
     });
   }
 }
-
 export const activityLogger = ActivityLogger.getInstance();
