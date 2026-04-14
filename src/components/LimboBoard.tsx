@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { firestoreMarkThreadReadGlobal, firestoreGrantAchievements } from '../store/firestore';
-
 interface LimboBoardProps {
   uid: string;
   onClose: () => void;
@@ -9,16 +8,12 @@ interface LimboBoardProps {
   readThreadIds: string[];
   onBackToTerminal?: () => void;
 }
-
-// ── Thread Data ────────────────────────────────────────────────────────────────
-
 interface Post {
   author: string;
   date: string;
   content: React.ReactNode;
   style?: 'normal' | 'malware' | 'sysop';
 }
-
 interface Thread {
   id: string;
   title: string;
@@ -26,7 +21,6 @@ interface Thread {
   replies: number;
   posts: Post[];
 }
-
 const THREADS: Thread[] = [
   {
     id: 'thread-missing', title: 'Onde está LiN99? Alguém teve notícias pós-virada?', author: 'CyberFreak', replies: 4,
@@ -131,18 +125,13 @@ const THREADS: Thread[] = [
     ]
   },
 ];
-
-// ── Component ─────────────────────────────────────────────────────────────────
-
 export default function LimboBoard({ uid, onClose, globalSeizedStatus, readThreadIds, onBackToTerminal }: LimboBoardProps) {
   const [view, setView] = useState<'intro' | 'forum' | 'thread' | 'military'>(globalSeizedStatus ? 'military' : 'intro');
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
   const [onlineUsers, setOnlineUsers] = useState(84);
   const [matrixLog, setMatrixLog] = useState('');
-
   const rawData = `ˇÿˇ‡ JFIF  HHˇ·LExifMM*  ái    †    †     †   «ˇÌ8Photoshop 3.08BIM  8BIM % ' åŸè≤ ÈÄ	òÏ¯B~ˇ¿  «    "      ˇƒ                 	
  ˇƒµ             }       !1A  Qa "q 2Åë° #B±¡ R—$3brÇ	`;
-
   useEffect(() => {
     if (globalSeizedStatus && view !== 'military') {
       setView('military');
@@ -151,9 +140,7 @@ export default function LimboBoard({ uid, onClose, globalSeizedStatus, readThrea
       setView('forum');
     }
   }, [globalSeizedStatus, view]);
-
   const effectiveView = globalSeizedStatus ? 'military' : view;
-
   useEffect(() => {
     if (view !== 'intro' || globalSeizedStatus) return;
     let charIndex = 0;
@@ -163,7 +150,6 @@ export default function LimboBoard({ uid, onClose, globalSeizedStatus, readThrea
       charIndex += 80;
       if (charIndex >= rawData.length) clearInterval(interval);
     }, 40);
-
     const timer = setTimeout(() => {
       clearInterval(interval);
       setView('forum');
@@ -171,7 +157,6 @@ export default function LimboBoard({ uid, onClose, globalSeizedStatus, readThrea
     }, 2800);
     return () => { clearInterval(interval); clearTimeout(timer); };
   }, [view, globalSeizedStatus, uid, rawData]);
-
   useEffect(() => {
     const inter = setInterval(() => {
       setOnlineUsers(prev => {
@@ -182,20 +167,16 @@ export default function LimboBoard({ uid, onClose, globalSeizedStatus, readThrea
     }, 5000);
     return () => clearInterval(inter);
   }, []);
-
   const openThread = (id: string) => {
     firestoreMarkThreadReadGlobal(id).catch(console.error);
     setActiveThreadId(id);
     setView('thread');
   };
-
   const closeThread = () => {
     setView(globalSeizedStatus ? 'military' : 'forum');
     setActiveThreadId(null);
   };
-
   const activeThread = THREADS.find(t => t.id === activeThreadId);
-
   return (
     <motion.div
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -209,7 +190,6 @@ export default function LimboBoard({ uid, onClose, globalSeizedStatus, readThrea
         @keyframes blinker { 50%{opacity:0} }
       `}</style>
 
-      {/* Disconnect button */}
       {effectiveView !== 'intro' && (
         <div className="fixed top-2 right-4 z-50 flex gap-2">
           {onBackToTerminal && (
@@ -224,19 +204,17 @@ export default function LimboBoard({ uid, onClose, globalSeizedStatus, readThrea
             onClick={onClose}
             className={`border px-2 py-1 uppercase text-xs transition-colors ${effectiveView === 'military' ? 'text-red-500 border-red-500 hover:bg-red-500 hover:text-black' : 'text-[#33FF33] border-[#33FF33] hover:bg-[#33FF33] hover:text-[#050505]'}`}
           >
-            {effectiveView === 'military' ? '[ ABORT CONNECTION ]' : '[ DESCONECTAR_ ]'}
+            {effectiveView === 'military' ? '[ ABORTAR CONEXÃO ]' : '[ DESCONECTAR_ ]'}
           </button>
         </div>
       )}
 
-      {/* Intro: Matrix log */}
       {effectiveView === 'intro' && (
         <div className="w-full h-full p-4 whitespace-pre-wrap text-[10px] sm:text-xs opacity-70 text-[#00FF41] overflow-hidden">
           {matrixLog}
         </div>
       )}
 
-      {/* Military Seizure view */}
       {effectiveView === 'military' && (
         <div className="mt-12 mx-auto max-w-4xl text-center text-red-600">
           <pre className="text-[10px] mx-auto inline-block text-left mb-6">{`
@@ -245,21 +223,19 @@ export default function LimboBoard({ uid, onClose, globalSeizedStatus, readThrea
  /     \\
 / USArmy\\
 /________\\`}</pre>
-          <h1 className="text-3xl font-bold mb-2 uppercase">ERROR 404</h1>
-          <h2 className="text-xl font-bold mb-4 uppercase">Domain Seized by the United States Department of Defense</h2>
-          <p className="mb-6 font-bold uppercase">OPERATION FIREWALL</p>
-          <p className="text-sm">This server and its contents are now classified under national security protocols.</p>
+          <h1 className="text-3xl font-bold mb-2 uppercase">ERRO 404</h1>
+          <h2 className="text-xl font-bold mb-4 uppercase">Domínio Apreendido pelo Departamento de Defesa dos Estados Unidos</h2>
+          <p className="mb-6 font-bold uppercase">OPERAÇÃO FIREWALL</p>
+          <p className="text-sm">Este servidor e seu conteúdo estão agora classificados sob protocolos de segurança nacional.</p>
           <p className="text-sm mt-6" style={{ animation: 'blinker 1s linear infinite' }}>
-            YOUR IP ADDRESS (212.45.01.01) HAS BEEN LOGGED. DISCONNECT IMMEDIATELY.
+            SEU ENDEREÇO IP (212.45.01.01) FOI REGISTRADO. DESCONECTE IMEDIATAMENTE.
           </p>
         </div>
       )}
 
-      {/* Forum + Thread views */}
       {(effectiveView === 'forum' || effectiveView === 'thread') && (
         <div className="max-w-4xl mx-auto border-2 border-[#33FF33] p-2 sm:p-6 mt-8 sm:mt-12 bg-black min-h-[85vh] flex flex-col">
-
-          {/* ASCII Header */}
+    
           <div className="text-center text-[9px] sm:text-sm mb-4 sm:mb-6 uppercase overflow-x-hidden">
             <pre className="overflow-x-auto">{`  _      _____ __  __ ____   ____     ___  __  
  | |    |_   _|  \\/  |  _ \\ / __ \\   / _ \\/_ | 
@@ -268,20 +244,17 @@ export default function LimboBoard({ uid, onClose, globalSeizedStatus, readThrea
  | |____ _| |_| |  | | |_) | |__| | | |_| || | 
  |______|_____|_|  |_|____/ \\____/   \\___/ |_| `}</pre>
             <div className="mt-2 border-t border-b border-dashed border-[#33FF33] py-1 text-xs">
-              SERVER STATUS: CONNECTED // USERS ONLINE: {onlineUsers}
+              STATUS DO SERVIDOR: CONECTADO 
             </div>
           </div>
-
-          {/* Marquee */}
+    
           <div className="bg-[#33FF33] text-black font-bold text-xs p-1 mb-3 sm:mb-4 overflow-hidden whitespace-nowrap">
             <div className="inline-block animate-[marquee_20s_linear_infinite] sm:animate-none">
-              [AVISO DO SYSOP] O BUG DO MILÊNIO NÃO É UMA FALHA, É UM RECURSO /// MANTENHAM SUAS FREQUÊNCIAS CALIBRADAS /// A JANELA ABRE NO ZERO ///
+              [AVISO DO SYSOP] O BUG DO MILÊNIO NÃO É UMA FALHA, É UM RECURSO 
             </div>
           </div>
-
           <p className="text-xs mb-4">&gt; CONECTADO VIA IP: 212.45.01.01</p>
-
-          {/* Forum List */}
+    
           {effectiveView === 'forum' && (
             <div className="flex-1">
               <h2 className="text-xs sm:text-sm font-bold border-b border-[#33FF33] pb-2 mb-4">&gt;&gt; BBS BOARD: DISCUSSÕES GERAIS E ANOMALIAS GLOBAIS</h2>
@@ -315,15 +288,13 @@ export default function LimboBoard({ uid, onClose, globalSeizedStatus, readThrea
               <p className="mt-6 text-xs text-green-800">&gt; Sistema monitorando leitura global de dados... [{readThreadIds.length}/{THREADS.length}]</p>
             </div>
           )}
-
-          {/* Thread View */}
+    
           {effectiveView === 'thread' && activeThread && (
             <div className="flex-1 flex flex-col">
               <div className="flex justify-between items-start mb-4 gap-4">
                 <h2 className="text-xs sm:text-sm font-bold">&gt;&gt; TÓPICO: {activeThread.title}</h2>
                 <button onClick={closeThread} className="shrink-0 text-xs border border-[#33FF33] px-2 py-1 hover:bg-[#33FF33] hover:text-black">[VOLTAR]</button>
               </div>
-
               <div className="flex-1 space-y-3 overflow-y-auto pr-1">
                 {activeThread.posts.map((post, i) => (
                   <div
@@ -348,7 +319,6 @@ export default function LimboBoard({ uid, onClose, globalSeizedStatus, readThrea
               </div>
             </div>
           )}
-
         </div>
       )}
     </motion.div>

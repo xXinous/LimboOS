@@ -1,12 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useSwipeable } from 'react-swipeable';
-
 import LoginScreen from './components/LoginScreen';
 import ProfileScreen from './components/ProfileScreen';
 import ToastNotification from './components/ToastNotification';
 import type { Toast } from './components/ToastNotification';
-
 import CassetteVisor from './components/player/CassetteVisor';
 import TapeLibrary from './components/player/TapeLibrary';
 import SideControls from './components/player/SideControls';
@@ -18,25 +16,20 @@ import DiskRepairApp from './components/DiskRepairApp';
 import MacOsApp from './components/MacOsApp';
 import Windows95App from './components/Windows95App';
 import EvidenceReader from './components/EvidenceReader';
-
 import { audioEngine } from './services/AudioEngine';
 import { analyticsTracker } from './services/AnalyticsTracker';
 import { activityLogger } from './services/ActivityLogger';
 import { tapeManager } from './services/TapeManager';
 import { playerSyncService } from './services/PlayerSyncService';
-
 import { onAuthStateChanged, logout } from './store/profile';
 import type { PlayerData, PlayerStats, LimboGlobalState } from './store/firestore';
 import { loadPlayerData, firestoreUpdateSpotifyPlaylist } from './store/firestore';
 import type { Tape } from './data/tapes';
-
 import type { AppScreen, TapeState, DisplayMode } from './types/player';
-
-export default function App() {
+export default function Player() {
   const [playerData, setPlayerData] = useState<PlayerData | null | undefined>(null);
   const [localStats, setLocalStats] = useState<PlayerStats | null>(null);
   const [screen, setScreen] = useState<AppScreen>('login');
-
   const [tapeState, setTapeState]     = useState<TapeState>('empty');
   const [currentTape, setCurrentTape] = useState<Tape | null>(null);
   const [isPlaying, setIsPlaying]     = useState(false);
@@ -47,14 +40,10 @@ export default function App() {
   const [toasts, setToasts]           = useState<Toast[]>([]);
   const [scanTimes, setScanTimes]     = useState<number[]>([]);
   const [ownedTapes, setOwnedTapes]   = useState<Tape[]>([]);
-  
   const [limboStatus, setLimboStatus] = useState<LimboGlobalState>({ seized: false });
   const [activeEvidence, setActiveEvidence] = useState<Tape | null>(null);
-
   const hasPlayedCurrentTape = useRef(false);
   const prevScreenRef = useRef<AppScreen>('login');
-
-  // ── Auth & Data Loading ──────────────────────────────────────────────────
   useEffect(() => {
     const unsub = onAuthStateChanged(async (user) => {
       try {
@@ -75,15 +64,12 @@ export default function App() {
         }
       } catch (err) {
         console.warn('[Auth] Error during post-login data fetch:', err);
-        // Fallback or retry logic if needed, but at least it's caught.
         setPlayerData(undefined);
         setScreen('login');
       }
     });
     return unsub;
   }, []);
-
-  // ── Analytics Tracker Initialization ─────────────────────────────────────
   useEffect(() => {
     if (playerData && localStats) {
       analyticsTracker.init(
@@ -95,14 +81,10 @@ export default function App() {
     }
     return () => { analyticsTracker.stopAll(); };
   }, [playerData?.uid]);
-
-  // Update volume in Engine & Tracker
   useEffect(() => {
     audioEngine.setVolume(volume);
     analyticsTracker.setVolume(volume);
   }, [volume]);
-
-  // ── Real-time Player Sync Service ─────────────────────────────────────────
   useEffect(() => {
     playerSyncService.subscribeToPlayerData(
       playerData?.uid,
@@ -110,7 +92,6 @@ export default function App() {
         setPlayerData((prev) => {
           if (!prev) return prev;
           const merged = { ...prev, ...updatedData };
-          // Ensure tracker knows about new tapes/flags
           analyticsTracker.updatePlayerData(merged);
           return merged;
         });
@@ -118,11 +99,8 @@ export default function App() {
       (screenSetter) => setScreen(screenSetter),
       (lState) => setLimboStatus(lState)
     );
-
     return () => playerSyncService.stopAll();
   }, [playerData?.uid]);
-
-  // ── Tape resolving (Local & Remote) ──────────────────────────────────────
   useEffect(() => {
     if (playerData) {
       tapeManager.getOwnedTapes(playerData.unlockedTapeIds)
@@ -132,15 +110,12 @@ export default function App() {
       setOwnedTapes([]);
     }
   }, [playerData?.unlockedTapeIds]);
-
-  // ── Audio Engine Hooks ───────────────────────────────────────────────────
   useEffect(() => {
     audioEngine.setOnEnded(() => {
       setIsPlaying(false);
       analyticsTracker.endPlayback();
     });
   }, []);
-
   useEffect(() => {
     if (currentTape) {
       audioEngine.loadTrack(currentTape.audioUrl);
@@ -151,7 +126,6 @@ export default function App() {
     }
     return () => audioEngine.clearTrack();
   }, [currentTape?.id]);
-
   useEffect(() => {
     if (isPlaying) {
       hasPlayedCurrentTape.current = true;
@@ -162,28 +136,20 @@ export default function App() {
       analyticsTracker.pausePlayback();
     }
   }, [isPlaying, currentTape?.id]);
-
-  // ── Toast helpers ─────────────────────────────────────────────────────────
   const addToast = useCallback((toast: Omit<Toast, 'id'>) => {
     const id = Math.random().toString(36).slice(2);
     setToasts(prev => [...prev, { ...toast, id }]);
   }, []);
-
   const dismissToast = useCallback((id: string) => {
     setToasts(prev => prev.filter(t => t.id !== id));
   }, []);
-
-  // ── QR detection  ─────────────────────────────────────────────────────────
   const handleQrDetected = useCallback(async (code: string) => {
     if (!playerData || !localStats) {
       addToast({ type: 'error', title: 'Aguarde', subtitle: 'Perfil ainda carregando. Tente de novo.', icon: '⏳' });
       return;
     }
-
     setTapeState('empty');
-
     activityLogger.logAction(playerData.uid, playerData.username, 'qr_scan', `QR escaneado: ${code}`, { code });
-
     try {
       const tape = await tapeManager.resolveTape(code);
       if (!tape) {
@@ -191,54 +157,42 @@ export default function App() {
         activityLogger.logError(playerData.uid, playerData.username, `QR desconhecido: ${code}`, undefined, { code });
         return;
       }
-
       const { alreadyOwned, updatedTapeIds } = await tapeManager.unlockTape(playerData, tape.id);
-
       const now = Date.now();
       const recentScans = [...scanTimes.filter(t => now - t < 5 * 60 * 1000), now];
       setScanTimes(recentScans);
-
       analyticsTracker.checkAchievements(recentScans);
       setPlayerData({ ...playerData, unlockedTapeIds: updatedTapeIds });
-
       hasPlayedCurrentTape.current = false;
       setIsChangingTape(true);
       setIsPlaying(false);
-      
       setTimeout(() => {
         setCurrentTape(tape);
         setTapeState('loaded');
         setIsChangingTape(false);
         addToast({ type: 'tape', title: alreadyOwned ? 'Fita Inserida' : 'Fita Desbloqueada!', subtitle: tape.title, icon: '📼' });
       }, 400);
-
       activityLogger.logAction(playerData.uid, playerData.username, alreadyOwned ? 'tape_insert' : 'tape_unlock', `${alreadyOwned ? 'Inseriu' : 'Desbloqueou'} fita: ${tape.title}`, { tapeId: tape.id, tapeTitle: tape.title, alreadyOwned });
-
     } catch (err) {
       console.error('QR error:', err);
       addToast({ type: 'error', title: 'Erro ao analisar fita', subtitle: 'Tente dnv', icon: '⚠️' });
       activityLogger.logError(playerData.uid, playerData.username, `Erro QR: ${err instanceof Error ? err.message : String(err)}`, err instanceof Error ? err.stack : undefined);
     }
   }, [playerData, localStats, scanTimes, addToast]);
-
-  // ── Actions ───────────────────────────────────────────────────────────────
   const checkEjectWithoutPlay = useCallback(() => {
     if (!hasPlayedCurrentTape.current && currentTape) {
       analyticsTracker.incrementStat('ejectWithoutPlay');
     }
   }, [currentTape]);
-
   const handleRewind = () => {
     if (!currentTape || isRewinding) return;
     setIsRewinding(true);
     setIsPlaying(false);
     audioEngine.stop();
-
     setTimeout(() => {
       setIsRewinding(false);
     }, 1500);
   };
-
   const handleEject = () => { 
     checkEjectWithoutPlay();
     if (playerData && currentTape) {
@@ -247,7 +201,6 @@ export default function App() {
     setIsPlaying(false); setTapeState('empty'); setCurrentTape(null); 
     analyticsTracker.forceSyncToServer();
   };
-
   const handleTapeSelect = (tape: Tape) => {
     if (tape.type === 'disk') {
       setActiveEvidence(tape);
@@ -261,21 +214,17 @@ export default function App() {
     setTimeout(() => { setCurrentTape(tape); setTapeState('loaded'); setIsChangingTape(false); }, 400);
     if (playerData) activityLogger.logAction(playerData.uid, playerData.username, 'tape_select', `Selecionou fita: ${tape.title}`, { tapeId: tape.id });
   };
-
   const handleModeChange = (dir: 'up' | 'down') => {
     const modes: DisplayMode[] = ['default', 'title', 'chapter'];
     const idx = modes.indexOf(displayMode);
     setDisplayMode(modes[(idx + (dir === 'up' ? 1 : -1) + modes.length) % modes.length]);
   };
-
   const handleLogout = async () => {
     if (playerData) activityLogger.logAuth(playerData.uid, playerData.username, 'logout', `${playerData.username} desconectou do sistema`);
     analyticsTracker.stopAll();
     await logout();
     setCurrentTape(null); setTapeState('empty'); setIsPlaying(false);
   };
-
-  // ── Swipe Gestures ────────────────────────────────────────────────────────
   const swipeHandlers = useSwipeable({
     onSwipedLeft: () => {
       if (screen === 'player' && playerData) {
@@ -293,8 +242,6 @@ export default function App() {
     trackMouse: true,
     preventScrollOnSwipe: true,
   });
-
-  // ── UI Loading / Nav ──────────────────────────────────────────────────────
   if (playerData === null) {
     return (
       <div className="fixed inset-0 flex items-center justify-center bg-surface">
@@ -304,14 +251,11 @@ export default function App() {
       </div>
     );
   }
-
-  // ── Renderer ──────────────────────────────────────────────────────────────
   return (
     <div {...swipeHandlers} className="fixed inset-0 bg-surface flex items-center justify-center p-0 sm:p-4 overflow-hidden select-none touch-none">
       <div className="noise-overlay" />
       <div className="scanlines" />
       <div className="vignette" />
-
       <AnimatePresence mode="wait">
         {screen === 'login' || playerData === undefined ? (
           <motion.div
@@ -387,12 +331,10 @@ export default function App() {
           >
             <div className="absolute inset-0 bg-linear-to-br from-white/5 to-transparent pointer-events-none" />
             <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPjxyZWN0IHdpZHRoPSI0IiBoZWlnaHQ9IjQiIGZpbGw9IiMyMjIiPjwvcmVjdD48cGF0aCBkPSJNMCAwTDIgMk0yIDBMMCAyIiBzdHJva2U9IiMzMzMiIHN0cm9rZS13aWR0aD0iMSIvPjwvc3ZnPg==')] opacity-30 pointer-events-none mix-blend-overlay" />
-
             <Screw className="top-4 left-4" uid={playerData.uid} username={playerData.username} />
             <Screw className="top-4 right-4 -rotate-90" uid={playerData.uid} username={playerData.username} />
             <Screw className="bottom-4 left-4 -rotate-90" uid={playerData.uid} username={playerData.username} />
             <Screw className="bottom-4 right-4" uid={playerData.uid} username={playerData.username} />
-
             <CassetteVisor 
               currentTape={currentTape} 
               isPlaying={isPlaying} 
@@ -413,7 +355,6 @@ export default function App() {
               uid={playerData.uid}
               username={playerData.username}
             />
-
             <TapeLibrary 
               tapes={ownedTapes} 
               currentTapeId={currentTape?.id ?? null}
@@ -423,7 +364,6 @@ export default function App() {
               uid={playerData.uid}
               username={playerData.username}
             />
-
             <SideControls 
               volume={volume} 
               setVolume={setVolume} 
@@ -432,7 +372,6 @@ export default function App() {
               uid={playerData.uid}
               username={playerData.username}
             />
-
             <BottomControls 
               isPlaying={isPlaying} 
               setIsPlaying={setIsPlaying} 
@@ -449,13 +388,11 @@ export default function App() {
           </motion.div>
         )}
       </AnimatePresence>
-
       <AnimatePresence>
         {activeEvidence && (
           <EvidenceReader evidence={activeEvidence} onClose={() => setActiveEvidence(null)} />
         )}
       </AnimatePresence>
-
       <ToastNotification toasts={toasts} onDismiss={dismissToast} />
     </div>
   );

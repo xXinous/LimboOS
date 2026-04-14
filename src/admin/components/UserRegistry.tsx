@@ -5,12 +5,10 @@ import { userService, UserData, TapeData, PlayCountData } from "../../services/U
 import { db } from "../../lib/firebase";
 import { collection, onSnapshot } from "firebase/firestore";
 import { activityLogger } from "../../services/ActivityLogger";
-
 interface AudioData {
   id: string;
   originalName: string;
 }
-
 export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
   const [users, setUsers] = useState<UserData[]>([]);
   const { showAlert, modal } = useModal();
@@ -21,48 +19,38 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
   const [userPlayCounts, setUserPlayCounts] = useState<Record<string, PlayCountData[]>>({});
   const [userTotalPlays, setUserTotalPlays] = useState<Record<string, number>>({});
   const [userStats, setUserStats] = useState<Record<string, any>>({});
-  
   const [confirmDeleteUid, setConfirmDeleteUid] = useState<string | null>(null);
   const [confirmDeleteTape, setConfirmDeleteTape] = useState<{ uid: string; tapeId: string } | null>(null);
-
   const [availableAudios, setAvailableAudios] = useState<AudioData[]>([]);
   const [addTapeModal, setAddTapeModal] = useState<string | null>(null);
   const [selectedAudioId, setSelectedAudioId] = useState<string>("");
-
   const [showCreateUser, setShowCreateUser] = useState(false);
   const [newUserCodinome, setNewUserCodinome] = useState("");
   const [newUserPassword, setNewUserPassword] = useState("");
   const [newUserRole, setNewUserRole] = useState("member");
   const [createUserLoading, setCreateUserLoading] = useState(false);
   const [createUserFeedback, setCreateUserFeedback] = useState<string | null>(null);
-
   const [transferModal, setTransferModal] = useState<string | null>(null);
   const [transferTargetUid, setTransferTargetUid] = useState<string>("");
   const [transferLoading, setTransferLoading] = useState(false);
   const [transferFeedback, setTransferFeedback] = useState<string | null>(null);
-
   const [resetPasswordValue, setResetPasswordValue] = useState('');
   const [resetPasswordLoading, setResetPasswordLoading] = useState(false);
   const [resetPasswordFeedback, setResetPasswordFeedback] = useState<string | null>(null);
-
   useEffect(() => {
     const unsubUsers = userService.subscribeToUsers(setUsers);
     const unsubPlays = userService.subscribeToUserTotalPlays(setUserTotalPlays);
-
-    // Audio list still needs a small listener, could be moved to an AudioService later
     const unsubAudios = onSnapshot(collection(db, "audios"), (snapshot) => {
       const audios: AudioData[] = [];
       snapshot.forEach((d) => audios.push({ id: d.id, originalName: d.data().originalName || d.id }));
       setAvailableAudios(audios);
     });
-
     return () => {
       unsubUsers();
       unsubPlays();
       unsubAudios();
     };
   }, []);
-
   const loadUserTapes = async (uid: string) => {
     try {
       const details = await userService.loadUserDetails(uid);
@@ -76,7 +64,6 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
       activityLogger.logAdmin('gm.mpg', 'error_load_tapes', `Erro ao carregar tapes do usuário ${uid}: ${error?.message || error}`, { uid, errorCode: error?.code });
     }
   };
-
   const toggleExpand = (uid: string) => {
     if (expandedUser === uid) {
       setExpandedUser(null);
@@ -85,12 +72,10 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
       loadUserTapes(uid);
     }
   };
-
   const handleDelete = (uid: string) => {
     if (!isAdmin) return;
     executeDelete(uid);
   };
-
   const executeDelete = async (uid: string) => {
     setConfirmDeleteUid(null);
     try {
@@ -100,7 +85,6 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
       activityLogger.logAdmin('gm.mpg', 'error_delete_user', `Erro ao deletar usuário ${uid}: ${error?.message || error}`, { uid, errorCode: error?.code });
     }
   };
-
   const handleBackup = async (user: UserData) => {
     try {
       const backupJson = await userService.generateUserBackup(user);
@@ -119,7 +103,6 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
       showAlert('Erro de Backup', 'Falha ao criar o backup. Verifique o console.');
     }
   };
-
   const handleUpdateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingUser || !isAdmin) return;
@@ -138,12 +121,10 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
       showAlert('Erro ao Atualizar', 'Falha ao atualizar dados do usuário.');
     }
   };
-
   const handleDeleteTape = (uid: string, tapeId: string) => {
     if (!isAdmin) return;
     executeDeleteTape(uid, tapeId);
   };
-
   const executeDeleteTape = async (uid: string, tapeId: string) => {
     setConfirmDeleteTape(null);
     try {
@@ -154,12 +135,10 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
       activityLogger.logAdmin('gm.mpg', 'error_remove_tape', `Erro ao remover tape ${tapeId} do usuário ${uid}: ${error?.message || error}`, { uid, tapeId, errorCode: error?.code });
     }
   };
-
   const openAddTapeModal = (uid: string) => {
     setAddTapeModal(uid);
     setSelectedAudioId("");
   };
-
   const executeAddTape = async () => {
     if (!addTapeModal || !selectedAudioId) return;
     try {
@@ -172,14 +151,12 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
       activityLogger.logAdmin('gm.mpg', 'error_add_tape', `Erro ao adicionar tape ${selectedAudioId} ao usuário ${addTapeModal}: ${error?.message || error}`, { uid: addTapeModal, tapeId: selectedAudioId, errorCode: error?.code });
     }
   };
-
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newUserCodinome.trim() || !newUserPassword.trim()) return;
     setCreateUserLoading(true);
     setCreateUserFeedback(null);
     activityLogger.logTrace('gm.mpg', 'create_user_step', `Iniciando criação de usuário sintético: ${newUserCodinome}`);
-
     try {
       activityLogger.logTrace('gm.mpg', 'create_user_step', `Solicitando criação via Auth API (Firebase App secundário)...`);
       const uid = await userService.createSyntheticUser(newUserCodinome, newUserPassword, newUserRole);
@@ -202,13 +179,11 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
       setCreateUserLoading(false);
     }
   };
-
   const openTransferModal = (sourceUid: string) => {
     setTransferModal(sourceUid);
     setTransferTargetUid("");
     setTransferFeedback(null);
   };
-
   const executeTransfer = async () => {
     if (!transferModal || !transferTargetUid || transferModal === transferTargetUid) {
       setTransferFeedback("ERRO: Selecione um usuário destino diferente.");
@@ -217,7 +192,6 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
     setTransferLoading(true);
     setTransferFeedback(null);
     activityLogger.logTrace('gm.mpg', 'transfer_data_step', `Iniciando transferência de dados de ${transferModal} para ${transferTargetUid}...`);
-
     try {
       activityLogger.logTrace('gm.mpg', 'transfer_data_step', `Movendo tapes, achievements e reatribuindo playEvents...`);
       const result = await userService.transferData(transferModal, transferTargetUid);
@@ -232,16 +206,13 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
       setTransferLoading(false);
     }
   };
-
   const filteredUsers = users.filter(
     (u) =>
       u.displayName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       u.username?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       u.email?.toLowerCase().includes(searchQuery.toLowerCase()),
   );
-
   const sourceUser = transferModal ? users.find((u) => u.uid === transferModal) : null;
-
   const handleResetPassword = async () => {
     if (!editingUser || resetPasswordValue.length < 6) return;
     setResetPasswordLoading(true);
@@ -250,7 +221,6 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
     try {
       activityLogger.logTrace('gm.mpg', 'password_reset_step', `Invocando Cloud Function adminResetPassword...`);
       await userService.resetUserPassword(editingUser.uid, resetPasswordValue);
-      // The cloud function already logs the final outcome via logAdmin using Firebase Admin SDK
       setResetPasswordFeedback(`✓ Senha alterada com sucesso para ${editingUser.displayName || editingUser.username}.`);
       setResetPasswordValue('');
     } catch (error: any) {
@@ -261,7 +231,6 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
       setResetPasswordLoading(false);
     }
   };
-
   return (
     <section className="bg-surface border border-zinc-800 relative">
       {modal}
@@ -269,9 +238,9 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
         <div className="flex items-center gap-4">
           <div className="w-2 h-6 bg-orange-600"></div>
           <h2 className="font-headline font-bold uppercase tracking-widest text-lg">
-            User_Base_Registry
+            Registro_Base_de_Usuarios
           </h2>
-          <span className="text-[10px] font-label text-zinc-500 tracking-wider">{users.length} REGISTERED</span>
+          <span className="text-[10px] font-label text-zinc-500 tracking-wider">{users.length} REGISTRADOS</span>
         </div>
         <div className="flex gap-2">
           {isAdmin && (
@@ -286,29 +255,28 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
               className="flex items-center gap-1.5 bg-emerald-900/40 text-emerald-400 px-4 py-2 rounded-sm font-label text-[10px] font-bold tracking-widest hover:bg-emerald-800/40 transition-all machined-edge border border-emerald-700/30"
             >
               <span className="material-symbols-outlined text-xs">person_add</span>
-              ADD_USER
+              CRIAR_USUARIO
             </button>
           )}
           <input
             type="text"
-            placeholder="QUERY_NAME..."
+            placeholder="BUSCAR_NOME..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="bg-surface-container-lowest border-zinc-800 text-[10px] font-label uppercase tracking-widest focus:ring-1 focus:ring-orange-500 focus:border-orange-500 w-64 placeholder:text-zinc-700 text-zinc-300 px-3 py-2"
           />
         </div>
       </div>
-
       <div className="overflow-x-auto">
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="bg-surface-container-low border-b border-zinc-800">
-              <th className="p-4 font-label text-[10px] uppercase tracking-widest text-zinc-500">Character Name</th>
+              <th className="p-4 font-label text-[10px] uppercase tracking-widest text-zinc-500">Nome do Personagem</th>
               <th className="p-4 font-label text-[10px] uppercase tracking-widest text-zinc-500">Email</th>
-              <th className="p-4 font-label text-[10px] uppercase tracking-widest text-zinc-500">Last Login</th>
-              <th className="p-4 font-label text-[10px] uppercase tracking-widest text-zinc-500">Access_Lvl</th>
-              <th className="p-4 font-label text-[10px] uppercase tracking-widest text-zinc-500">Total_Plays</th>
-              <th className="p-4 font-label text-[10px] uppercase tracking-widest text-zinc-500 text-right">Actions</th>
+              <th className="p-4 font-label text-[10px] uppercase tracking-widest text-zinc-500">Último Login</th>
+              <th className="p-4 font-label text-[10px] uppercase tracking-widest text-zinc-500">Nível_de_Acesso</th>
+              <th className="p-4 font-label text-[10px] uppercase tracking-widest text-zinc-500">Total_de_Reproduções</th>
+              <th className="p-4 font-label text-[10px] uppercase tracking-widest text-zinc-500 text-right">Ações</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-800">
@@ -320,7 +288,7 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
                   </td>
                   <td className="p-4 font-body text-xs text-zinc-400">{user.email}</td>
                   <td className="p-4 font-body text-xs text-zinc-400">
-                    {user.lastLogin ? format(user.lastLogin.toDate(), "yyyy.MM.dd // HH:mm") : "NEVER"}
+                    {user.lastLogin ? format(user.lastLogin.toDate(), "yyyy.MM.dd // HH:mm") : "NUNCA"}
                   </td>
                   <td className="p-4">
                     <span className={`px-2 py-0.5 border text-[8px] font-label uppercase ${
@@ -335,17 +303,16 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
                   </td>
                   <td className="p-4 text-right" onClick={(e) => e.stopPropagation()}>
                     <div className="flex justify-end gap-2">
-                      <button onClick={() => { setEditingUser(user); setResetPasswordValue(''); setResetPasswordFeedback(null); }} className="material-symbols-outlined text-sm text-zinc-500 hover:text-orange-400 transition-colors" title="Edit Profile">edit</button>
-                      <button onClick={() => openTransferModal(user.uid)} className="material-symbols-outlined text-sm text-zinc-500 hover:text-purple-400 transition-colors" title="Transfer Data">sync_alt</button>
-                      <button onClick={() => handleBackup(user)} className="material-symbols-outlined text-sm text-zinc-500 hover:text-blue-400 transition-colors" title="Backup User">download</button>
-                      <button onClick={() => toggleExpand(user.uid)} className="material-symbols-outlined text-sm text-zinc-500 hover:text-tertiary transition-colors" title="View Tapes">
+                      <button onClick={() => { setEditingUser(user); setResetPasswordValue(''); setResetPasswordFeedback(null); }} className="material-symbols-outlined text-sm text-zinc-500 hover:text-orange-400 transition-colors" title="Editar Perfil">edit</button>
+                      <button onClick={() => openTransferModal(user.uid)} className="material-symbols-outlined text-sm text-zinc-500 hover:text-purple-400 transition-colors" title="Transferir Dados">sync_alt</button>
+                      <button onClick={() => handleBackup(user)} className="material-symbols-outlined text-sm text-zinc-500 hover:text-blue-400 transition-colors" title="Backup do Usuário">download</button>
+                      <button onClick={() => toggleExpand(user.uid)} className="material-symbols-outlined text-sm text-zinc-500 hover:text-tertiary transition-colors" title="Ver Fitas">
                         {expandedUser === user.uid ? 'expand_less' : 'expand_more'}
                       </button>
-                      <button onClick={() => handleDelete(user.uid)} className="material-symbols-outlined text-sm text-zinc-500 hover:text-error transition-colors" title="Delete Profile">delete</button>
+                      <button onClick={() => handleDelete(user.uid)} className="material-symbols-outlined text-sm text-zinc-500 hover:text-error transition-colors" title="Excluir Perfil">delete</button>
                     </div>
                   </td>
                 </tr>
-
                 {expandedUser === user.uid && (
                   <tr>
                     <td colSpan={6} className="bg-zinc-900/50 border-l-4 border-orange-500/30">
@@ -353,13 +320,12 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             <span className="material-symbols-outlined text-orange-500 text-sm">album</span>
-                            <h4 className="font-label text-[10px] uppercase tracking-widest text-zinc-400">Unlocked_Tapes ({userTapes[user.uid]?.length || 0})</h4>
+                            <h4 className="font-label text-[10px] uppercase tracking-widest text-zinc-400">Fitas_Desbloqueadas ({userTapes[user.uid]?.length || 0})</h4>
                           </div>
                           <button onClick={() => openAddTapeModal(user.uid)} className="flex items-center gap-1 text-[10px] font-label uppercase tracking-wider text-orange-500 hover:text-orange-400 transition-colors">
                             <span className="material-symbols-outlined text-xs">add</span>ADD_TAPE
                           </button>
                         </div>
-
                         {userTapes[user.uid]?.length ? (
                           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
                             {userTapes[user.uid].map((tape) => {
@@ -370,32 +336,30 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
                                   <div className="flex-1 min-w-0">
                                     <p className="font-headline text-xs font-bold text-zinc-200 truncate">{audioInfo?.originalName || tape.tapeId}</p>
                                     <div className="flex items-center gap-3 mt-1">
-                                      <span className="text-[9px] font-label text-zinc-500"><span className="material-symbols-outlined text-[10px] align-middle mr-0.5">play_circle</span>{playCount} plays</span>
+                                      <span className="text-[9px] font-label text-zinc-500"><span className="material-symbols-outlined text-[10px] align-middle mr-0.5">play_circle</span>{playCount} reproduções</span>
                                       {tape.unlockedAt && <span className="text-[9px] font-label text-zinc-600">{tape.unlockedAt?.toDate ? format(tape.unlockedAt.toDate(), "dd/MM/yy") : ""}</span>}
                                     </div>
                                     {audioInfo && <p className="text-[8px] font-label text-zinc-700 mt-0.5 truncate">ID: {tape.tapeId}</p>}
                                   </div>
-                                  <button onClick={() => handleDeleteTape(user.uid, tape.tapeId)} className="material-symbols-outlined text-sm text-zinc-600 hover:text-error transition-colors ml-2" title="Remove tape">close</button>
+                                  <button onClick={() => handleDeleteTape(user.uid, tape.tapeId)} className="material-symbols-outlined text-sm text-zinc-600 hover:text-error transition-colors ml-2" title="Remover fita">close</button>
                                 </div>
                               );
                             })}
                           </div>
-                        ) : (<p className="text-zinc-600 text-xs font-label tracking-widest">NO_TAPES_UNLOCKED</p>)}
-
+                        ) : (<p className="text-zinc-600 text-xs font-label tracking-widest">NENHUMA_FITA_DESBLOQUEADA</p>)}
                         <div className="pt-4 border-t border-zinc-800/50">
                           <div className="flex items-center gap-2 mb-4">
                             <span className="material-symbols-outlined text-tertiary text-sm">explore</span>
-                            <h4 className="font-label text-[10px] uppercase tracking-widest text-zinc-400">Behavioral_Stats</h4>
+                            <h4 className="font-label text-[10px] uppercase tracking-widest text-zinc-400">Estatísticas_Comportamentais</h4>
                           </div>
                           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                            <StatBox label="Time Listened" value={formatSecs(userStats[user.uid]?.totalListenTime || 0)} />
-                            <StatBox label="Max Vol Time" value={formatSecs(userStats[user.uid]?.maxVolumeTime || 0)} />
-                            <StatBox label="Muted Time" value={formatSecs(userStats[user.uid]?.zeroVolumeTime || 0)} />
-                            <StatBox label="Screws Tampered" value={userStats[user.uid]?.screwClicks || 0} />
-                            <StatBox label="Anxious Ejects" value={userStats[user.uid]?.ejectWithoutPlay || 0} />
+                            <StatBox label="Tempo Ouvido" value={formatSecs(userStats[user.uid]?.totalListenTime || 0)} />
+                            <StatBox label="Tempo Vol Máx" value={formatSecs(userStats[user.uid]?.maxVolumeTime || 0)} />
+                            <StatBox label="Tempo Mutado" value={formatSecs(userStats[user.uid]?.zeroVolumeTime || 0)} />
+                            <StatBox label="Parafusos Mexidos" value={userStats[user.uid]?.screwClicks || 0} />
+                            <StatBox label="Ejeções Ansiosas" value={userStats[user.uid]?.ejectWithoutPlay || 0} />
                           </div>
                         </div>
-
                       </div>
                     </td>
                   </tr>
@@ -403,32 +367,31 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
               </React.Fragment>
             ))}
             {filteredUsers.length === 0 && (
-              <tr><td colSpan={6} className="p-8 text-center text-zinc-500 font-label text-xs tracking-widest">NO_RECORDS_FOUND</td></tr>
+              <tr><td colSpan={6} className="p-8 text-center text-zinc-500 font-label text-xs tracking-widest">NENHUM_REGISTRO_ENCONTRADO</td></tr>
             )}
           </tbody>
         </table>
       </div>
-
-      {/* Editing User Modal */}
+      {}
       {editingUser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
           <div className="bg-surface-container-low border border-zinc-700 p-6 w-full max-w-md machined-edge">
-            <h3 className="font-headline text-lg text-primary mb-4">EDIT_USER_PROFILE</h3>
+            <h3 className="font-headline text-lg text-primary mb-4">EDITAR_PERFIL_DO_USUARIO</h3>
             <form onSubmit={handleUpdateUser} className="space-y-4">
               <div>
-                <label className="block font-label text-[10px] text-zinc-400 mb-1">CODENAME / DISPLAY_NAME</label>
+                <label className="block font-label text-[10px] text-zinc-400 mb-1">CODINOME / NOME_DE_EXIBIÇÃO</label>
                 <input type="text" value={editingUser.displayName || ''} onChange={(e) => setEditingUser({ ...editingUser, displayName: e.target.value })} className="w-full bg-zinc-900 border border-zinc-700 text-zinc-200 px-3 py-2 text-sm focus:border-orange-500 outline-none" />
               </div>
               <div>
-                <label className="block font-label text-[10px] text-zinc-400 mb-1">ACCESS_LEVEL</label>
+                <label className="block font-label text-[10px] text-zinc-400 mb-1">NÍVEL_DE_ACESSO</label>
                 <select value={editingUser.role} onChange={(e) => setEditingUser({ ...editingUser, role: e.target.value })} className="w-full bg-zinc-900 border border-zinc-700 text-zinc-200 px-3 py-2 text-sm focus:border-orange-500 outline-none">
-                  <option value="member">MEMBER</option>
+                  <option value="member">MEMBRO</option>
                   <option value="premium">PREMIUM</option>
                   <option value="admin">ADMIN</option>
                 </select>
               </div>
               <div>
-                <label className="block font-label text-[10px] text-zinc-400 mb-1">UID (read-only)</label>
+                <label className="block font-label text-[10px] text-zinc-400 mb-1">UID (apenas leitura)</label>
                 <input type="text" value={editingUser.uid} readOnly className="w-full bg-zinc-950 border border-zinc-800 text-zinc-600 px-3 py-2 text-xs cursor-not-allowed" />
               </div>
               <div>
@@ -446,12 +409,11 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
                 <p className="text-[9px] font-label text-zinc-600 mt-1">Cole o link de uma playlist pública do Spotify para o Walkman pessoal do jogador.</p>
               </div>
               <div className="pt-4 flex justify-end gap-3">
-                <button type="button" onClick={() => setEditingUser(null)} className="px-4 py-2 text-xs font-label text-zinc-400 hover:text-white">CANCEL</button>
-                <button type="submit" className="px-4 py-2 text-xs font-label bg-primary-container text-on-primary font-bold tracking-wider hover:brightness-110">SAVE_CHANGES</button>
+                <button type="button" onClick={() => setEditingUser(null)} className="px-4 py-2 text-xs font-label text-zinc-400 hover:text-white">CANCELAR</button>
+                <button type="submit" className="px-4 py-2 text-xs font-label bg-primary-container text-on-primary font-bold tracking-wider hover:brightness-110">SALVAR_ALTERAÇÕES</button>
               </div>
             </form>
-
-            {/* Password Reset Section */}
+            {}
             <div className="mt-6 pt-5 border-t border-zinc-800">
               <div className="flex items-center gap-2 mb-3">
                 <span className="material-symbols-outlined text-amber-500 text-sm">lock_reset</span>
@@ -485,9 +447,7 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
           </div>
         </div>
       )}
-
-      {/* Delete User/Tape Modals... */}
-
+      {}
       {addTapeModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
           <div className="bg-surface-container-low border border-orange-500/30 p-6 w-full max-w-md machined-edge">
@@ -505,7 +465,6 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
           </div>
         </div>
       )}
-
       {showCreateUser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
           <div className="bg-surface-container-low border border-emerald-500/30 p-6 w-full max-w-md machined-edge">
@@ -513,7 +472,7 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
             <form onSubmit={handleCreateUser} className="space-y-4">
               <div><label className="block font-label text-[10px] text-zinc-400 mb-1">CODINOME (será usado como login)</label><input type="text" value={newUserCodinome} onChange={(e) => setNewUserCodinome(e.target.value)} placeholder="ex: agente_silva" className="w-full bg-zinc-900 border border-zinc-700 text-zinc-200 px-3 py-2 text-sm focus:border-emerald-500 outline-none placeholder:text-zinc-700" required /></div>
               <div><label className="block font-label text-[10px] text-zinc-400 mb-1">SENHA (mínimo 6 caracteres)</label><input type="password" value={newUserPassword} onChange={(e) => setNewUserPassword(e.target.value)} placeholder="••••••" className="w-full bg-zinc-900 border border-zinc-700 text-zinc-200 px-3 py-2 text-sm focus:border-emerald-500 outline-none placeholder:text-zinc-700" required minLength={6} /></div>
-              <div><label className="block font-label text-[10px] text-zinc-400 mb-1">ACCESS_LEVEL</label><select value={newUserRole} onChange={(e) => setNewUserRole(e.target.value)} className="w-full bg-zinc-900 border border-zinc-700 text-zinc-200 px-3 py-2 text-sm focus:border-emerald-500 outline-none"><option value="member">MEMBER</option><option value="premium">PREMIUM</option><option value="admin">ADMIN</option></select></div>
+              <div><label className="block font-label text-[10px] text-zinc-400 mb-1">ACCESS_LEVEL</label><select value={newUserRole} onChange={(e) => setNewUserRole(e.target.value)} className="w-full bg-zinc-900 border border-zinc-700 text-zinc-200 px-3 py-2 text-sm focus:border-emerald-500 outline-none"><option value="member">MEMBRO</option><option value="premium">PREMIUM</option><option value="admin">ADMIN</option></select></div>
               {createUserFeedback && (<p className={`text-[10px] font-label tracking-wider ${createUserFeedback.startsWith('ERRO') ? 'text-red-400' : 'text-emerald-400'}`}>{createUserFeedback}</p>)}
               <div className="pt-2 flex justify-end gap-3">
                 <button type="button" onClick={() => setShowCreateUser(false)} className="px-4 py-2 text-xs font-label text-zinc-400 hover:text-white border border-zinc-700 hover:border-zinc-500 transition-colors">CANCELAR</button>
@@ -523,7 +482,6 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
           </div>
         </div>
       )}
-
       {transferModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
           <div className="bg-surface-container-low border border-purple-500/30 p-6 w-full max-w-lg machined-edge">
@@ -544,7 +502,6 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
     </section>
   );
 }
-
 function StatBox({ label, value }: { label: string; value: string | number }) {
   return (
     <div className="bg-surface-container-lowest border border-zinc-800 p-3 flex flex-col justify-center">
@@ -553,7 +510,6 @@ function StatBox({ label, value }: { label: string; value: string | number }) {
     </div>
   );
 }
-
 function formatSecs(secs: number) {
   if (!secs) return '0s';
   if (secs < 60) return `${Math.floor(secs)}s`;

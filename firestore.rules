@@ -1,113 +1,67 @@
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // Function to check if the user is authenticated
     function isAuthenticated() {
       return request.auth != null;
     }
-
-    // Function to check if the user is an admin
-    // In our app, admin is gm.mpg@runningman.local
     function isAdmin() {
       return isAuthenticated() && request.auth.token.email == "gm.mpg@runningman.local";
     }
-
-    // Function to check if the user is accessing their own data
     function isOwner(uid) {
       return isAuthenticated() && request.auth.uid == uid;
     }
-
-    // Basic size validation to prevent massive payload DDOS (Storage exhaustion)
     function isValidPayloadSize() {
-      // Limit document sizes roughly by not allowing extremely large strings if needed.
-      return true; // Implemented basic boundary below where necessary
+      return request.resource.data.keys().size() < 50; 
     }
-
-    // ==========================================
-    // SYSTEM SETTINGS (limboState, etc)
-    // ==========================================
-    match /system/{document=**} {
-      // Anyone can read system state (like limbo)
+    match /qrRedirects/{redirectId} {
       allow read: if true;
-      // Only admin can write to most system docs
       allow write: if isAdmin();
     }
-
+    match /{path=**}/achievements/{achId} {
+      allow read: if isAdmin();
+    }
+    match /{path=**}/stats/{statDoc} {
+      allow read: if isAdmin();
+    }
+    match /system/{document=**} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
     match /system/limboState {
-      // Authenticated users can update global progress
       allow update: if isAuthenticated();
     }
-
-    // ==========================================
-    // USERS COLLECTION
-    // ==========================================
     match /users/{userId} {
-      // User can read their own profile. Admin can read all.
       allow read: if isOwner(userId) || isAdmin();
-      
-      // Allow users to create their own profile. Admin can write all.
       allow create: if isOwner(userId) || isAdmin();
-      
-      // Allow users to update only specific fields. Admin can update anything.
       allow update: if isAdmin() || (isOwner(userId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastLogin', 'spotifyPlaylistUrl', 'forceTerminalOpen', 'forceMacOpen']));
-
-      // Subcollection: tapes
+      allow delete: if isAdmin();
       match /tapes/{tapeId} {
         allow read: if isOwner(userId) || isAdmin();
-        // Allow creating a tape document (unlocking) but prevent huge payloads
         allow write: if isOwner(userId) || isAdmin();
       }
-
-      // Subcollection: achievements
       match /achievements/{achId} {
         allow read: if isOwner(userId) || isAdmin();
         allow write: if isOwner(userId) || isAdmin();
       }
-
-      // Subcollection: stats
       match /stats/{statDoc} {
         allow read: if isOwner(userId) || isAdmin();
-        // Users can update their stats
         allow write: if (isOwner(userId) && isValidPayloadSize()) || isAdmin();
       }
     }
-
-    // ==========================================
-    // AUDIOS COLLECTION
-    // ==========================================
     match /audios/{audioId} {
-      // Any authenticated user can read audio metadata to play tapes
       allow read: if isAuthenticated();
-      // Only Admin can add/edit audio metadata
       allow write: if isAdmin();
     }
-
-    // ==========================================
-    // PLAY EVENTS COLLECTION (Analytics)
-    // ==========================================
     match /playEvents/{eventId} {
-      // Only Admin can read analytics globally
       allow read: if isAdmin();
-      // Users can only create events for themselves
       allow create: if isOwner(request.resource.data.uid) && isValidPayloadSize();
       allow update, delete: if isAdmin();
     }
-    
-    // ==========================================
-    // ACTIVITY LOG COLLECTION (Live Feed / System Log)
-    // ==========================================
     match /activityLog/{logId} {
-      // Admin can read all logs
       allow read: if isAdmin();
-      // Authenticated users can create log entries (player-side logging)
       allow create: if isAuthenticated();
-      // Only admin can delete logs (clear logs feature)
       allow update, delete: if isAdmin();
     }
-    
-    // Default Deny
     match /{document=**} {
       allow read, write: if false;
     }

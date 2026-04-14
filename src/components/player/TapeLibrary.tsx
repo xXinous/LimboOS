@@ -3,7 +3,6 @@ import { activityLogger } from '../../services/ActivityLogger';
 import type { Tape } from '../../data/tapes';
 import type { DisplayMode } from '../../types/player';
 import React from 'react';
-
 export default function TapeLibrary({ tapes, currentTapeId, isPlaying, displayMode, onTapeSelect, uid, username }: {
   tapes: Tape[]; currentTapeId: string | null; isPlaying: boolean; displayMode: DisplayMode;
   onTapeSelect: (tape: Tape) => void;
@@ -14,7 +13,6 @@ export default function TapeLibrary({ tapes, currentTapeId, isPlaying, displayMo
     if (displayMode === 'chapter') return [...tapes].sort((a, b) => a.chapter.localeCompare(b.chapter));
     return tapes;
   }, [tapes, displayMode]);
-
   return (
     <div className="mt-6 flex-1 bg-[#1a1a1a] rounded-2xl border-2 border-[#333] overflow-hidden flex flex-col mr-[76px]">
       <div className="p-3 border-b border-[#333] flex items-center justify-between shrink-0">

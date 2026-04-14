@@ -4,7 +4,6 @@ import { FaApple } from 'react-icons/fa';
 import { motion, AnimatePresence } from 'motion/react';
 import { analyticsTracker } from '../../services/AnalyticsTracker';
 import { activityLogger } from '../../services/ActivityLogger';
-
 export default function BottomControls({ 
   isPlaying, 
   setIsPlaying, 
@@ -34,7 +33,6 @@ export default function BottomControls({
   const terminalAccess = !!hasTerminalAccess;
   const macAccess = !!hasMacAccess;
   const appCount = (terminalAccess ? 1 : 0) + (macAccess ? 1 : 0);
-
   const handleAppClick = () => {
     analyticsTracker.incrementStat('fidgetClicks');
     if (appCount > 1) {
@@ -46,11 +44,9 @@ export default function BottomControls({
       onMacOpen();
     }
   };
-
   return (
     <div className="mt-4 flex justify-between items-center px-2 shrink-0 relative" style={{ touchAction: 'manipulation' }}>
-      
-      {/* App Selector Menu */}
+      {}
       <AnimatePresence>
         {showMenu && appCount > 1 && (
           <motion.div

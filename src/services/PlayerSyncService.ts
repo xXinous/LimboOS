@@ -4,20 +4,16 @@ import { analyticsTracker } from './AnalyticsTracker';
 import { activityLogger } from './ActivityLogger';
 import type { PlayerData, LimboGlobalState } from '../store/firestore';
 import type { AppScreen } from '../types/player';
-
 export class PlayerSyncService {
   private static instance: PlayerSyncService;
   private unsubs: (() => void)[] = [];
-
   private constructor() {}
-
   public static getInstance(): PlayerSyncService {
     if (!PlayerSyncService.instance) {
       PlayerSyncService.instance = new PlayerSyncService();
     }
     return PlayerSyncService.instance;
   }
-
   public subscribeToPlayerData(
     uid: string | undefined,
     onPlayerDataUpdate: (data: Partial<PlayerData>) => void,
@@ -25,10 +21,7 @@ export class PlayerSyncService {
     onLimboUpdate: (limboStatus: LimboGlobalState) => void
   ) {
     this.stopAll();
-
     if (!uid) return;
-
-    // 1. Tapes Listener
     const unsubTapes = onSnapshot(collection(db, 'users', uid, 'tapes'), 
       (snapshot) => {
         const tapeIds = snapshot.docs.map((d) => d.id).sort();
@@ -38,14 +31,10 @@ export class PlayerSyncService {
         console.warn('[PlayerSyncService] Tapes listener error:', error);
       }
     );
-
-    // 2. User Settings / Flags Listener
     const unsubUser = onSnapshot(doc(db, 'users', uid), 
       (snap) => {
         if (snap.exists()) {
           const data = snap.data();
-          
-          // Handle forced screen transitions based on new flags
           if (data.forceTerminalOpen) {
             onScreenChange((prev) => {
               if (prev !== 'bios' && prev !== 'limbo' && prev !== 'diskRepair') {
@@ -71,7 +60,6 @@ export class PlayerSyncService {
               return prev;
             });
           }
-  
           const updatedData: Partial<PlayerData> = {
             hasTerminalAccess: !!data.hasTerminalAccess,
             hasMacAccess: !!data.hasMacAccess,
@@ -80,7 +68,6 @@ export class PlayerSyncService {
             username: data.username,
             achievementsRevealed: !!data.achievementsRevealed,
           };
-  
           onPlayerDataUpdate(updatedData);
         }
       },
@@ -88,8 +75,6 @@ export class PlayerSyncService {
         console.warn('[PlayerSyncService] User listener error:', error);
       }
     );
-
-    // 3. System Limbo Listener
     const unsubLimbo = onSnapshot(doc(db, 'system', 'limboState'), 
       (snap) => {
         const lState: LimboGlobalState = snap.exists()
@@ -104,14 +89,11 @@ export class PlayerSyncService {
         console.warn('[PlayerSyncService] Limbo listener error:', error);
       }
     );
-
     this.unsubs.push(unsubTapes, unsubUser, unsubLimbo);
   }
-
   public stopAll() {
     this.unsubs.forEach((unsub) => unsub());
     this.unsubs = [];
   }
 }
-
 export const playerSyncService = PlayerSyncService.getInstance();

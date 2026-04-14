@@ -1,22 +1,17 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Lock, User, Power, Cpu, ShieldCheck, AlertTriangle, ChevronRight } from 'lucide-react';
-
 export default function App() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
-
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setIsLoggingIn(true);
-
-    // Simulação de delay de processamento "industrial"
     await new Promise(resolve => setTimeout(resolve, 2000));
-
     if (email === 'admin@industria.com' && password === '123456') {
       setIsSuccess(true);
     } else {
@@ -24,12 +19,11 @@ export default function App() {
     }
     setIsLoggingIn(false);
   };
-
   return (
     <div className="min-h-screen flex items-center justify-center p-6 overflow-hidden relative">
       <div className="noise-overlay" />
       <div className="scanlines" />
-      {/* Background Decorative Elements */}
+
       <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none">
         <div className="absolute top-10 left-10 font-display text-[10vw] font-bold leading-none tracking-tighter">
           TAC-01
@@ -38,7 +32,6 @@ export default function App() {
           SYS-86
         </div>
       </div>
-
       <AnimatePresence mode="wait">
         {!isSuccess ? (
           <motion.div
@@ -48,15 +41,14 @@ export default function App() {
             exit={{ opacity: 0, scale: 1.05, y: -20 }}
             className="w-full max-max-w-md relative"
           >
-            {/* Main Chassis */}
+      
             <div className="bg-surface-container-low p-1 relative shadow-2xl">
-              {/* Module Label */}
+        
               <div className="absolute -top-3 right-6 bg-primary px-2 py-0.5 text-[10px] font-display font-bold text-black tracking-widest uppercase z-10">
                 MOD-AUTH-V4
               </div>
-
               <div className="bg-surface p-8 md:p-12">
-                {/* Header Section - Asymmetric */}
+          
                 <div className="mb-12 border-l-4 border-primary pl-6">
                   <h1 className="font-display text-4xl font-bold text-white tracking-tight uppercase mb-2">
                     Acesso ao <span className="text-primary">Terminal</span>
@@ -65,9 +57,8 @@ export default function App() {
                     Protocolo de Segurança Nível 04
                   </p>
                 </div>
-
                 <form onSubmit={handleLogin} className="space-y-8">
-                  {/* Input Fields */}
+            
                   <div className="space-y-6">
                     <div className="group">
                       <label className="block text-[10px] font-display font-bold uppercase tracking-[0.2em] mb-2 transition-colors group-focus-within:text-primary">
@@ -88,7 +79,6 @@ export default function App() {
                         <div className="absolute bottom-0 left-0 h-0.5 w-0 bg-primary transition-all duration-300 group-focus-within:w-full" />
                       </div>
                     </div>
-
                     <div className="group">
                       <label className="block text-[10px] font-display font-bold uppercase tracking-[0.2em] mb-2 transition-colors group-focus-within:text-primary">
                         Código de Encriptação
@@ -109,8 +99,7 @@ export default function App() {
                       </div>
                     </div>
                   </div>
-
-                  {/* Error Message */}
+            
                   <AnimatePresence>
                     {error && (
                       <motion.div
@@ -126,8 +115,7 @@ export default function App() {
                       </motion.div>
                     )}
                   </AnimatePresence>
-
-                  {/* Action Buttons - Heavy Right Weighting */}
+            
                   <div className="flex flex-col sm:flex-row items-center justify-between gap-6 pt-4">
                     <button
                       type="button"
@@ -136,7 +124,6 @@ export default function App() {
                       Recuperar Acesso
                       <span className="absolute -bottom-1 left-0 w-0 h-px bg-primary transition-all group-hover:w-1/2" />
                     </button>
-
                     <button
                       type="submit"
                       disabled={isLoggingIn}
@@ -157,8 +144,7 @@ export default function App() {
                   </div>
                 </form>
               </div>
-
-              {/* Decorative Footer Detail */}
+        
               <div className="bg-surface-container-highest h-12 flex items-center px-8 justify-between">
                 <div className="flex gap-1">
                   {[1, 2, 3, 4, 5].map((i) => (
@@ -172,7 +158,7 @@ export default function App() {
                   ))}
                 </div>
                 <div className="text-[9px] font-display text-industrial-silver/30 uppercase tracking-widest">
-                  Hardware Status: Nominal
+                  Status do Hardware: Nominal
                 </div>
               </div>
             </div>
@@ -199,7 +185,6 @@ export default function App() {
                 className="absolute -inset-4 border border-dashed border-primary/30 rounded-full"
               />
             </div>
-
             <div className="space-y-2">
               <h2 className="font-display text-5xl font-bold text-white uppercase tracking-tighter">
                 Acesso <span className="text-primary">Concedido</span>
@@ -208,7 +193,6 @@ export default function App() {
                 Bem-vindo de volta, Operador
               </p>
             </div>
-
             <div className="pt-8">
               <button
                 onClick={() => window.location.reload()}
@@ -222,7 +206,6 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Side HUD Info - Desktop Only */}
       <div className="hidden lg:block absolute left-12 top-1/2 -translate-y-1/2 space-y-12">
         <div className="space-y-4">
           <div className="flex items-center gap-3">
@@ -237,19 +220,16 @@ export default function App() {
             />
           </div>
         </div>
-
         <div className="space-y-2">
           <div className="text-[9px] font-display text-industrial-silver/40 uppercase tracking-widest">Localização do Nó</div>
-          <div className="text-xs font-display font-bold text-industrial-silver uppercase">Setor-7G // Grid-Delta</div>
+          <div className="text-xs font-display font-bold text-industrial-silver uppercase">Setor-7G</div>
         </div>
-
         <div className="space-y-2">
           <div className="text-[9px] font-display text-industrial-silver/40 uppercase tracking-widest">Uptime do Sistema</div>
           <div className="text-xs font-display font-bold text-industrial-silver uppercase">1.429:12:04</div>
         </div>
       </div>
 
-      {/* Footer Branding */}
       <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-4 opacity-30">
         <div className="h-px w-12 bg-industrial-silver" />
         <div className="text-[10px] font-display font-bold uppercase tracking-[0.4em]">Indústrias Smile © 2026</div>

@@ -3,27 +3,21 @@ import { fetchAllQrRedirects, saveQrRedirect, deleteQrRedirect } from '../../sto
 import { activityLogger } from '../../services/ActivityLogger';
 import { useModal } from './ConfirmModal';
 import { format } from 'date-fns';
-
 interface QrRedirect {
   sourceId: string;
   targetId: string;
   updatedAt: any;
   reason?: string;
 }
-
 export default function RedirectsPanel() {
   const [redirects, setRedirects] = useState<QrRedirect[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  
-  // Create state
   const [newSourceId, setNewSourceId] = useState('');
   const [newTargetId, setNewTargetId] = useState('');
   const [newReason, setNewReason] = useState('');
   const [isSaving, setIsSaving] = useState(false);
-  
   const { showAlert, modal } = useModal();
-
   const loadRedirects = async () => {
     setLoading(true);
     try {
@@ -35,20 +29,16 @@ export default function RedirectsPanel() {
       setLoading(false);
     }
   };
-
   useEffect(() => {
     loadRedirects();
   }, []);
-
   const handleAddRedirect = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newSourceId || !newTargetId) return;
-    
     setIsSaving(true);
     try {
       await saveQrRedirect(newSourceId.trim(), newTargetId.trim(), newReason.trim());
       activityLogger.logAdmin('gm.mpg', 'qr_redirect_add', `Criou redirecionamento: ${newSourceId} -> ${newTargetId}`, { sourceId: newSourceId, targetId: newTargetId });
-      
       setNewSourceId('');
       setNewTargetId('');
       setNewReason('');
@@ -61,7 +51,6 @@ export default function RedirectsPanel() {
       setIsSaving(false);
     }
   };
-
   const handleDelete = async (sourceId: string) => {
     try {
       await deleteQrRedirect(sourceId);
@@ -72,41 +61,35 @@ export default function RedirectsPanel() {
       showAlert('Erro', 'Falha ao remover redirecionamento.');
     }
   };
-
   const filteredRedirects = redirects.filter(r => 
     r.sourceId.toLowerCase().includes(search.toLowerCase()) || 
     r.targetId.toLowerCase().includes(search.toLowerCase()) ||
     (r.reason || '').toLowerCase().includes(search.toLowerCase())
   );
-
   return (
     <section className="space-y-6">
       {modal}
-
-      {/* ── Header ───────────────────────────────────────────────────────── */}
+      {}
       <div className="flex items-center gap-4 mb-6">
         <div className="w-2 h-6 bg-emerald-500" />
         <h2 className="font-headline font-bold uppercase tracking-widest text-lg">
-          QR_Redirections
+          Redirecionamentos_QR
         </h2>
         <span className="text-[10px] font-label text-zinc-500 tracking-wider">
-          {redirects.length} ACTIVE_MAPPINGS
+          {redirects.length} MAPEAMENTOS_ATIVOS
         </span>
       </div>
-
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        {/* ── Left: Add New Redirect ─────────────────────────────────────── */}
+        {}
         <div className="lg:col-span-1">
           <div className="bg-surface-container-lowest border border-zinc-800 machined-edge p-5">
             <div className="flex items-center gap-2 mb-4">
               <span className="material-symbols-outlined text-emerald-500 text-sm">add_link</span>
-              <h3 className="font-label text-[10px] uppercase tracking-widest text-zinc-400">Add_New_Mapping</h3>
+              <h3 className="font-label text-[10px] uppercase tracking-widest text-zinc-400">Adicionar_Novo_Mapeamento</h3>
             </div>
-            
             <form onSubmit={handleAddRedirect} className="space-y-4">
               <div>
-                <label className="block text-[9px] font-label uppercase tracking-widest text-zinc-500 mb-1">Source ID (Physical QR)</label>
+                <label className="block text-[9px] font-label uppercase tracking-widest text-zinc-500 mb-1">ID de Origem (QR Físico)</label>
                 <input
                   type="text"
                   required
@@ -116,9 +99,8 @@ export default function RedirectsPanel() {
                   className="w-full bg-zinc-900 border border-zinc-800 text-[10px] font-label uppercase tracking-widest focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 placeholder:text-zinc-700 text-emerald-400 px-3 py-2"
                 />
               </div>
-              
               <div>
-                <label className="block text-[9px] font-label uppercase tracking-widest text-zinc-500 mb-1">Target ID (Correct Audio)</label>
+                <label className="block text-[9px] font-label uppercase tracking-widest text-zinc-500 mb-1">ID de Destino (Áudio Correto)</label>
                 <input
                   type="text"
                   required
@@ -128,9 +110,8 @@ export default function RedirectsPanel() {
                   className="w-full bg-zinc-900 border border-zinc-800 text-[10px] font-label uppercase tracking-widest focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 placeholder:text-zinc-700 text-orange-400 px-3 py-2"
                 />
               </div>
-
               <div>
-                <label className="block text-[9px] font-label uppercase tracking-widest text-zinc-500 mb-1">Reason / Note</label>
+                <label className="block text-[9px] font-label uppercase tracking-widest text-zinc-500 mb-1">Motivo / Nota</label>
                 <textarea
                   value={newReason}
                   onChange={(e) => setNewReason(e.target.value)}
@@ -139,48 +120,44 @@ export default function RedirectsPanel() {
                   className="w-full bg-zinc-900 border border-zinc-800 text-xs text-zinc-400 px-3 py-2 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 placeholder:text-zinc-700 resize-none"
                 />
               </div>
-
               <button
                 type="submit"
                 disabled={isSaving}
                 className="w-full flex items-center justify-center gap-2 bg-emerald-900/40 text-emerald-300 py-3 font-label text-[10px] font-bold tracking-widest hover:bg-emerald-800/40 transition-all machined-edge border border-emerald-700/30 disabled:opacity-50"
               >
-                {isSaving ? 'SAVING...' : 'SAVE_REDIRECT'}
+                {isSaving ? 'SALVANDO...' : 'SALVAR_REDIRECIONAMENTO'}
               </button>
             </form>
-
             <div className="mt-6 p-4 bg-zinc-900/50 border border-zinc-800/50 rounded">
               <p className="text-[10px] font-label text-zinc-500 leading-relaxed italic">
-                <span className="text-emerald-500 font-bold">INFO:</span> Use this to map a printed QR ID that points to wrong data to a new upload ID. The physical QR code will stay the same, but the app will play the target content.
+                <span className="text-emerald-500 font-bold">INFO:</span> Use isso para mapear um ID de QR impresso que aponta para dados errados para um novo ID de upload. O código QR físico permanecerá o mesmo, mas o app tocará o conteúdo de destino.
               </p>
             </div>
           </div>
         </div>
-
-        {/* ── Right: List ────────────────────────────────────────────────── */}
+        {}
         <div className="lg:col-span-2">
           <div className="bg-surface-container-lowest border border-zinc-800 machined-edge flex flex-col min-h-[400px]">
             <div className="p-4 border-b border-zinc-800 flex items-center justify-between">
-              <h3 className="font-label text-[10px] uppercase tracking-widest text-zinc-400">Active_Redirections</h3>
+              <h3 className="font-label text-[10px] uppercase tracking-widest text-zinc-400">Redirecionamentos_Ativos</h3>
               <input
                 type="text"
-                placeholder="SEARCH_BY_ID..."
+                placeholder="BUSCAR_POR_ID..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="bg-zinc-900 border border-zinc-800 text-[9px] font-label uppercase tracking-widest focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 placeholder:text-zinc-700 text-zinc-300 px-3 py-1.5 w-48"
               />
             </div>
-
             <div className="flex-1 overflow-y-auto">
               {loading ? (
                 <div className="p-12 text-center">
                   <span className="material-symbols-outlined text-2xl text-zinc-600 animate-spin block mb-2">sync</span>
-                  <p className="font-label text-xs text-zinc-600 tracking-widest">LOADING_MAPPINGS...</p>
+                  <p className="font-label text-xs text-zinc-600 tracking-widest">CARREGANDO_MAPEAMENTOS...</p>
                 </div>
               ) : filteredRedirects.length === 0 ? (
                 <div className="p-12 text-center">
                   <span className="material-symbols-outlined text-4xl text-zinc-800 block mb-3">link_off</span>
-                  <p className="font-label text-xs text-zinc-600 uppercase tracking-widest">No redirections found</p>
+                  <p className="font-label text-xs text-zinc-600 uppercase tracking-widest">Nenhum redirecionamento encontrado</p>
                 </div>
               ) : (
                 <div className="divide-y divide-zinc-800">
@@ -189,31 +166,27 @@ export default function RedirectsPanel() {
                       <div className="flex items-center justify-between gap-4">
                         <div className="flex items-center gap-4 flex-1">
                           <div className="text-center">
-                            <p className="text-[8px] font-label text-zinc-600 uppercase mb-1">Source</p>
+                            <p className="text-[8px] font-label text-zinc-600 uppercase mb-1">Origem</p>
                             <code className="text-[10px] font-mono bg-zinc-900 px-2 py-1 rounded text-emerald-400 border border-emerald-500/10">
                               {r.sourceId}
                             </code>
                           </div>
-                          
                           <span className="material-symbols-outlined text-zinc-600">arrow_forward</span>
-                          
                           <div className="text-center">
-                            <p className="text-[8px] font-label text-zinc-600 uppercase mb-1">Target</p>
+                            <p className="text-[8px] font-label text-zinc-600 uppercase mb-1">Destino</p>
                             <code className="text-[10px] font-mono bg-zinc-900 px-2 py-1 rounded text-orange-400 border border-orange-500/10">
                               {r.targetId}
                             </code>
                           </div>
-
                           <div className="flex-1 min-w-0 ml-4">
                             {r.reason && (
                               <p className="text-[10px] text-zinc-500 italic truncate" title={r.reason}>"{r.reason}"</p>
                             )}
                             <p className="text-[8px] font-label text-zinc-700 mt-0.5 uppercase tracking-tighter">
-                              Updated: {r.updatedAt?.toDate ? format(r.updatedAt.toDate(), 'dd/MM/yy HH:mm') : 'Unknown'}
+                              Atualizado: {r.updatedAt?.toDate ? format(r.updatedAt.toDate(), 'dd/MM/yy HH:mm') : 'Desconhecido'}
                             </p>
                           </div>
                         </div>
-
                         <button
                           onClick={() => handleDelete(r.sourceId)}
                           className="material-symbols-outlined text-zinc-700 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"

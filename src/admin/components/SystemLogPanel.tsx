@@ -2,7 +2,6 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { collection, onSnapshot, query, orderBy, limit, getDocs, writeBatch, Timestamp } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useModal } from './ConfirmModal';
-
 interface LogEntry {
   id: string;
   uid: string;
@@ -14,7 +13,6 @@ interface LogEntry {
   timestamp: any;
   source: 'player' | 'admin';
 }
-
 const TYPE_COLORS: Record<string, string> = {
   navigation: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
   action:     'text-sky-400 bg-sky-500/10 border-sky-500/20',
@@ -24,7 +22,6 @@ const TYPE_COLORS: Record<string, string> = {
   auth:       'text-yellow-400 bg-yellow-500/10 border-yellow-500/20',
   trace:      'text-zinc-500 bg-zinc-800 border-zinc-700/50',
 };
-
 const TYPE_ICONS: Record<string, string> = {
   navigation: 'swap_horiz',
   action:     'touch_app',
@@ -34,9 +31,8 @@ const TYPE_ICONS: Record<string, string> = {
   auth:       'login',
   trace:      'code',
 };
-
 const SEVERITY: Record<string, { label: string; color: string }> = {
-  error:  { label: 'ERROR', color: 'text-red-500' },
+  error:  { label: 'ERRO', color: 'text-red-500' },
   system: { label: 'INFO',  color: 'text-zinc-500' },
   admin:  { label: 'ADMIN', color: 'text-purple-500' },
   action: { label: 'INFO',  color: 'text-zinc-500' },
@@ -44,29 +40,118 @@ const SEVERITY: Record<string, { label: string; color: string }> = {
   auth:   { label: 'AUTH',  color: 'text-yellow-500' },
   trace:  { label: 'TRACE', color: 'text-zinc-600' },
 };
+const LogRow = React.memo(({
+  entry,
+  isExpanded,
+  onToggle
+}: {
+  entry: LogEntry;
+  isExpanded: boolean;
+  onToggle: (id: string) => void;
+}) => {
+  const severity = SEVERITY[entry.type] || SEVERITY.action;
+  const typeColor = TYPE_COLORS[entry.type] || TYPE_COLORS.action;
+  const typeIcon = TYPE_ICONS[entry.type] || TYPE_ICONS.action;
+  
+  const formatTimestamp = (ts: any) => {
+    if (!ts?.toDate) return '—';
+    const d = ts.toDate();
+    return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) +
+      ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  };
+
+  return (
+    <div className="border-b border-zinc-900/40">
+      <button
+        onClick={() => onToggle(entry.id)}
+        className={`w-full flex items-center gap-2 px-4 py-2 text-left hover:bg-zinc-800/20 transition-colors ${
+          entry.type === 'error' ? 'bg-red-950/5' : ''
+        }`}
+      >
+        <span className={`material-symbols-outlined text-xs text-zinc-600 transition-transform ${isExpanded ? 'rotate-90' : ''}`}>
+          chevron_right
+        </span>
+        <span className={`text-[7px] font-label font-bold tracking-wider w-10 ${severity.color}`}>
+          {severity.label}
+        </span>
+        <span className="text-[10px] font-mono text-zinc-600 shrink-0 w-28 tabular-nums">
+          {formatTimestamp(entry.timestamp)}
+        </span>
+        <span className={`text-[7px] font-label font-bold px-1.5 py-0.5 border rounded shrink-0 ${typeColor}`}>
+          <span className="material-symbols-outlined text-[8px] align-middle mr-0.5">{typeIcon}</span>
+          {entry.type.toUpperCase()}
+        </span>
+        <span className={`text-[7px] font-label font-bold px-1 py-0.5 border rounded shrink-0 ${
+          entry.source === 'admin' ? 'text-purple-400 border-purple-500/20' : 'text-zinc-500 border-zinc-700'
+        }`}>
+          {entry.source.toUpperCase()}
+        </span>
+        <span className="text-[10px] font-mono text-purple-300 font-bold shrink-0 truncate max-w-[90px]">
+          {entry.username || entry.uid?.slice(0, 8)}
+        </span>
+        <span className={`text-[10px] font-mono flex-1 truncate ${
+          entry.type === 'admin' ? 'text-purple-300 font-bold tracking-wide' : 
+          entry.type === 'trace' ? 'text-zinc-500 opacity-80' : 
+          entry.type === 'error' ? 'text-red-300' :
+          'text-zinc-300'
+        }`}>
+          {entry.message}
+        </span>
+        <span className="text-[7px] font-label text-zinc-700 tracking-wider shrink-0 uppercase">
+          {entry.category}
+        </span>
+      </button>
+      {isExpanded && (
+        <div className="px-12 py-3 bg-zinc-950/40 border-t border-zinc-800/30">
+          <div className="grid grid-cols-2 gap-x-8 gap-y-1 text-[10px] font-mono mb-3">
+            <div>
+              <span className="text-zinc-600">UID: </span>
+              <span className="text-zinc-400">{entry.uid}</span>
+            </div>
+            <div>
+              <span className="text-zinc-600">USUÁRIO: </span>
+              <span className="text-zinc-400">{entry.username}</span>
+            </div>
+            <div>
+              <span className="text-zinc-600">CATEGORIA: </span>
+              <span className="text-zinc-400">{entry.category}</span>
+            </div>
+            <div>
+              <span className="text-zinc-600">FONTE: </span>
+              <span className="text-zinc-400">{entry.source}</span>
+            </div>
+          </div>
+          {entry.metadata && Object.keys(entry.metadata).length > 0 && (
+            <div>
+              <p className="text-[8px] font-label text-zinc-600 uppercase tracking-widest mb-1">METADADOS:</p>
+              <pre className="text-[10px] font-mono text-zinc-400 bg-zinc-900 border border-zinc-800 p-3 rounded overflow-x-auto max-h-40">
+                {JSON.stringify(entry.metadata, null, 2)}
+              </pre>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+});
 
 export default function SystemLogPanel() {
   const [entries, setEntries] = useState<LogEntry[]>([]);
   const [maxEntries, setMaxEntries] = useState(200);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [isClearing, setIsClearing] = useState(false);
-
-  // Filters
   const [filterSource, setFilterSource] = useState<string>('all');
   const [filterType, setFilterType] = useState<string>('all');
   const [filterCategory, setFilterCategory] = useState('');
   const [filterUser, setFilterUser] = useState('');
   const [searchText, setSearchText] = useState('');
-
   const { showConfirm, showAlert, modal } = useModal();
-
   useEffect(() => {
     const q = query(
       collection(db, 'activityLog'),
       orderBy('timestamp', 'desc'),
       limit(maxEntries)
     );
-
     const unsub = onSnapshot(q, (snap) => {
       const list: LogEntry[] = [];
       snap.forEach((d) => {
@@ -74,22 +159,16 @@ export default function SystemLogPanel() {
       });
       setEntries(list);
     });
-
     return () => unsub();
   }, [maxEntries]);
-
-  // Derived unique values for filter dropdowns
   const uniqueCategories = useMemo(() => {
     const set = new Set(entries.map(e => e.category));
     return Array.from(set).sort();
   }, [entries]);
-
   const uniqueUsers = useMemo(() => {
     const set = new Set(entries.map(e => e.username).filter(Boolean));
     return Array.from(set).sort();
   }, [entries]);
-
-  // Filtered entries
   const filtered = useMemo(() => {
     return entries.filter((e) => {
       if (filterSource !== 'all' && e.source !== filterSource) return false;
@@ -100,16 +179,16 @@ export default function SystemLogPanel() {
       return true;
     });
   }, [entries, filterSource, filterType, filterCategory, filterUser, searchText]);
-
-  // Error count
   const errorCount = entries.filter(e => e.type === 'error').length;
-
   const formatTimestamp = (ts: any) => {
     if (!ts?.toDate) return '—';
     const d = ts.toDate();
     return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) +
       ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   };
+  const handleToggle = React.useCallback((id: string) => {
+    setExpandedId(prev => (prev === id ? null : id));
+  }, []);
 
   const handleClearLogs = async () => {
     setIsClearing(true);
@@ -134,7 +213,6 @@ export default function SystemLogPanel() {
       setIsClearing(false);
     }
   };
-
   const handleExportJSON = () => {
     const data = filtered.map(e => ({
       timestamp: e.timestamp?.toDate?.()?.toISOString?.() || null,
@@ -154,17 +232,15 @@ export default function SystemLogPanel() {
     a.click();
     URL.revokeObjectURL(url);
   };
-
   return (
     <div className="bg-surface-container border border-zinc-800 machined-edge flex flex-col" style={{ minHeight: '400px', maxHeight: '55vh' }}>
       {modal}
-
-      {/* Header */}
+      {}
       <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800 shrink-0">
         <div className="flex items-center gap-3">
           <span className="material-symbols-outlined text-orange-500 text-lg">list_alt</span>
           <h2 className="font-headline font-bold uppercase tracking-widest text-sm text-on-surface">
-            System_Log
+            Logs_do_Sistema
           </h2>
           <span className="text-[9px] font-label text-zinc-600 tracking-wider">
             {filtered.length}/{entries.length}
@@ -172,18 +248,17 @@ export default function SystemLogPanel() {
           {errorCount > 0 && (
             <span className="text-[8px] font-label font-bold text-red-400 bg-red-500/10 border border-red-500/20 px-1.5 py-0.5 rounded flex items-center gap-1">
               <span className="material-symbols-outlined text-[10px]">error</span>
-              {errorCount} ERRORS
+              {errorCount} ERROS
             </span>
           )}
         </div>
-
         <div className="flex items-center gap-2">
           <button
             onClick={handleExportJSON}
             className="px-3 py-1 text-[9px] font-label font-bold uppercase tracking-widest bg-zinc-900 border border-zinc-700 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-300 transition-colors machined-edge flex items-center gap-1"
           >
             <span className="material-symbols-outlined text-xs">download</span>
-            EXPORT
+            EXPORTAR
           </button>
           <button
             onClick={handleClearLogs}
@@ -199,27 +274,24 @@ export default function SystemLogPanel() {
           </button>
         </div>
       </div>
-
-      {/* Filters bar */}
+      {}
       <div className="flex items-center gap-2 px-4 py-2 border-b border-zinc-800/60 shrink-0 flex-wrap">
         <span className="text-[8px] font-label text-zinc-600 tracking-widest shrink-0">FILTROS:</span>
-
         <select
           value={filterSource}
           onChange={(e) => setFilterSource(e.target.value)}
           className="bg-zinc-900 border border-zinc-800 text-[9px] font-label uppercase tracking-widest text-zinc-300 px-2 py-1 focus:ring-1 focus:ring-orange-500"
         >
-          <option value="all">SOURCE: ALL</option>
-          <option value="player">PLAYER</option>
+          <option value="all">ORIGEM: TUDO</option>
+          <option value="player">JOGADOR</option>
           <option value="admin">ADMIN</option>
         </select>
-
         <select
           value={filterType}
           onChange={(e) => setFilterType(e.target.value)}
           className="bg-zinc-900 border border-zinc-800 text-[9px] font-label uppercase tracking-widest text-zinc-300 px-2 py-1 focus:ring-1 focus:ring-orange-500"
         >
-          <option value="all">TYPE: ALL</option>
+          <option value="all">TIPO: TUDO</option>
           <option value="navigation">NAV</option>
           <option value="action">ACT</option>
           <option value="system">SYS</option>
@@ -228,45 +300,40 @@ export default function SystemLogPanel() {
           <option value="admin">ADM</option>
           <option value="trace">TRC</option>
         </select>
-
         {uniqueCategories.length > 0 && (
           <select
             value={filterCategory}
             onChange={(e) => setFilterCategory(e.target.value)}
             className="bg-zinc-900 border border-zinc-800 text-[9px] font-label uppercase tracking-widest text-zinc-300 px-2 py-1 focus:ring-1 focus:ring-orange-500"
           >
-            <option value="">CATEGORY: ALL</option>
+            <option value="">CATEGORIA: TUDO</option>
             {uniqueCategories.map((c) => (
               <option key={c} value={c}>{c.toUpperCase()}</option>
             ))}
           </select>
         )}
-
         {uniqueUsers.length > 0 && (
           <select
             value={filterUser}
             onChange={(e) => setFilterUser(e.target.value)}
             className="bg-zinc-900 border border-zinc-800 text-[9px] font-label uppercase tracking-widest text-zinc-300 px-2 py-1 focus:ring-1 focus:ring-orange-500"
           >
-            <option value="">USER: ALL</option>
+            <option value="">USUÁRIO: TUDO</option>
             {uniqueUsers.map((u) => (
               <option key={u} value={u}>{u}</option>
             ))}
           </select>
         )}
-
         <div className="flex-1" />
-
         <input
           type="text"
-          placeholder="SEARCH_MESSAGE..."
+          placeholder="BUSCAR_MENSAGEM..."
           value={searchText}
           onChange={(e) => setSearchText(e.target.value)}
           className="bg-zinc-900 border border-zinc-800 text-[9px] font-label uppercase tracking-widest text-zinc-300 placeholder:text-zinc-700 px-2 py-1 w-44 focus:ring-1 focus:ring-orange-500 focus:border-orange-500"
         />
       </div>
-
-      {/* Log body */}
+      {}
       <div className="flex-1 overflow-y-auto min-h-0">
         {filtered.length === 0 ? (
           <div className="flex items-center justify-center h-full text-zinc-700 font-label text-xs tracking-widest">
@@ -274,109 +341,17 @@ export default function SystemLogPanel() {
             NENHUM_LOG_ENCONTRADO
           </div>
         ) : (
-          filtered.map((entry) => {
-            const isExpanded = expandedId === entry.id;
-            const severity = SEVERITY[entry.type] || SEVERITY.action;
-            const typeColor = TYPE_COLORS[entry.type] || TYPE_COLORS.action;
-            const typeIcon = TYPE_ICONS[entry.type] || TYPE_ICONS.action;
-
-            return (
-              <div key={entry.id} className="border-b border-zinc-900/40">
-                {/* Main row */}
-                <button
-                  onClick={() => setExpandedId(isExpanded ? null : entry.id)}
-                  className={`w-full flex items-center gap-2 px-4 py-2 text-left hover:bg-zinc-800/20 transition-colors ${
-                    entry.type === 'error' ? 'bg-red-950/5' : ''
-                  }`}
-                >
-                  {/* Expand indicator */}
-                  <span className={`material-symbols-outlined text-xs text-zinc-600 transition-transform ${isExpanded ? 'rotate-90' : ''}`}>
-                    chevron_right
-                  </span>
-
-                  {/* Severity */}
-                  <span className={`text-[7px] font-label font-bold tracking-wider w-10 ${severity.color}`}>
-                    {severity.label}
-                  </span>
-
-                  {/* Timestamp */}
-                  <span className="text-[10px] font-mono text-zinc-600 shrink-0 w-28 tabular-nums">
-                    {formatTimestamp(entry.timestamp)}
-                  </span>
-
-                  {/* Type badge */}
-                  <span className={`text-[7px] font-label font-bold px-1.5 py-0.5 border rounded shrink-0 ${typeColor}`}>
-                    <span className="material-symbols-outlined text-[8px] align-middle mr-0.5">{typeIcon}</span>
-                    {entry.type.toUpperCase()}
-                  </span>
-
-                  {/* Source badge */}
-                  <span className={`text-[7px] font-label font-bold px-1 py-0.5 border rounded shrink-0 ${
-                    entry.source === 'admin' ? 'text-purple-400 border-purple-500/20' : 'text-zinc-500 border-zinc-700'
-                  }`}>
-                    {entry.source.toUpperCase()}
-                  </span>
-
-                  {/* Username */}
-                  <span className="text-[10px] font-mono text-purple-300 font-bold shrink-0 truncate max-w-[90px]">
-                    {entry.username || entry.uid?.slice(0, 8)}
-                  </span>
-
-                  {/* Message */}
-                  <span className={`text-[10px] font-mono flex-1 truncate ${
-                    entry.type === 'admin' ? 'text-purple-300 font-bold tracking-wide' : 
-                    entry.type === 'trace' ? 'text-zinc-500 opacity-80' : 
-                    entry.type === 'error' ? 'text-red-300' :
-                    'text-zinc-300'
-                  }`}>
-                    {entry.message}
-                  </span>
-
-                  {/* Category */}
-                  <span className="text-[7px] font-label text-zinc-700 tracking-wider shrink-0 uppercase">
-                    {entry.category}
-                  </span>
-                </button>
-
-                {/* Expanded metadata */}
-                {isExpanded && (
-                  <div className="px-12 py-3 bg-zinc-950/40 border-t border-zinc-800/30">
-                    <div className="grid grid-cols-2 gap-x-8 gap-y-1 text-[10px] font-mono mb-3">
-                      <div>
-                        <span className="text-zinc-600">UID: </span>
-                        <span className="text-zinc-400">{entry.uid}</span>
-                      </div>
-                      <div>
-                        <span className="text-zinc-600">USERNAME: </span>
-                        <span className="text-zinc-400">{entry.username}</span>
-                      </div>
-                      <div>
-                        <span className="text-zinc-600">CATEGORY: </span>
-                        <span className="text-zinc-400">{entry.category}</span>
-                      </div>
-                      <div>
-                        <span className="text-zinc-600">SOURCE: </span>
-                        <span className="text-zinc-400">{entry.source}</span>
-                      </div>
-                    </div>
-
-                    {entry.metadata && Object.keys(entry.metadata).length > 0 && (
-                      <div>
-                        <p className="text-[8px] font-label text-zinc-600 uppercase tracking-widest mb-1">METADATA:</p>
-                        <pre className="text-[10px] font-mono text-zinc-400 bg-zinc-900 border border-zinc-800 p-3 rounded overflow-x-auto max-h-40">
-                          {JSON.stringify(entry.metadata, null, 2)}
-                        </pre>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          })
+          filtered.map((entry) => (
+            <LogRow
+              key={entry.id}
+              entry={entry}
+              isExpanded={expandedId === entry.id}
+              onToggle={handleToggle}
+            />
+          ))
         )}
       </div>
-
-      {/* Footer */}
+      {}
       <div className="flex items-center justify-between px-4 py-2 border-t border-zinc-800 shrink-0">
         <span className="text-[8px] font-label text-zinc-600 tracking-widest">
           MOSTRANDO {filtered.length} DE {entries.length} (LIMITE: {maxEntries})

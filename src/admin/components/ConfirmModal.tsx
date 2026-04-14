@@ -1,10 +1,6 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-
-// ── Types ─────────────────────────────────────────────────────────────────────
-
 type ModalVariant = 'confirm' | 'alert';
-
 interface ModalState {
   open: boolean;
   variant: ModalVariant;
@@ -13,24 +9,17 @@ interface ModalState {
   confirmLabel?: string;
   resolve?: (v: boolean) => void;
 }
-
-// ── Component ─────────────────────────────────────────────────────────────────
-
 interface ConfirmModalProps {
   state: ModalState;
   onConfirm: () => void;
   onCancel: () => void;
 }
-
 export function ConfirmModal({ state, onConfirm, onCancel }: ConfirmModalProps) {
   const isDanger = state.title.toLowerCase().includes('atenção') || state.title.toLowerCase().includes('delete') || state.title.toLowerCase().includes('apagar') || state.title.toLowerCase().includes('zerar') || state.title.toLowerCase().includes('reset');
-
-  // Trap focus on the modal
   const confirmRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (state.open) setTimeout(() => confirmRef.current?.focus(), 50);
   }, [state.open]);
-
   return (
     <AnimatePresence>
       {state.open && (
@@ -48,20 +37,18 @@ export function ConfirmModal({ state, onConfirm, onCancel }: ConfirmModalProps) 
             transition={{ type: 'spring', stiffness: 360, damping: 30 }}
             className="bg-zinc-900 border border-zinc-700 w-full max-w-md mx-4 shadow-2xl machined-edge"
           >
-            {/* Header */}
+            {}
             <div className={`px-6 py-4 border-b ${isDanger ? 'border-red-800/50 bg-red-950/30' : 'border-zinc-800'} flex items-center gap-3`}>
               <span className={`material-symbols-outlined text-lg ${isDanger ? 'text-red-400' : 'text-orange-500'}`}>
                 {isDanger ? 'warning' : 'info'}
               </span>
               <h2 className="font-label text-[11px] uppercase tracking-widest text-zinc-200 font-bold">{state.title}</h2>
             </div>
-
-            {/* Body */}
+            {}
             <div className="px-6 py-5">
               <p className="text-zinc-300 text-sm font-mono leading-relaxed">{state.message}</p>
             </div>
-
-            {/* Actions */}
+            {}
             <div className="px-6 pb-5 flex gap-3 justify-end">
               {state.variant === 'confirm' && (
                 <button
@@ -89,9 +76,6 @@ export function ConfirmModal({ state, onConfirm, onCancel }: ConfirmModalProps) 
     </AnimatePresence>
   );
 }
-
-// ── Hook ──────────────────────────────────────────────────────────────────────
-
 export function useModal() {
   const [modalState, setModalState] = useState<ModalState>({
     open: false,
@@ -99,36 +83,29 @@ export function useModal() {
     title: '',
     message: '',
   });
-
   const resolveRef = useRef<((v: boolean) => void) | null>(null);
-
   const showConfirm = useCallback((title: string, message: string, confirmLabel?: string): Promise<boolean> => {
     return new Promise((resolve) => {
       resolveRef.current = resolve;
       setModalState({ open: true, variant: 'confirm', title, message, confirmLabel });
     });
   }, []);
-
   const showAlert = useCallback((title: string, message: string): Promise<void> => {
     return new Promise((resolve) => {
       resolveRef.current = (v: boolean) => { resolve(); };
       setModalState({ open: true, variant: 'alert', title, message });
     });
   }, []);
-
   const handleConfirm = useCallback(() => {
     setModalState((s) => ({ ...s, open: false }));
     resolveRef.current?.(true);
   }, []);
-
   const handleCancel = useCallback(() => {
     setModalState((s) => ({ ...s, open: false }));
     resolveRef.current?.(false);
   }, []);
-
   const modal = (
     <ConfirmModal state={modalState} onConfirm={handleConfirm} onCancel={handleCancel} />
   );
-
   return { showConfirm, showAlert, modal };
 }
