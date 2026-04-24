@@ -6,68 +6,24 @@ import {
   collection,
   getDocs,
   serverTimestamp,
-  Timestamp,
   deleteDoc,
-  arrayUnion,
   writeBatch,
   runTransaction,
-  query,
-  where
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
-import { storage } from '../lib/firebase';
-import { db } from '../lib/firebase';
+import { storage, db } from '../lib/firebase';
 import { Tape, resolveTapes } from '../data/tapes';
-export interface PlayerMeta {
-  uid: string;
-  username: string;
-  createdAt: Timestamp | null;
-  achievementsRevealed?: boolean;
-  forceTerminalOpen?: boolean;
-  hasTerminalAccess?: boolean;
-  forceMacOpen?: boolean;
-  hasMacAccess?: boolean;
-  spotifyPlaylistUrl?: string;
-}
-export interface LimboGlobalState {
-  seized: boolean;
-  seizedBy?: string | null;
-  seizedAt?: Timestamp | null;
-  readThreadIds?: string[];
-}
-export interface GameEventsState {
-  diskRepairAllowed: boolean;
-}
-export interface PlayerStats {
-  totalListenTime: number;
-  screwClicks: number;
-  fidgetClicks: number;
-  ejectWithoutPlay: number;
-  maxVolumeTime: number;
-  zeroVolumeTime: number;
-}
-export interface PlayerData extends PlayerMeta {
-  unlockedTapeIds: string[];
-  achievementIds: string[];
-  stats: PlayerStats;
-  unlockedGalleryIds: string[];
-}
-export type GalleryCategory = 'locais' | 'pistas' | 'pessoas' | 'itens';
-export interface GalleryImage {
-  id: string;
-  category: GalleryCategory;
-  title: string;
-  description: string;
-  imageUrl: string;
-  createdAt?: Timestamp;
-  createdBy?: string;
-}
-export interface QrRedirect {
-  sourceId: string;
-  targetId: string;
-  reason: string;
-  updatedAt?: Timestamp;
-}
+import { 
+  PlayerData, 
+  PlayerStats, 
+  UserData, 
+  LimboGlobalState, 
+  GameEventsState, 
+  GalleryImage, 
+  GalleryCategory,
+  QrRedirect
+} from '../types/player';
+
 const DEFAULT_STATS: PlayerStats = {
   totalListenTime: 0,
   screwClicks: 0,
@@ -76,40 +32,55 @@ const DEFAULT_STATS: PlayerStats = {
   maxVolumeTime: 0,
   zeroVolumeTime: 0,
 };
+
 export async function loadPlayerData(uid: string): Promise<PlayerData> {
   const metaSnap = await getDoc(doc(db, 'users', uid));
-  const meta = metaSnap.exists()
-    ? (metaSnap.data() as PlayerMeta)
-    : { uid, username: uid, createdAt: null, achievementsRevealed: false, forceTerminalOpen: false, hasTerminalAccess: false, forceMacOpen: false, hasMacAccess: false };
+  const userData = metaSnap.exists()
+    ? (metaSnap.data() as UserData)
+    : { 
+        uid, 
+        username: uid, 
+        email: '', 
+        role: 'player' as const, 
+        createdAt: null 
+      };
+
   const [tapesSnap, achievementsSnap, statsSnap, gallerySnap] = await Promise.all([
     getDocs(collection(db, 'users', uid, 'tapes')),
     getDocs(collection(db, 'users', uid, 'achievements')),
     getDoc(doc(db, 'users', uid, 'stats', 'main')),
     getDocs(collection(db, 'users', uid, 'gallery'))
   ]);
+
   const stats = statsSnap.exists() ? { ...DEFAULT_STATS, ...(statsSnap.data() as Partial<PlayerStats>) } : DEFAULT_STATS;
+
   return {
-    ...meta,
+    ...userData,
     uid,
     unlockedTapeIds: tapesSnap.docs.map((d) => d.id),
     achievementIds: achievementsSnap.docs.map((d) => d.id),
     stats,
     unlockedGalleryIds: gallerySnap.docs.map((d) => d.id),
-  };
+  } as PlayerData;
 }
-export async function createUserDoc(uid: string, username: string): Promise<void> {
+
+export async function createUserDoc(uid: string, username: string, email: string): Promise<void> {
   await setDoc(doc(db, 'users', uid), {
     uid,
     username,
+    email,
+    role: 'player',
     createdAt: serverTimestamp(),
   });
 }
+
 export async function firestoreUnlockTape(uid: string, tapeId: string): Promise<void> {
   await setDoc(doc(db, 'users', uid, 'tapes', tapeId), {
     tapeId,
     unlockedAt: serverTimestamp(),
   });
 }
+
 export async function firestoreGrantAchievements(uid: string, achievementIds: string[]): Promise<void> {
   const batch = writeBatch(db);
   achievementIds.forEach((id) => {
@@ -120,9 +91,11 @@ export async function firestoreGrantAchievements(uid: string, achievementIds: st
   });
   await batch.commit();
 }
+
 export async function firestoreRevokeAchievement(uid: string, achievementId: string): Promise<void> {
   await deleteDoc(doc(db, 'users', uid, 'achievements', achievementId));
 }
+
 export async function recordPlayEvent(uid: string, tapeId: string): Promise<string> {
   const docRef = await addDoc(collection(db, 'playEvents'), {
     uid,
@@ -132,12 +105,15 @@ export async function recordPlayEvent(uid: string, tapeId: string): Promise<stri
   });
   return docRef.id;
 }
+
 export async function markPlayEventCompleted(eventId: string): Promise<void> {
   await setDoc(doc(db, 'playEvents', eventId), { completed: true }, { merge: true });
 }
+
 export async function firestoreUpdateStats(uid: string, statsDelta: Partial<PlayerStats>): Promise<void> {
   await setDoc(doc(db, 'users', uid, 'stats', 'main'), statsDelta, { merge: true });
 }
+
 export async function setTerminalStateForUsers(uids: string[], forceTerminalOpen: boolean, grantAccess: boolean): Promise<void> {
   const batch = writeBatch(db);
   uids.forEach(uid => {
@@ -145,9 +121,11 @@ export async function setTerminalStateForUsers(uids: string[], forceTerminalOpen
   });
   await batch.commit();
 }
+
 export async function checkTerminalClosed(uid: string): Promise<void> {
   await setDoc(doc(db, 'users', uid), { forceTerminalOpen: false }, { merge: true });
 }
+
 export async function setMacStateForUsers(uids: string[], forceMacOpen: boolean, grantAccess: boolean): Promise<void> {
   const batch = writeBatch(db);
   uids.forEach(uid => {
@@ -155,13 +133,16 @@ export async function setMacStateForUsers(uids: string[], forceMacOpen: boolean,
   });
   await batch.commit();
 }
+
 export async function checkMacClosed(uid: string): Promise<void> {
   await setDoc(doc(db, 'users', uid), { forceMacOpen: false }, { merge: true });
 }
+
 export async function fetchLimboGlobalState(): Promise<LimboGlobalState> {
   const snap = await getDoc(doc(db, 'system', 'limboState'));
   return snap.exists() ? (snap.data() as LimboGlobalState) : { seized: false };
 }
+
 export async function setLimboSeized(uid: string): Promise<void> {
   await setDoc(doc(db, 'system', 'limboState'), {
     seized: true,
@@ -169,6 +150,7 @@ export async function setLimboSeized(uid: string): Promise<void> {
     seizedAt: serverTimestamp()
   }, { merge: true });
 }
+
 export async function resetLimboSeized(): Promise<void> {
   await setDoc(doc(db, 'system', 'limboState'), {
     seized: false,
@@ -177,6 +159,7 @@ export async function resetLimboSeized(): Promise<void> {
     readThreadIds: []
   }, { merge: true });
 }
+
 export async function firestoreMarkThreadReadGlobal(threadId: string): Promise<void> {
   const TOTAL_THREADS = 11;
   const docRef = doc(db, 'system', 'limboState');
@@ -196,6 +179,7 @@ export async function firestoreMarkThreadReadGlobal(threadId: string): Promise<v
     transaction.set(docRef, updatePayload, { merge: true });
   });
 }
+
 export async function setLimboMilitarySeizureGlobal(active: boolean): Promise<void> {
   if (!active) {
     await resetLimboSeized();
@@ -207,16 +191,20 @@ export async function setLimboMilitarySeizureGlobal(active: boolean): Promise<vo
     seizedAt: serverTimestamp(),
   }, { merge: true });
 }
+
 export async function fetchGameEventsState(): Promise<GameEventsState> {
   const snap = await getDoc(doc(db, 'system', 'gameEvents'));
   return snap.exists() ? (snap.data() as GameEventsState) : { diskRepairAllowed: false };
 }
+
 export async function setDiskRepairAllowed(allowed: boolean): Promise<void> {
   await setDoc(doc(db, 'system', 'gameEvents'), { diskRepairAllowed: allowed }, { merge: true });
 }
+
 export async function firestoreUpdateSpotifyPlaylist(uid: string, url: string): Promise<void> {
   await setDoc(doc(db, 'users', uid), { spotifyPlaylistUrl: url }, { merge: true });
 }
+
 export async function fetchAudioTapeById(audioId: string): Promise<Tape | null> {
   const snap = await getDoc(doc(db, 'audios', audioId));
   if (!snap.exists()) return null;
@@ -233,6 +221,7 @@ export async function fetchAudioTapeById(audioId: string): Promise<Tape | null> 
     isSecret: Boolean(data.isSecret),
   } as Tape;
 }
+
 export async function resolveAllTapesAsync(ids: string[]): Promise<Tape[]> {
   const localTapes = resolveTapes(ids);
   const foundIds = localTapes.map(t => t.id);
@@ -241,10 +230,12 @@ export async function resolveAllTapesAsync(ids: string[]): Promise<Tape[]> {
   const remoteTapes = await Promise.all(missingIds.map(id => fetchAudioTapeById(id)));
   return [...localTapes, ...remoteTapes.filter((t): t is Tape => t !== null)];
 }
+
 export async function fetchQrRedirect(sourceId: string): Promise<string | null> {
   const snap = await getDoc(doc(db, 'qrRedirects', sourceId));
   return snap.exists() ? snap.data().targetId || null : null;
 }
+
 export async function saveQrRedirect(sourceId: string, targetId: string, reason?: string): Promise<void> {
   await setDoc(doc(db, 'qrRedirects', sourceId), {
     targetId,
@@ -252,13 +243,16 @@ export async function saveQrRedirect(sourceId: string, targetId: string, reason?
     reason: reason || ''
   });
 }
+
 export async function deleteQrRedirect(sourceId: string): Promise<void> {
   await deleteDoc(doc(db, 'qrRedirects', sourceId));
 }
+
 export async function fetchAllQrRedirects(): Promise<QrRedirect[]> {
   const snap = await getDocs(collection(db, 'qrRedirects'));
   return snap.docs.map(d => ({ sourceId: d.id, ...d.data() } as QrRedirect));
 }
+
 export async function uploadGalleryImage(
   file: File,
   category: GalleryCategory,
@@ -281,6 +275,7 @@ export async function uploadGalleryImage(
   await setDoc(doc(db, 'gallery', imageId), data);
   return { id: imageId, ...data, imageUrl } as GalleryImage;
 }
+
 export async function deleteGalleryImage(imageId: string): Promise<void> {
   try {
     const storageRef = ref(storage, `gallery/${imageId}`);
@@ -294,19 +289,23 @@ export async function deleteGalleryImage(imageId: string): Promise<void> {
   batch.delete(doc(db, 'gallery', imageId));
   await batch.commit();
 }
+
 export async function fetchAllGalleryImages(): Promise<GalleryImage[]> {
   const snap = await getDocs(collection(db, 'gallery'));
   return snap.docs.map(d => ({ id: d.id, ...d.data() } as GalleryImage));
 }
+
 export async function grantGalleryImage(uid: string, imageId: string): Promise<void> {
   await setDoc(doc(db, 'users', uid, 'gallery', imageId), {
     imageId,
     unlockedAt: serverTimestamp(),
   });
 }
+
 export async function revokeGalleryImage(uid: string, imageId: string): Promise<void> {
   await deleteDoc(doc(db, 'users', uid, 'gallery', imageId));
 }
+
 export async function grantGalleryImageToMultiple(uids: string[], imageId: string): Promise<void> {
   const batch = writeBatch(db);
   uids.forEach(uid => {
@@ -317,6 +316,7 @@ export async function grantGalleryImageToMultiple(uids: string[], imageId: strin
   });
   await batch.commit();
 }
+
 export async function fetchPlayerGalleryImages(uid: string): Promise<GalleryImage[]> {
   const grantSnap = await getDocs(collection(db, 'users', uid, 'gallery'));
   const imageIds = grantSnap.docs.map(d => d.id);
@@ -330,6 +330,7 @@ export async function fetchPlayerGalleryImages(uid: string): Promise<GalleryImag
   }
   return images;
 }
+
 export async function fetchUserGalleryGrants(imageId: string): Promise<string[]> {
   const usersSnap = await getDocs(collection(db, 'users'));
   const grantedUids: string[] = [];

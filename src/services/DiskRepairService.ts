@@ -27,18 +27,26 @@ Se eu sumir hoje, significa que a frequência funcionou. Não me procurem no fut
 class DiskRepairService {
   private diskRepairAllowed = false;
   private unsubscribe: (() => void) | null = null;
+  private initialized = false;
 
   constructor() {
     this.init();
   }
 
-  private init() {
+  public init() {
+    if (this.initialized) return;
+    
+    console.log("[DiskRepairService] Inicializando listener...");
     this.unsubscribe = onSnapshot(doc(db, 'system', 'gameEvents'), (snap) => {
       if (snap.exists()) {
         const data = snap.data() as GameEventsState;
         this.diskRepairAllowed = !!data.diskRepairAllowed;
+        console.log("[DiskRepairService] Flag diskRepairAllowed atualizada:", this.diskRepairAllowed);
       }
+    }, (error) => {
+      console.error("[DiskRepairService] Erro no listener do Firestore:", error);
     });
+    this.initialized = true;
   }
 
   public stop() {

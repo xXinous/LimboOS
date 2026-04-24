@@ -95,27 +95,55 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
               <p className="font-label text-[8px] uppercase tracking-widest text-zinc-600 mt-1">MODO_ADMIN</p>
             </div>
           </div>
-          {}
-          {activeTab === 'users' && <UserRegistry isAdmin={isAdmin} />}
-          {activeTab === 'inventory' && <InventoryManager />}
-          {activeTab === 'achievements' && <AchievementsPanel />}
-          {activeTab === 'analytics' && <AnalyticsPanel />}
-          {activeTab === 'terminals' && <TerminalPanel />}
-          {activeTab === 'logs' && (
-            <SystemLogPanel />
+          {/* Conteúdo Dinâmico Baseado nas Novas Abas */}
+          {activeTab === 'dashboard' && (
+            <div className="space-y-8">
+              <AnalyticsPanel />
+              <div className="border-t border-zinc-800 pt-8">
+                <h3 className="text-zinc-500 font-label text-[10px] uppercase tracking-widest mb-4">Atividade_Recente_do_Sistema</h3>
+                <SystemLogPanel />
+              </div>
+            </div>
           )}
-          {activeTab === 'redirects' && (
-            <RedirectsPanel />
+
+          {activeTab === 'players' && <UserRegistry isAdmin={isAdmin} />}
+
+          {activeTab === 'inventory' && (
+            <div className="space-y-8">
+              <InventoryManager />
+              <div className="border-t border-zinc-800 pt-8">
+                <h3 className="text-zinc-500 font-label text-[10px] uppercase tracking-widest mb-4">Gestão_de_Conquistas</h3>
+                <AchievementsPanel />
+              </div>
+            </div>
           )}
-          {activeTab === 'gallery' && (
-            <GalleryPanel />
+
+          {activeTab === 'library' && (
+            <div className="space-y-8">
+              <JukeboxPanel />
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 border-t border-zinc-800 pt-8">
+                <div>
+                  <h3 className="text-zinc-500 font-label text-[10px] uppercase tracking-widest mb-4">Galeria_de_Evidências</h3>
+                  <GalleryPanel />
+                </div>
+                <div>
+                  <h3 className="text-zinc-500 font-label text-[10px] uppercase tracking-widest mb-4">Redirecionamentos_QR</h3>
+                  <RedirectsPanel />
+                </div>
+              </div>
+            </div>
           )}
-          {activeTab === 'jukebox' && (
-            <JukeboxPanel />
+
+          {activeTab === 'systems' && (
+            <div className="space-y-8">
+              <TerminalPanel />
+              <div className="border-t border-zinc-800 pt-8">
+                <h3 className="text-zinc-500 font-label text-[10px] uppercase tracking-widest mb-4">Configurações_de_Buffer_e_Acesso</h3>
+                <AudioBuffer user={user} isAdmin={isAdmin} />
+              </div>
+            </div>
           )}
-          {activeTab === 'settings' && (
-            <AudioBuffer user={user} isAdmin={isAdmin} />
-          )}
+
         </div>
       </main>
     </div>
