@@ -13,6 +13,7 @@ import InventoryManager from './InventoryManager';
 import SystemLogPanel from './SystemLogPanel';
 import RedirectsPanel from './RedirectsPanel';
 import GalleryPanel from './GalleryPanel';
+import JukeboxPanel from './JukeboxPanel';
 interface DashboardProps {
   user: User | null;
   onLogout: () => void;
@@ -108,6 +109,9 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
           )}
           {activeTab === 'gallery' && (
             <GalleryPanel />
+          )}
+          {activeTab === 'jukebox' && (
+            <JukeboxPanel />
           )}
           {activeTab === 'settings' && (
             <AudioBuffer user={user} isAdmin={isAdmin} />
