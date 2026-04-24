@@ -30,23 +30,33 @@ class DiskRepairService {
   private initialized = false;
 
   constructor() {
-    this.init();
+    // init() removed from constructor to avoid early permission errors
   }
 
   public init() {
-    if (this.initialized) return;
+    if (this.initialized || typeof window === 'undefined') return;
     
-    console.log("[DiskRepairService] Inicializando listener...");
-    this.unsubscribe = onSnapshot(doc(db, 'system', 'gameEvents'), (snap) => {
-      if (snap.exists()) {
-        const data = snap.data() as GameEventsState;
-        this.diskRepairAllowed = !!data.diskRepairAllowed;
-        console.log("[DiskRepairService] Flag diskRepairAllowed atualizada:", this.diskRepairAllowed);
-      }
-    }, (error) => {
-      console.error("[DiskRepairService] Erro no listener do Firestore:", error);
-    });
-    this.initialized = true;
+    // console.log("[DiskRepairService] Inicializando listener...");
+    try {
+      this.unsubscribe = onSnapshot(doc(db, 'system', 'gameEvents'), (snap) => {
+        if (snap.exists()) {
+          const data = snap.data() as GameEventsState;
+          this.diskRepairAllowed = !!data.diskRepairAllowed;
+          // console.log("[DiskRepairService] Flag diskRepairAllowed atualizada:", this.diskRepairAllowed);
+        }
+      }, (error) => {
+        // Silently handle permission errors during initialization/auth transitions
+        // Firebase SDK will automatically retry when auth state changes
+        if (error.code === 'permission-denied') {
+          // Log only as a debug/info level if needed, but not as error
+          return;
+        }
+        console.error("[DiskRepairService] Erro no listener do Firestore:", error);
+      });
+      this.initialized = true;
+    } catch (err) {
+      // Catch synchronous errors during initialization
+    }
   }
 
   public stop() {

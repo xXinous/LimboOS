@@ -14,6 +14,7 @@ import SystemLogPanel from './SystemLogPanel';
 import RedirectsPanel from './RedirectsPanel';
 import GalleryPanel from './GalleryPanel';
 import JukeboxPanel from './JukeboxPanel';
+import CampaignsPanel from './CampaignsPanel';
 
 interface DashboardProps {
   user: User | null;
@@ -94,6 +95,8 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
               </div>
             </div>
           )}
+
+          {activeTab === 'missions' && <CampaignsPanel />}
 
           {activeTab === 'players' && <UserRegistry isAdmin={isAdmin} />}
 

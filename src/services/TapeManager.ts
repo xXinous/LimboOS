@@ -25,7 +25,7 @@ export class TapeManager {
     updatedTapeIds: string[];
   }> {
     const alreadyOwned = playerData.unlockedTapeIds.includes(tapeId);
-    await firestoreUnlockTape(playerData.uid, tapeId);
+    await firestoreUnlockTape(playerData.uid, tapeId, playerData.campaignId);
     const updatedTapeIds = alreadyOwned
       ? playerData.unlockedTapeIds
       : [...playerData.unlockedTapeIds, tapeId];
