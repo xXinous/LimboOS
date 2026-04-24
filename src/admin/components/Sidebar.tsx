@@ -14,6 +14,7 @@ export default function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
     { id: 'logs', label: 'Logs do Sistema', icon: 'list_alt' },
     { id: 'redirects', label: 'Redirecionamentos QR', icon: 'alt_route' },
     { id: 'gallery', label: 'Galeria de Imagens', icon: 'photo_library' },
+    { id: 'jukebox', label: 'Jukebox', icon: 'queue_music' },
     { id: 'settings', label: 'Configuração do Sistema', icon: 'settings_suggest' },
   ];
   return (
