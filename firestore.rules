@@ -33,7 +33,7 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if isOwner(userId) || isAdmin();
       allow create: if isOwner(userId) || isAdmin();
-      allow update: if isAdmin() || (isOwner(userId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastLogin', 'spotifyPlaylistUrl', 'forceTerminalOpen', 'forceMacOpen']));
+      allow update: if isAdmin() || (isOwner(userId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastLogin', 'spotifyPlaylistUrl', 'forceTerminalOpen', 'forceMacOpen', 'campaignId']));
       allow delete: if isAdmin();
       match /tapes/{tapeId} {
         allow read: if isOwner(userId) || isAdmin();
@@ -57,6 +57,10 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
     match /gallery/{imageId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+    match /groups/{groupId} {
       allow read: if isAuthenticated();
       allow write: if isAdmin();
     }
