@@ -4,39 +4,39 @@ import { FaApple } from 'react-icons/fa';
 import { motion, AnimatePresence } from 'motion/react';
 import { analyticsTracker } from '../../services/AnalyticsTracker';
 import { activityLogger } from '../../services/ActivityLogger';
+import type { WalkmanStatus } from '../../types/player';
+
 export default function BottomControls({ 
-  isPlaying, 
+  status,
   setIsPlaying, 
   hasTape,
   onRewind,
-  isRewinding,
   hasTerminalAccess,
   onTerminalOpen,
   hasMacAccess,
-  onMacOpen,
-  uid,
-  username
+  onMacOpen
 }: { 
-  isPlaying: boolean; 
+  status: WalkmanStatus;
   setIsPlaying: (v: boolean) => void; 
   hasTape: boolean;
   onRewind?: () => void;
-  isRewinding?: boolean;
   hasTerminalAccess?: boolean;
   onTerminalOpen?: () => void;
   hasMacAccess?: boolean;
   onMacOpen?: () => void;
-  uid: string;
-  username: string;
 }) {
   const [showMenu, setShowMenu] = useState(false);
+  
+  const isPlaying = status === 'PLAYING';
+  const isRewinding = status === 'REWINDING';
   const terminalAccess = !!hasTerminalAccess;
   const macAccess = !!hasMacAccess;
   const appCount = (terminalAccess ? 1 : 0) + (macAccess ? 1 : 0);
+
   const handleAppClick = () => {
     analyticsTracker.incrementStat('fidgetClicks');
     if (appCount > 1) {
-      if (!showMenu) activityLogger.logAction(uid, username, 'menu', 'Aberto seletor de sistemas');
+      if (!showMenu) activityLogger.logAction('menu', 'Aberto seletor de sistemas');
       setShowMenu(!showMenu);
     } else if (terminalAccess && onTerminalOpen) {
       onTerminalOpen();
@@ -44,9 +44,9 @@ export default function BottomControls({
       onMacOpen();
     }
   };
+
   return (
     <div className="mt-4 flex justify-between items-center px-2 shrink-0 relative" style={{ touchAction: 'manipulation' }}>
-      {}
       <AnimatePresence>
         {showMenu && appCount > 1 && (
           <motion.div
@@ -77,11 +77,12 @@ export default function BottomControls({
           </motion.div>
         )}
       </AnimatePresence>
+
       <button 
         onClick={() => { 
           analyticsTracker.incrementStat('fidgetClicks');
           if (hasTape && onRewind && !isRewinding) {
-            activityLogger.logAction(uid, username, 'player', 'Retroceder fita');
+            activityLogger.logAction('player', 'Retroceder fita');
             onRewind();
           }
         }}
@@ -89,17 +90,19 @@ export default function BottomControls({
       >
         <RotateCcw size={18} className={`text-orange-500 ${isRewinding ? 'animate-spin' : ''}`} />
       </button>
+
       <button onClick={() => {
         analyticsTracker.incrementStat('fidgetClicks');
         if (hasTape) {
-          const newState = !isPlaying;
-          activityLogger.logAction(uid, username, 'player', newState ? 'Iniciado Play' : 'Pausado');
-          setIsPlaying(newState);
+          const nextPlaying = !isPlaying;
+          activityLogger.logAction('player', nextPlaying ? 'Iniciado Play' : 'Pausado');
+          setIsPlaying(nextPlaying);
         }
       }}
         className={`w-20 h-12 bg-[#333] rounded-xl border-2 border-[#1a1a1a] shadow-lg flex items-center justify-center gap-1 transition-all ${hasTape ? 'active:bg-[#444] active:shadow-inner active:scale-95' : 'opacity-40 cursor-not-allowed'}`}>
         {isPlaying ? <Pause size={22} className="text-orange-500 fill-orange-500" /> : <Play size={22} className="text-orange-500 fill-orange-500" />}
       </button>
+
       <button 
         onClick={handleAppClick} 
         className={`w-16 h-10 bg-[#333] rounded-full border-2 border-[#1a1a1a] shadow-lg flex items-center justify-center transition-all ${appCount > 0 ? 'active:scale-95 active:bg-[#444] shadow-[0_0_15px_rgba(0,0,0,0.5)]' : 'opacity-40 cursor-not-allowed'}`}

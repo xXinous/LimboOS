@@ -10,6 +10,7 @@
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
     "deploy": "npm run build && firebase deploy --only hosting:main",
+    "deploy:beta": "npm run build && firebase deploy --only hosting:staging",
     "deploy:full": "npm run build && firebase deploy"
   },
   "dependencies": {

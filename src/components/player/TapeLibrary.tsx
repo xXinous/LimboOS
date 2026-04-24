@@ -1,21 +1,23 @@
-import { AnimatePresence, motion, useScroll } from 'motion/react';
+import { AnimatePresence, motion } from 'motion/react';
 import { activityLogger } from '../../services/ActivityLogger';
 import type { Tape } from '../../data/tapes';
 import type { DisplayMode } from '../../types/player';
 import React from 'react';
-export default function TapeLibrary({ tapes, currentTapeId, isPlaying, displayMode, onTapeSelect, uid, username }: {
+
+export default function TapeLibrary({ tapes, currentTapeId, isPlaying, displayMode, onTapeSelect }: {
   tapes: Tape[]; currentTapeId: string | null; isPlaying: boolean; displayMode: DisplayMode;
   onTapeSelect: (tape: Tape) => void;
-  uid: string; username: string;
 }) {
   const typeOrder = (t: Tape) => t.type === 'gallery-pista' ? 2 : t.type === 'disk' ? 1 : 0;
   const typeLabel = (t: Tape) => t.type === 'gallery-pista' ? '📷 Imagens' : t.type === 'disk' ? '💾 Textos' : '📼 Áudio';
+
   const sorted = React.useMemo(() => {
     if (displayMode === 'title') return [...tapes].sort((a, b) => a.title.localeCompare(b.title));
     if (displayMode === 'chapter') return [...tapes].sort((a, b) => a.chapter.localeCompare(b.chapter));
     if (displayMode === 'type') return [...tapes].sort((a, b) => typeOrder(a) - typeOrder(b) || a.title.localeCompare(b.title));
     return tapes;
   }, [tapes, displayMode]);
+
   return (
     <div className="mt-6 flex-1 bg-[#1a1a1a] rounded-2xl border-2 border-[#333] overflow-hidden flex flex-col mr-[76px]">
       <div className="p-3 border-b border-[#333] flex items-center justify-between shrink-0">
@@ -49,7 +51,7 @@ export default function TapeLibrary({ tapes, currentTapeId, isPlaying, displayMo
                     )}
                     <motion.div layout initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                       onClick={() => {
-                        activityLogger.logAction(uid, username, 'player', `Selecionou fita: ${tape.title}`, { tapeId: tape.id, tapeTitle: tape.title });
+                        activityLogger.logAction('player', `Selecionou fita: ${tape.title}`, { tapeId: tape.id, tapeTitle: tape.title });
                         onTapeSelect(tape);
                       }}
                       className={`p-2 border-b border-[#222] cursor-pointer transition-colors flex justify-between items-center ${tape.id === currentTapeId ? 'bg-orange-900/20 border-orange-500/50' : 'hover:bg-[#222]'}`}>

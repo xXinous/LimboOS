@@ -2,29 +2,39 @@ import { AnimatePresence, motion } from 'motion/react';
 import { Camera } from 'lucide-react';
 import QrScanner from '../QrScanner';
 import type { Tape } from '../../data/tapes';
-import type { TapeState } from '../../types/player';
+import type { WalkmanStatus } from '../../types/player';
 import Screw from './Screw';
+
 export default function CassetteVisor({
-  currentTape, isPlaying, volume, tapeState,
-  onEject, onScanClick, onCancelScan, isChangingTape, onQrDetected,
-  isRewinding, uid, username
+  currentTape, 
+  status,
+  onEject, 
+  onScanClick, 
+  onCancelScan, 
+  onQrDetected
 }: {
-  currentTape: Tape | null; isPlaying: boolean; volume: number;
-  tapeState: TapeState; onEject: () => void; onScanClick: () => void;
-  onCancelScan: () => void; isChangingTape: boolean;
+  currentTape: Tape | null; 
+  status: WalkmanStatus;
+  onEject: () => void; 
+  onScanClick: () => void;
+  onCancelScan: () => void; 
   onQrDetected: (code: string) => void;
-  isRewinding?: boolean;
-  uid: string;
-  username: string;
 }) {
+  const isPlaying = status === 'PLAYING';
+  const isRewinding = status === 'REWINDING';
+  const isLoading = status === 'LOADING';
+  const isScanning = status === 'SCANNING';
+  const hasTape = !!currentTape && (status === 'LOADED' || status === 'PLAYING' || status === 'REWINDING');
+
   return (
     <div className="mt-4 mx-auto w-[310px] h-[190px] bg-[#222] rounded-xl border-4 border-[#1a1a1a] shadow-[inset_0_4px_10px_rgba(0,0,0,0.6)] flex flex-col items-center relative overflow-hidden shrink-0">
 
       {([['top-2 left-2',''],['top-2 right-2','-rotate-45'],['bottom-2 left-2','rotate-90'],['bottom-2 right-2','']] as const).map(([pos, rot], i) => (
-        <Screw key={i} className={`absolute ${pos} w-2.5 h-2.5 rounded-full bg-[#111]`} innerClassName={`w-1.5 h-px bg-[#333] ${rot}`} uid={uid} username={username} />
+        <Screw key={i} className={`absolute ${pos} w-2.5 h-2.5 rounded-full bg-[#111]`} innerClassName={`w-1.5 h-px bg-[#333] ${rot}`} />
       ))}
+
       <AnimatePresence mode="wait">
-        {tapeState === 'loaded' && currentTape ? (
+        {hasTape && currentTape ? (
           <motion.div key="cassette" initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 20, opacity: 0 }}
             onClick={onEject} className="w-full h-full flex flex-col items-center cursor-pointer group">
       
@@ -58,16 +68,16 @@ export default function CassetteVisor({
           </motion.div>
         ) : (
           <motion.div key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className={tapeState === 'scanning' ? 'w-full h-full' : 'w-full h-full flex flex-col items-center justify-center p-4'}>
-            {tapeState === 'scanning' ? (
+            className={isScanning ? 'w-full h-full' : 'w-full h-full flex flex-col items-center justify-center p-4'}>
+            {isScanning ? (
               <QrScanner
                 onDetected={onQrDetected}
                 onCancel={onCancelScan}
               />
             ) : (
-              <div onClick={!isChangingTape ? onScanClick : undefined}
-                className={`w-[280px] h-[130px] border-2 border-dashed rounded-lg flex flex-col items-center justify-center gap-3 transition-all ${isChangingTape ? 'border-orange-500/30 cursor-default' : 'border-[#444] hover:bg-white/5 cursor-pointer group'}`}>
-                {isChangingTape ? (
+              <div onClick={!isLoading ? onScanClick : undefined}
+                className={`w-[280px] h-[130px] border-2 border-dashed rounded-lg flex flex-col items-center justify-center gap-3 transition-all ${isLoading ? 'border-orange-500/30 cursor-default' : 'border-[#444] hover:bg-white/5 cursor-pointer group'}`}>
+                {isLoading ? (
                   <div className="flex flex-col items-center gap-2">
                     <div className="w-6 h-6 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
                     <p className="text-orange-500 text-[9px] font-bold uppercase tracking-widest animate-pulse">Carregando fita...</p>
