@@ -23,12 +23,18 @@ service cloud.firestore {
     match /{path=**}/stats/{statDoc} {
       allow read: if isAdmin();
     }
-    match /system/{document=**} {
+    match /system/gameEvents {
       allow read: if true;
       allow write: if isAdmin();
     }
     match /system/limboState {
+      allow read: if true;
       allow update: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+    match /system/{document=**} {
+      allow read: if true;
+      allow write: if isAdmin();
     }
     match /users/{userId} {
       allow read: if isOwner(userId) || isAdmin();

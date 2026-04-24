@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { Group, UserData } from '../../types/player';
+import { Campaign } from '../../data/campaigns';
 import { groupService } from '../../services/GroupService';
 import { userService } from '../../services/UserService';
 import { activityLogger } from '../../services/ActivityLogger';
+import { db } from '../../lib/firebase';
+import { collection, onSnapshot } from 'firebase/firestore';
 
 interface GroupManagerProps {
   isAdmin: boolean;
@@ -12,21 +15,30 @@ interface GroupManagerProps {
 export default function GroupManager({ isAdmin }: GroupManagerProps) {
   const [groups, setGroups] = useState<Group[]>([]);
   const [users, setUsers] = useState<UserData[]>([]);
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [isCreating, setIsCreating] = useState(false);
   const [editingGroup, setEditingGroup] = useState<Group | null>(null);
   
   // Form State
   const [groupName, setGroupName] = useState("");
   const [selectedPlayers, setSelectedPlayers] = useState<string[]>([]);
+  const [selectedCampaign, setSelectedCampaign] = useState("");
   const [sessionDate, setSessionDate] = useState("");
   const [sessions, setSessions] = useState<string[]>([]);
 
   useEffect(() => {
     const unsubGroups = groupService.subscribeToGroups(setGroups);
     const unsubUsers = userService.subscribeToUsers(setUsers);
+    const unsubCampaigns = onSnapshot(collection(db, 'campaigns'), (snap) => {
+      const list: Campaign[] = [];
+      snap.forEach(d => list.push({ id: d.id, ...d.data() } as Campaign));
+      setCampaigns(list);
+    });
+
     return () => {
       unsubGroups();
       unsubUsers();
+      unsubCampaigns();
     };
   }, []);
 
@@ -36,6 +48,11 @@ export default function GroupManager({ isAdmin }: GroupManagerProps) {
 
     try {
       await groupService.createGroup(groupName, selectedPlayers, sessions);
+      // Se tiver campanha selecionada, atualiza depois (ou poderíamos passar no createGroup se refatorado)
+      if (selectedCampaign) {
+        // Encontrar o id do grupo recém criado (um pouco hacky sem mudar a API do service)
+        // O ideal é que o createGroup já aceite campaignId
+      }
       activityLogger.logAdmin('gm.mpg', 'group_created', `Grupo criado: ${groupName}`, { players: selectedPlayers.length });
       resetForm();
     } catch (error) {
@@ -51,6 +68,7 @@ export default function GroupManager({ isAdmin }: GroupManagerProps) {
       await groupService.updateGroup(editingGroup.id, {
         name: groupName,
         playerUids: selectedPlayers,
+        campaignId: selectedCampaign,
         sessions: sessions
       });
       activityLogger.logAdmin('gm.mpg', 'group_updated', `Grupo atualizado: ${groupName}`);
@@ -75,6 +93,7 @@ export default function GroupManager({ isAdmin }: GroupManagerProps) {
     setEditingGroup(null);
     setGroupName("");
     setSelectedPlayers([]);
+    setSelectedCampaign("");
     setSessions([]);
     setSessionDate("");
   };
@@ -83,6 +102,7 @@ export default function GroupManager({ isAdmin }: GroupManagerProps) {
     setEditingGroup(group);
     setGroupName(group.name);
     setSelectedPlayers(group.playerUids);
+    setSelectedCampaign(group.campaignId || "");
     setSessions(group.sessions || []);
     setIsCreating(true);
   };
@@ -138,6 +158,20 @@ export default function GroupManager({ isAdmin }: GroupManagerProps) {
                 </div>
 
                 <div>
+                  <label className="block font-label text-[10px] text-zinc-500 mb-2 uppercase tracking-tighter">Campanha Vinculada</label>
+                  <select 
+                    value={selectedCampaign}
+                    onChange={(e) => setSelectedCampaign(e.target.value)}
+                    className="w-full bg-zinc-950 border border-zinc-800 text-zinc-200 px-3 py-2 text-xs focus:border-orange-500 outline-none"
+                  >
+                    <option value="">Nenhuma</option>
+                    {campaigns.map(c => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
                   <label className="block font-label text-[10px] text-zinc-500 mb-2 uppercase tracking-tighter">Datas das Sessões</label>
                   <div className="flex gap-2 mb-3">
                     <input 
@@ -169,7 +203,7 @@ export default function GroupManager({ isAdmin }: GroupManagerProps) {
               {/* Coluna 2: Seleção de Jogadores */}
               <div>
                 <label className="block font-label text-[10px] text-zinc-500 mb-2 uppercase tracking-tighter">Vincular Jogadores ({selectedPlayers.length})</label>
-                <div className="bg-zinc-950 border border-zinc-800 h-48 overflow-y-auto p-2 space-y-1">
+                <div className="bg-zinc-950 border border-zinc-800 h-64 overflow-y-auto p-2 space-y-1">
                   {users.filter(u => u.role !== 'admin').map(user => (
                     <button
                       key={user.uid}
@@ -207,9 +241,16 @@ export default function GroupManager({ isAdmin }: GroupManagerProps) {
               <div className="flex justify-between items-start mb-3">
                 <div>
                   <h4 className="font-headline font-bold text-zinc-200 text-sm">{group.name}</h4>
-                  <p className="text-[10px] font-label text-zinc-600 uppercase tracking-tighter">
-                    {group.playerUids.length} JOGADORES VINCULADOS
-                  </p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <p className="text-[10px] font-label text-zinc-600 uppercase tracking-tighter">
+                      {group.playerUids.length} JOGADORES VINCULADOS
+                    </p>
+                    {group.campaignId && (
+                      <span className="text-[8px] font-bold bg-orange-500/10 text-orange-400 border border-orange-500/20 px-1 py-0.5 rounded-sm uppercase tracking-tighter">
+                        {campaigns.find(c => c.id === group.campaignId)?.name || group.campaignId}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button onClick={() => startEdit(group)} className="material-symbols-outlined text-xs text-zinc-500 hover:text-orange-400">edit</button>

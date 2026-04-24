@@ -5,7 +5,7 @@ export interface Campaign {
   location: string;
   year: string;
   visualTheme: 'default' | 'terminal' | 'macos' | 'windows95';
-  difficulty: 'Fácil' | 'Médio' | 'Difícil' | 'Pesadelo';
+  rpgSystem: string;
   status: 'Ativa' | 'Arquivada' | 'Bloqueada';
   imageUrl: string;
 }
@@ -18,7 +18,7 @@ export const campaigns: Campaign[] = [
     location: 'Setor 011 - São Paulo',
     year: '2099',
     visualTheme: 'default',
-    difficulty: 'Médio',
+    rpgSystem: 'Cyberpunk Red',
     status: 'Ativa',
     imageUrl: 'https://images.unsplash.com/photo-1514516311115-91220997d662?q=80&w=800&auto=format&fit=crop',
   },
@@ -29,7 +29,7 @@ export const campaigns: Campaign[] = [
     location: 'Órbita Terrestre Baixa',
     year: '2105',
     visualTheme: 'terminal',
-    difficulty: 'Difícil',
+    rpgSystem: 'Mothership',
     status: 'Ativa',
     imageUrl: 'https://images.unsplash.com/photo-1446776811953-b23d57bd21aa?q=80&w=800&auto=format&fit=crop',
   },
@@ -40,7 +40,7 @@ export const campaigns: Campaign[] = [
     location: 'Cyber-Espaço',
     year: '1984 (Simulação)',
     visualTheme: 'windows95',
-    difficulty: 'Médio',
+    rpgSystem: 'Tales from the Loop',
     status: 'Ativa',
     imageUrl: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?q=80&w=800&auto=format&fit=crop',
   },
@@ -51,7 +51,7 @@ export const campaigns: Campaign[] = [
     location: 'Deserto do Arizona',
     year: '2097',
     visualTheme: 'macos',
-    difficulty: 'Pesadelo',
+    rpgSystem: 'Fallout 2d20',
     status: 'Bloqueada',
     imageUrl: 'https://images.unsplash.com/photo-1469474099711-423507d9d68b?q=80&w=800&auto=format&fit=crop',
   }

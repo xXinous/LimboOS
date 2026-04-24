@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@300;400;500;600;700&family=Chakra+Petch:wght@400;600;700&family=Oswald:wght@400;500;700&display=swap');
 @import "tailwindcss";
 
 @theme {
@@ -12,6 +12,19 @@
   --color-retro-orange: #FF8C00;
   --color-industrial-silver: #C0C0C0;
   --color-deep-carbon: #131313;
+
+  /* Cardboard / Analog Theme */
+  --color-cardboard: #d6ccbd;
+  --color-cardboard-dark: #bbaea0;
+  --color-cardboard-light: #e6ddce;
+  --color-ink: #18191b;
+  --color-ink-light: #303134;
+  --color-analog-orange: #d95818;
+  --color-analog-red: #cc3021;
+  --color-analog-green: #378b44;
+
+  --font-oswald: 'Oswald', sans-serif;
+  --font-chakra: 'Chakra Petch', sans-serif;
 
   /* Unified Surface Colors */
   --color-surface: #131313;
@@ -120,4 +133,167 @@
     width: 8px;
     margin-right: 2px;
   }
+}
+
+/* === Walkman Mission Select Cardboard Styles === */
+
+.bg-cardboard {
+  background-color: var(--color-cardboard);
+  background-image: url("https://www.transparenttextures.com/patterns/cardboard.png");
+  position: relative;
+}
+
+.bg-cardboard::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(circle at 50% 50%, rgba(255,255,255,0.1) 0%, rgba(0,0,0,0.15) 100%);
+  mix-blend-mode: multiply;
+}
+
+.cassette-base {
+  background-color: var(--color-cardboard-light);
+  background-image: url("https://www.transparenttextures.com/patterns/cardboard.png");
+  border: 1px solid var(--color-cardboard-dark);
+  border-radius: 8px;
+  box-shadow:
+    8px 8px 16px rgba(0,0,0,0.3),
+    inset 2px 2px 4px rgba(255,255,255,0.5),
+    inset -2px -2px 6px rgba(0,0,0,0.1);
+  overflow: hidden;
+}
+
+.cassette-plastic {
+  position: absolute;
+  inset: -2px;
+  border-radius: 10px;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.45) 0%,
+    rgba(255, 255, 255, 0.1) 30%,
+    rgba(255, 255, 255, 0) 50%,
+    rgba(0,0,0, 0.05) 100%
+  );
+  box-shadow: inset 0 0 10px rgba(255,255,255,0.5);
+  pointer-events: none;
+  z-index: 10;
+  backdrop-filter: brightness(1.05) contrast(1.05);
+}
+
+.cassette-plastic::after {
+  content: "";
+  position: absolute;
+  top: 10%;
+  left: -20%;
+  width: 15px;
+  height: 150%;
+  background: rgba(255, 255, 255, 0.6);
+  transform: rotate(35deg);
+  filter: blur(4px);
+  opacity: 0.5;
+}
+
+.btn-sk-orange {
+  background-color: var(--color-analog-orange);
+  color: #111;
+  font-weight: 700;
+  border-radius: 6px;
+  border: 2px solid #8c3208;
+  box-shadow:
+    inset 0 4px 0 rgba(255, 255, 255, 0.2),
+    inset 0 -4px 0 rgba(0, 0, 0, 0.2),
+    0 4px 6px rgba(0,0,0,0.4);
+  transition: all 0.1s;
+  text-shadow: 0 1px 0 rgba(255,255,255,0.2);
+}
+.btn-sk-orange:active {
+  transform: translateY(2px);
+  box-shadow:
+    inset 0 2px 0 rgba(255, 255, 255, 0.1),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.3),
+    0 1px 2px rgba(0,0,0,0.4);
+}
+
+.btn-sk-disabled {
+  background-color: #c7bea9;
+  color: #666;
+  font-weight: 700;
+  border-radius: 6px;
+  border: 2px solid #a89d87;
+  box-shadow:
+    inset 0 2px 0 rgba(255, 255, 255, 0.3),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.1);
+  text-align: center;
+  line-height: 1.1;
+}
+
+.campaign-screw {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #a39b8d, #635d54);
+  box-shadow:
+    inset 1px 1px 2px rgba(255,255,255,0.4),
+    inset -1px -1px 2px rgba(0,0,0,0.6),
+    2px 2px 3px rgba(0,0,0,0.4);
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.campaign-screw::after {
+  content: "";
+  width: 10px;
+  height: 2px;
+  background-color: #403d36;
+  transform: rotate(45deg);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.2);
+}
+.campaign-screw::before {
+  content: "";
+  position: absolute;
+  width: 2px;
+  height: 10px;
+  background-color: #403d36;
+  transform: rotate(45deg);
+  box-shadow: inset 1px 0 0 rgba(255,255,255,0.2);
+}
+
+.indented-box {
+  background: var(--color-cardboard);
+  box-shadow:
+    inset 2px 2px 6px rgba(0,0,0,0.2),
+    inset -1px -1px 2px rgba(255,255,255,0.5),
+    1px 1px 0 rgba(255,255,255,0.4);
+  border-radius: 4px;
+}
+
+.stamp {
+  font-family: 'Oswald', sans-serif;
+  border: 4px solid var(--color-ink);
+  color: var(--color-ink);
+  font-size: 1.5rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 4px;
+  display: inline-block;
+  opacity: 0.8;
+  transform: rotate(-10deg);
+  mix-blend-mode: multiply;
+}
+
+.barcode-line {
+  background-color: var(--color-ink);
+  height: 100%;
+}
+
+.campaign-no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.campaign-no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }

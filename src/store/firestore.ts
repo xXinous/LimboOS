@@ -24,6 +24,17 @@ import {
   QrRedirect
 } from '../types/player';
 
+export type { 
+  PlayerData, 
+  PlayerStats, 
+  UserData, 
+  LimboGlobalState, 
+  GameEventsState, 
+  GalleryImage, 
+  GalleryCategory,
+  QrRedirect 
+};
+
 const DEFAULT_STATS: PlayerStats = {
   totalListenTime: 0,
   screwClicks: 0,
@@ -81,10 +92,11 @@ export async function updateLastLogin(uid: string): Promise<void> {
   }, { merge: true });
 }
 
-export async function firestoreUnlockTape(uid: string, tapeId: string): Promise<void> {
+export async function firestoreUnlockTape(uid: string, tapeId: string, campaignId?: string): Promise<void> {
   await setDoc(doc(db, 'users', uid, 'tapes', tapeId), {
     tapeId,
     unlockedAt: serverTimestamp(),
+    campaignId: campaignId || null
   });
 }
 

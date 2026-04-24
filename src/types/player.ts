@@ -71,6 +71,7 @@ export interface Group {
   name: string;
   description?: string;
   playerUids: string[];
+  campaignId?: string;
   sessions: string[]; // Lista de datas das sessões
   createdAt: Timestamp;
   updatedAt: Timestamp;

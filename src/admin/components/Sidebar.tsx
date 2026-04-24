@@ -17,6 +17,7 @@ export default function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
     {
       title: "Mesa de Jogo",
       items: [
+        { id: 'missions', label: 'Missões e Campanhas', icon: 'map' },
         { id: 'players', label: 'Jogadores e Grupos', icon: 'group' }, // Usuários + Grupos
         { id: 'inventory', label: 'Inventário e Conquistas', icon: 'inventory_2' }, // Inventário + Achievements
       ]

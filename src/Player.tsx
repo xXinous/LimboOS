@@ -22,6 +22,7 @@ import { analyticsTracker } from './services/AnalyticsTracker';
 import { activityLogger } from './services/ActivityLogger';
 import { tapeManager } from './services/TapeManager';
 import { playerSyncService } from './services/PlayerSyncService';
+import { diskRepairService } from './services/DiskRepairService';
 import { onAuthStateChanged, logout } from './store/profile';
 import type { PlayerData, PlayerStats, LimboGlobalState, GalleryImage } from './store/firestore';
 import { 
@@ -134,6 +135,12 @@ export default function Player() {
       setOwnedTapes([]);
     }
   }, [playerData?.unlockedTapeIds]);
+
+  useEffect(() => {
+    if (playerData) {
+      diskRepairService.init();
+    }
+  }, [playerData?.uid]);
 
   useEffect(() => {
     if (playerData?.unlockedGalleryIds?.length) {
@@ -351,7 +358,7 @@ export default function Player() {
       <AnimatePresence mode="wait">
         {screen === 'login' || playerData === undefined ? (
           <motion.div key="login" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full h-full flex items-center justify-center">
-            <LoginScreen onLogin={(data) => { setPlayerData(data); setLocalStats(data.stats); setScreen('player'); }} />
+            <LoginScreen onLogin={(data) => { setPlayerData(data); setLocalStats(data.stats); }} />
           </motion.div>
         ) : screen === 'profile' ? (
           <motion.div key="profile" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full h-full flex items-center justify-center">
