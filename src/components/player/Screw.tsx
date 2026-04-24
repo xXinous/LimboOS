@@ -1,31 +1,32 @@
 import React from 'react';
 import { analyticsTracker } from '../../services/AnalyticsTracker';
 import { activityLogger } from '../../services/ActivityLogger';
+
 export interface ScrewProps {
   key?: React.Key;
   className?: string;
   innerClassName?: string;
   onClick?: () => void;
-  uid?: string;
-  username?: string;
 }
+
 export class ScrewBehavior {
-  static registerClick(uid?: string, username?: string) {
+  static registerClick() {
     analyticsTracker.incrementStat('screwClicks');
     analyticsTracker.incrementStat('fidgetClicks');
-    if (uid && username) {
-      activityLogger.logAction(uid, username, 'fidget', 'Interação tátil (parafuso)');
-    }
+    activityLogger.logAction('fidget', 'Interação tátil (parafuso)');
   }
 }
-export default function Screw({ className = '', innerClassName = '', onClick, uid, username }: ScrewProps) {
+
+export default function Screw({ className = '', innerClassName = '', onClick }: ScrewProps) {
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    ScrewBehavior.registerClick(uid, username);
+    ScrewBehavior.registerClick();
     if (onClick) onClick();
   };
+
   const outer = className.includes('w-') ? className : `w-4 h-4 rounded-full bg-[#1a1a1a] border border-[#3a3a3a] ${className}`;
   const inner = innerClassName || `w-2 h-0.5 bg-[#3a3a3a] rotate-45`;
+
   return (
     <div onClick={handleClick} className={`absolute flex items-center justify-center cursor-pointer hover:brightness-125 transition-all z-20 ${outer}`}>
       <div className={`pointer-events-none ${inner}`} />

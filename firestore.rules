@@ -60,6 +60,10 @@ service cloud.firestore {
       allow read: if isAuthenticated();
       allow write: if isAdmin();
     }
+    match /jukeboxTracks/{trackId} {
+      allow read: if isAdmin();
+      allow write: if isAdmin();
+    }
     match /playEvents/{eventId} {
       allow read: if isAdmin();
       allow create: if isOwner(request.resource.data.uid) && isValidPayloadSize();

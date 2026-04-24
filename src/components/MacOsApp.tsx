@@ -81,6 +81,8 @@ interface MacOsAppProps {
   uid: string;
   onClose: () => void;
 }
+import { diskRepairService } from '../services/DiskRepairService';
+
 export default function MacOsApp({ uid, onClose }: MacOsAppProps) {
   const [phase, setPhase] = useState<'login' | 'desktop'>('login');
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -88,56 +90,44 @@ export default function MacOsApp({ uid, onClose }: MacOsAppProps) {
   const [appleMenuOpen, setAppleMenuOpen] = useState(false);
   const [repairStep, setRepairStep] = useState<RepairStep>('idle');
   const [repairProgress, setRepairProgress] = useState(0);
+  const [scrambleText, setScrambleText] = useState('');
+
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 60000);
     return () => clearInterval(timer);
   }, []);
-  useEffect(() => {
-    if (repairStep !== 'repairing') return;
-    const interval = setInterval(() => {
-      setRepairProgress(prev => {
-        const next = prev + Math.random() * 8;
-        if (next >= 100) {
-          clearInterval(interval);
-          setTimeout(() => {
-            setRepairStep('restored');
-            analyticsTracker.grantAchievement('ACH-REPAIR-SUCCESS');
-            firestoreUnlockTape(uid, 'evidence-disk-01').catch(console.error);
-          }, 500);
-          return 100;
-        }
-        return next;
-      });
-    }, 200);
-    return () => clearInterval(interval);
-  }, [repairStep, uid]);
+
   const handleDesktopClick = useCallback(() => {
     setAppleMenuOpen(false);
   }, []);
+
   const handleClose = useCallback(async () => {
     activityLogger.logAction(uid, 'Sistema', 'macos', 'Solicitou desligamento do MacOS');
     await checkMacClosed(uid);
     onClose();
   }, [uid, onClose]);
+
   const handleLogin = useCallback(() => {
     if (navigator.vibrate) navigator.vibrate(20);
     activityLogger.logAction(uid, 'Sistema', 'macos', 'Entrou no Desktop MacOS');
     setPhase('desktop');
   }, [uid]);
-  const insertDisk = useCallback(() => {
-    activityLogger.logAction(uid, 'Sistema', 'diskrepair', 'Inseriu disquete para análise');
+
+  const insertDisk = useCallback(async () => {
     setRepairStep('reading');
-    setTimeout(() => {
-      setRepairStep('corrupted');
-      analyticsTracker.grantAchievement('ACH-REPAIR-FAIL');
-      firestoreUnlockTape(uid, 'evidence-disk-01-corrupted').catch(console.error);
-    }, 1500);
+    setRepairProgress(0);
+    await diskRepairService.startAnalysis(uid, setRepairProgress);
+    setScrambleText(diskRepairService.getScrambleText());
+    setRepairStep('corrupted');
   }, [uid]);
-  const startRepair = useCallback(() => {
-    activityLogger.logAction(uid, 'Sistema', 'diskrepair', 'Iniciou reconstrução de setores');
+
+  const startRepair = useCallback(async () => {
     setRepairStep('repairing');
     setRepairProgress(0);
+    const success = await diskRepairService.startRepair(uid, setRepairProgress);
+    setRepairStep(success ? 'restored' : 'corrupted');
   }, [uid]);
+
   const openDiskRepair = useCallback(() => {
     activityLogger.logAction(uid, 'Sistema', 'macos', 'Abriu aplicativo: DiskRepair Pro');
     setActiveWindow('diskRepair');

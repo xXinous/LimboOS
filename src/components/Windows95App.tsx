@@ -179,63 +179,26 @@ function DesktopIcon({ icon, label, onClick, labelOnLight }: { icon: string, lab
 }
 function DiskRepairWin95Content({ uid }: { uid: string }) {
   const [phase, setPhase] = useState<'intro' | 'loading' | 'viewer' | 'repairing' | 'result'>('intro');
-  const [diskRepairAllowed, setDiskRepairAllowed] = useState(false);
   const [resultStatus, setResultStatus] = useState<'success' | 'fail' | null>(null);
   const [progress, setProgress] = useState(0);
   const [scrambleText, setScrambleText] = useState('');
-  useEffect(() => {
-    analyticsTracker.grantAchievement('ACH-REPAIR-APP');
-  }, []);
-  useEffect(() => {
-    const unsub = onSnapshot(doc(db, 'system', 'gameEvents'), (snap) => {
-      if (snap.exists()) {
-        const data = snap.data() as GameEventsState;
-        setDiskRepairAllowed(!!data.diskRepairAllowed);
-      }
-    });
-    return () => unsub();
-  }, []);
-  const generateScramble = () => DISK_REPAIR_CORRUPTED_TEXT;
-  const handleAnalyze = () => {
-    activityLogger.logAction(uid, 'Sistema', 'diskrepair', 'Analisou disquete (Windows 95)');
+
+  const handleAnalyze = async () => {
     setPhase('loading');
     setProgress(0);
-    let p = 0;
-    const interval = setInterval(() => {
-      p += 15 + Math.random() * 20;
-      if (p >= 100) {
-        clearInterval(interval);
-        setScrambleText(generateScramble());
-        setPhase('viewer');
-        analyticsTracker.grantAchievement('ACH-REPAIR-FAIL');
-        firestoreUnlockTape(uid, 'evidence-disk-01-corrupted').catch(console.error);
-      } else {
-        setProgress(p);
-      }
-    }, 400);
+    await diskRepairService.startAnalysis(uid, setProgress);
+    setScrambleText(diskRepairService.getScrambleText());
+    setPhase('viewer');
   };
-  const handleRepair = () => {
-    activityLogger.logAction(uid, 'Sistema', 'diskrepair', 'Iniciou desmagnetização (Windows 95)');
+
+  const handleRepair = async () => {
     setPhase('repairing');
     setProgress(0);
-    let p = 0;
-    const interval = setInterval(() => {
-      p += 5 + Math.random() * 10;
-      if (Math.random() > 0.5) setScrambleText(generateScramble());
-      if (p >= 100) {
-        clearInterval(interval);
-        setPhase('result');
-        const success = diskRepairAllowed;
-        setResultStatus(success ? 'success' : 'fail');
-        if (success) {
-          analyticsTracker.grantAchievement('ACH-REPAIR-SUCCESS');
-          firestoreUnlockTape(uid, 'evidence-disk-01').catch(console.error);
-        }
-      } else {
-        setProgress(p);
-      }
-    }, 300);
+    const success = await diskRepairService.startRepair(uid, setProgress);
+    setResultStatus(success ? 'success' : 'fail');
+    setPhase('result');
   };
+
   const handleRetry = () => {
     setPhase('intro');
     setResultStatus(null);
