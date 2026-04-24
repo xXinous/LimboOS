@@ -31,7 +31,7 @@ export default function CampaignSelection({ onSelect }: CampaignSelectionProps) 
   };
 
   return (
-    <div className="relative w-full max-w-[360px] bg-[#2a2a2a] rounded-[40px] shadow-2xl border-4 border-[#1a1a1a] flex flex-col p-4 overflow-hidden font-mono select-none">
+    <div className="relative w-full max-w-[360px] bg-surface-container-high rounded-[40px] shadow-2xl border-4 border-[#1a1a1a] flex flex-col p-4 overflow-hidden font-mono select-none">
       {/* Detalhes de Hardware */}
       <Screw className="top-4 left-4" />
       <Screw className="top-4 right-4 -rotate-90" />
@@ -67,7 +67,7 @@ export default function CampaignSelection({ onSelect }: CampaignSelectionProps) 
             className="w-full h-full p-3"
           >
             {/* Rótulo da Fita */}
-            <div className="w-full h-full bg-[#f4f1ea] rounded-md relative flex flex-col p-3 border-t-[10px] border-[#ea580c]">
+            <div className="w-full h-full bg-[#f4f1ea] rounded-md relative flex flex-col p-3 border-t-10 border-[#ea580c]">
               <div className="flex justify-between items-start text-[8px] font-bold text-gray-500 mb-1">
                 <span className="uppercase tracking-widest">Type II / High-Bias</span>
                 <span className="text-[#ea580c] font-black">60 MIN</span>
@@ -80,7 +80,7 @@ export default function CampaignSelection({ onSelect }: CampaignSelectionProps) 
                 <div className="w-16 h-0.5 bg-gray-300 mb-1" />
                 <span className="text-[9px] font-bold text-gray-600 truncate uppercase">
                   {currentCampaign.location}
-                </h2>
+                </span>
               </div>
 
               <div className="flex justify-between items-end">
@@ -175,7 +175,7 @@ export default function CampaignSelection({ onSelect }: CampaignSelectionProps) 
             <motion.div 
               initial={{ scale: 0.8, y: 20 }}
               animate={{ scale: 1, y: 0 }}
-              className="bg-[#2a2a2a] p-6 rounded-[32px] border-4 border-[#ea580c] shadow-2xl flex flex-col gap-4 max-w-[280px]"
+              className="bg-surface-container-high p-6 rounded-[32px] border-4 border-[#ea580c] shadow-2xl flex flex-col gap-4 max-w-[280px]"
             >
               <div className="w-12 h-12 bg-[#ea580c] rounded-full flex items-center justify-center mx-auto mb-2 animate-pulse">
                 <Play size={24} className="text-white fill-white ml-1" />
