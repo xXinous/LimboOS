@@ -1,7 +1,7 @@
 import { Timestamp } from 'firebase/firestore';
 
 // --- UI & App State Types ---
-export type AppScreen = 'login' | 'player' | 'profile' | 'bios' | 'limbo' | 'diskRepair' | 'macos' | 'windows95';
+export type AppScreen = 'login' | 'player' | 'profile' | 'bios' | 'limbo' | 'diskRepair' | 'macos' | 'windows95' | 'campaignSelection';
 export type TapeState = 'empty' | 'loaded' | 'scanning';
 export type WalkmanStatus = 'IDLE' | 'LOADING' | 'LOADED' | 'PLAYING' | 'REWINDING' | 'SCANNING';
 export type DisplayMode = 'default' | 'title' | 'chapter' | 'type';
@@ -25,6 +25,7 @@ export interface UserData {
   role: 'player' | 'admin';
   createdAt: Timestamp | null;
   lastLogin?: Timestamp | null;
+  campaignId?: string;
   
   // Game Flags
   achievementsRevealed?: boolean;

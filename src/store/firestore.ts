@@ -71,7 +71,14 @@ export async function createUserDoc(uid: string, username: string, email: string
     email,
     role: 'player',
     createdAt: serverTimestamp(),
+    lastLogin: serverTimestamp(),
   });
+}
+
+export async function updateLastLogin(uid: string): Promise<void> {
+  await setDoc(doc(db, 'users', uid), {
+    lastLogin: serverTimestamp(),
+  }, { merge: true });
 }
 
 export async function firestoreUnlockTape(uid: string, tapeId: string): Promise<void> {
@@ -203,6 +210,10 @@ export async function setDiskRepairAllowed(allowed: boolean): Promise<void> {
 
 export async function firestoreUpdateSpotifyPlaylist(uid: string, url: string): Promise<void> {
   await setDoc(doc(db, 'users', uid), { spotifyPlaylistUrl: url }, { merge: true });
+}
+
+export async function firestoreSetCampaign(uid: string, campaignId: string): Promise<void> {
+  await setDoc(doc(db, 'users', uid), { campaignId }, { merge: true });
 }
 
 export async function fetchAudioTapeById(audioId: string): Promise<Tape | null> {

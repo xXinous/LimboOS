@@ -16,6 +16,7 @@ import DiskRepairApp from './components/DiskRepairApp';
 import MacOsApp from './components/MacOsApp';
 import Windows95App from './components/Windows95App';
 import EvidenceReader from './components/EvidenceReader';
+import CampaignSelection from './components/CampaignSelection';
 import { audioEngine } from './services/AudioEngine';
 import { analyticsTracker } from './services/AnalyticsTracker';
 import { activityLogger } from './services/ActivityLogger';
@@ -23,8 +24,14 @@ import { tapeManager } from './services/TapeManager';
 import { playerSyncService } from './services/PlayerSyncService';
 import { onAuthStateChanged, logout } from './store/profile';
 import type { PlayerData, PlayerStats, LimboGlobalState, GalleryImage } from './store/firestore';
-import { loadPlayerData, firestoreUpdateSpotifyPlaylist, fetchPlayerGalleryImages } from './store/firestore';
+import { 
+  loadPlayerData, 
+  firestoreUpdateSpotifyPlaylist, 
+  fetchPlayerGalleryImages,
+  firestoreSetCampaign
+} from './store/firestore';
 import type { Tape } from './data/tapes';
+import { campaigns } from './data/campaigns';
 import type { AppScreen, WalkmanStatus, DisplayMode } from './types/player';
 
 export default function Player() {
@@ -65,11 +72,19 @@ export default function Player() {
           const data = await loadPlayerData(user.uid);
           setPlayerData(data);
           setLocalStats(data.stats);
-          setScreen('player');
-          activityLogger.logAuth(data.uid, data.username, 'login', `${data.username} entrou no sistema`);
+          activityLogger.setUser(data.uid, data.username);
+          
+          if (!data.campaignId) {
+            setScreen('campaignSelection');
+          } else {
+            setScreen('player');
+          }
+          
+          activityLogger.logAuth('login', `${data.username} entrou no sistema`);
         } else {
           setPlayerData(undefined);
           setLocalStats(null);
+          activityLogger.clearUser();
           setScreen('login');
         }
       } catch (err) {
@@ -287,6 +302,31 @@ export default function Player() {
     setWalkmanStatus('IDLE');
   };
 
+  const handleCampaignSelect = async (campaign: any) => {
+    if (!playerData) return;
+    try {
+      await firestoreSetCampaign(playerData.uid, campaign.id);
+      setPlayerData({ ...playerData, campaignId: campaign.id });
+      
+      addToast({ 
+        type: 'success', 
+        title: 'Instância Vinculada', 
+        subtitle: campaign.name, 
+        icon: '🔗' 
+      });
+
+      // Muda o ambiente dependendo da campanha
+      if (campaign.visualTheme === 'terminal') setScreen('bios');
+      else if (campaign.visualTheme === 'macos') setScreen('macos');
+      else if (campaign.visualTheme === 'windows95') setScreen('windows95');
+      else setScreen('player');
+
+      activityLogger.logAction(playerData.uid, playerData.username, 'campaign_select', `Selecionou campanha: ${campaign.name}`, { campaignId: campaign.id });
+    } catch (err) {
+      addToast({ type: 'error', title: 'Erro', subtitle: 'Falha ao vincular instância', icon: '⚠️' });
+    }
+  };
+
   const swipeHandlers = useSwipeable({
     onSwipedLeft: () => screen === 'player' && playerData && setScreen('profile'),
     onSwipedRight: () => screen === 'profile' && playerData && setScreen('player'),
@@ -353,6 +393,10 @@ export default function Player() {
         ) : screen === 'windows95' ? (
           <motion.div key="windows95" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-50">
             <Windows95App uid={playerData.uid} onClose={() => setScreen('player')} />
+          </motion.div>
+        ) : screen === 'campaignSelection' ? (
+          <motion.div key="campaignSelection" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full h-full flex items-center justify-center p-4">
+            <CampaignSelection onSelect={handleCampaignSelect} />
           </motion.div>
         ) : (
           <motion.div 

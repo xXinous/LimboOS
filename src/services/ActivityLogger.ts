@@ -32,10 +32,6 @@ class ActivityLogger {
     return ActivityLogger.instance;
   }
 
-  /**
-   * Initializes the logger with user context.
-   * This allows subsequent log calls to omit uid and username.
-   */
   public setUser(uid: string, username: string): void {
     this.currentUid = uid;
     this.currentUsername = username;
@@ -68,6 +64,8 @@ class ActivityLogger {
   }
 
   private humanize(message: string, type?: ActivityType): string {
+    if (!message || typeof message !== 'string') return String(message || '');
+    
     if (type === 'navigation' && message.includes('→')) {
       const screens: Record<string, string> = {
         'player':     'Walkman MK-III',
@@ -78,6 +76,7 @@ class ActivityLogger {
         'macos':      'System 7.5',
         'windows95':  'Windows 95',
         'login':      'Acesso',
+        'campaignSelection': 'Seleção de Instância',
       };
       const [from, to] = message.split('→').map(s => s.trim());
       return `Navegação: ${screens[from] || from} → ${screens[to] || to}`;
@@ -100,20 +99,53 @@ class ActivityLogger {
     return message;
   }
 
-  private async write(event: Omit<ActivityEvent, 'timestamp' | 'uid' | 'username'>): Promise<void> {
-    const uid = this.currentUid || 'unknown';
-    const username = this.currentUsername || 'System';
+  /**
+   * Internal helper to normalize arguments from multiple possible signatures.
+   */
+  private normalizeArgs(args: any[]): { 
+    uid: string; 
+    username: string; 
+    category: string; 
+    message: string; 
+    metadata?: Record<string, unknown> 
+  } {
+    // Signature A: (category, message, metadata?) -> uses internal setUser state
+    // Signature B: (uid, username, category, message, metadata?)
+    
+    if (args.length >= 4 && typeof args[0] === 'string' && typeof args[1] === 'string' && typeof args[2] === 'string') {
+      return {
+        uid: args[0],
+        username: args[1],
+        category: args[2],
+        message: args[3],
+        metadata: args[4] || {}
+      };
+    }
+
+    return {
+      uid: this.currentUid || 'unknown',
+      username: this.currentUsername || 'System',
+      category: args[0] || 'general',
+      message: args[1] || '',
+      metadata: args[2] || {}
+    };
+  }
+
+  private async write(type: ActivityType, source: 'player' | 'admin', args: any[]): Promise<void> {
+    const { uid, username, category, message, metadata } = this.normalizeArgs(args);
 
     try {
-      const humanizedMessage = this.humanize(event.message, event.type);
-      const metadata = { ...(event.metadata || {}), original_message: event.message };
+      const humanizedMessage = this.humanize(message, type);
+      const finalMetadata = { ...(metadata || {}), original_message: message };
 
       const cleanEvent = this.sanitizeData({ 
-        ...event, 
+        type,
+        category,
         uid,
         username,
         message: humanizedMessage,
-        metadata 
+        metadata: finalMetadata,
+        source
       }) as Record<string, unknown>;
 
       await addDoc(collection(db, 'activityLog'), {
@@ -121,7 +153,8 @@ class ActivityLogger {
         timestamp: serverTimestamp(),
       });
     } catch (err) {
-      console.error('[ActivityLogger] write failed:', err);
+      // Don't use console.error to avoid infinite loops if error logging fails
+      console.warn('[ActivityLogger] write failed:', err);
     }
   }
 
@@ -129,35 +162,32 @@ class ActivityLogger {
     const now = Date.now();
     if (now - this.lastNavTimestamp < this.NAV_THROTTLE_MS) return;
     this.lastNavTimestamp = now;
-    this.write({
-      type: 'navigation',
-      category: 'screen_change',
-      message: `${fromScreen} → ${toScreen}`,
-      metadata: { fromScreen, toScreen, ...metadata },
-      source: 'player',
-    });
+    this.write('navigation', 'player', [`${fromScreen} → ${toScreen}`, metadata]);
   }
 
-  logAction(category: string, message: string, metadata?: Record<string, unknown>): void {
-    this.write({ type: 'action', category, message, metadata, source: 'player' });
+  logAction(...args: any[]): void {
+    this.write('action', 'player', args);
   }
 
-  logSystem(category: string, message: string, metadata?: Record<string, unknown>): void {
-    this.write({ type: 'system', category, message, metadata, source: 'player' });
+  logSystem(...args: any[]): void {
+    this.write('system', 'player', args);
   }
 
-  logError(message: string, errorStack?: string, metadata?: Record<string, unknown>): void {
-    this.write({ type: 'error', category: 'error', message, metadata: { errorStack, ...metadata }, source: 'player' });
+  logError(...args: any[]): void {
+    this.write('error', 'player', args);
   }
 
-  logAuth(category: string, message: string, metadata?: Record<string, unknown>): void {
-    this.write({ type: 'auth', category, message, metadata, source: 'player' });
+  logAuth(...args: any[]): void {
+    this.write('auth', 'player', args);
+  }
+
+  logTrace(...args: any[]): void {
+    this.write('trace', 'player', args);
   }
 
   logAdmin(adminName: string, category: string, message: string, metadata?: Record<string, unknown>): void {
-    // Admin logs are different as they usually happen in the admin panel
     this.setUser('admin', adminName);
-    this.write({ type: 'admin', category, message, metadata, source: 'admin' });
+    this.write('admin', 'admin', [category, message, metadata]);
   }
 }
 
