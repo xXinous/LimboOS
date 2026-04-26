@@ -13,10 +13,18 @@ service cloud.firestore {
     function isValidPayloadSize() {
       return request.resource.data.keys().size() < 50; 
     }
+
+    // Regras de Campanhas - Crítico para a tela de seleção
+    match /campaigns/{campaignId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     match /qrRedirects/{redirectId} {
       allow read: if true;
       allow write: if isAdmin();
     }
+    
     match /{path=**}/achievements/{achId} {
       allow read: if isAdmin();
     }

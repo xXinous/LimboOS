@@ -366,6 +366,7 @@ export default function Player() {
               profile={{ ...playerData, galleryImages }} 
               onBack={() => setScreen('player')} 
               onLogout={handleLogout} 
+              onChangeMission={() => setScreen('campaignSelection')}
               onUpdateSpotify={async (url) => { 
                 if (playerData) { 
                   await firestoreUpdateSpotifyPlaylist(playerData.uid, url); 
@@ -403,7 +404,7 @@ export default function Player() {
           </motion.div>
         ) : screen === 'campaignSelection' ? (
           <motion.div key="campaignSelection" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full h-full flex items-center justify-center p-4">
-            <CampaignSelection onSelect={handleCampaignSelect} />
+            <CampaignSelection onSelect={handleCampaignSelect} onLogout={handleLogout} />
           </motion.div>
         ) : (
           <motion.div 

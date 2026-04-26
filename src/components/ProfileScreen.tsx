@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft, LogOut, Trophy, Music, Pencil, Check, X, ExternalLink, Image } from 'lucide-react';
+import { ArrowLeft, LogOut, Trophy, Music, Pencil, Check, X, ExternalLink, Image, Map } from 'lucide-react';
 import { ALL_ACHIEVEMENTS } from '../data/achievements';
 import PlayerGallery from './PlayerGallery';
 import type { GalleryImage } from '../store/firestore';
@@ -18,6 +18,7 @@ interface ProfileScreenProps {
   onBack: () => void;
   onLogout: () => void;
   onUpdateSpotify?: (url: string) => void;
+  onChangeMission?: () => void;
 }
 function extractSpotifyEmbedUrl(url: string): string | null {
   if (!url) return null;
@@ -32,7 +33,7 @@ function extractSpotifyEmbedUrl(url: string): string | null {
   }
   return null;
 }
-export default function ProfileScreen({ profile, onBack, onLogout, onUpdateSpotify }: ProfileScreenProps) {
+export default function ProfileScreen({ profile, onBack, onLogout, onUpdateSpotify, onChangeMission }: ProfileScreenProps) {
   const earnedIds = new Set(profile.achievementIds);
   const [isEditingSpotify, setIsEditingSpotify] = useState(false);
   const [spotifyInput, setSpotifyInput] = useState(profile.spotifyPlaylistUrl || '');
@@ -100,6 +101,24 @@ export default function ProfileScreen({ profile, onBack, onLogout, onUpdateSpoti
       </div>
       {}
       <div className="flex-1 overflow-y-auto">
+        {}
+        <div className="px-4 py-4 border-b border-[#333]">
+          <button 
+            onClick={onChangeMission}
+            className="w-full flex items-center justify-between p-4 bg-orange-600/10 hover:bg-orange-600/20 active:scale-[0.98] rounded-xl border border-orange-500/20 transition-all group"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-orange-600 flex items-center justify-center text-black shadow-lg">
+                <Map size={20} />
+              </div>
+              <div className="text-left">
+                <div className="text-xs font-bold text-white uppercase tracking-wider">Alternar Missão</div>
+                <div className="text-[9px] text-orange-500/60 font-bold uppercase mt-0.5 tracking-tighter">Trocar Realidade Ativa</div>
+              </div>
+            </div>
+            <ArrowLeft size={16} className="text-orange-500 rotate-180 opacity-40 group-hover:opacity-100 transition-opacity" />
+          </button>
+        </div>
         {}
         <div className="px-4 pt-4 pb-2">
           <div className="flex items-center justify-between mb-3">
@@ -253,3 +272,4 @@ export default function ProfileScreen({ profile, onBack, onLogout, onUpdateSpoti
     </motion.div>
   );
 }
+
