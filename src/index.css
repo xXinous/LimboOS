@@ -133,6 +133,15 @@
     width: 8px;
     margin-right: 2px;
   }
+
+  @keyframes scanline-anim {
+    0% { transform: translateY(-100%); }
+    100% { transform: translateY(500%); }
+  }
+
+  .animate-scanline {
+    animation: scanline-anim 8s linear infinite;
+  }
 }
 
 /* === Walkman Mission Select Cardboard Styles === */
