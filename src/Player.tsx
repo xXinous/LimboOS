@@ -403,7 +403,7 @@ export default function Player() {
             <Windows95App uid={playerData.uid} onClose={() => setScreen('player')} />
           </motion.div>
         ) : screen === 'campaignSelection' ? (
-          <motion.div key="campaignSelection" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full h-full flex items-center justify-center p-4">
+          <motion.div key="campaignSelection" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full h-full flex items-center justify-center p-0 sm:p-4">
             <CampaignSelection onSelect={handleCampaignSelect} onLogout={handleLogout} />
           </motion.div>
         ) : (
