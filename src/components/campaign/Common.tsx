@@ -1,9 +1,5 @@
 import React, { memo } from 'react';
 
-export const Screw = memo(({ className }: { className?: string }) => (
-  <div className={`campaign-screw ${className}`}></div>
-));
-
 export const Barcode = memo(({ onClick }: { onClick: () => void }) => {
   const lines = [2, 1, 3, 1, 1, 2, 4, 1, 2, 1, 1, 3, 2, 1, 2];
   return (
