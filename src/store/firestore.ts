@@ -228,6 +228,100 @@ export async function firestoreSetCampaign(uid: string, campaignId: string): Pro
   await setDoc(doc(db, 'users', uid), { campaignId }, { merge: true });
 }
 
+export async function generateAgentId(uid: string): Promise<string> {
+  const userRef = doc(db, 'users', uid);
+  const snap = await getDoc(userRef);
+  if (snap.exists() && snap.data().agentId) {
+    return snap.data().agentId;
+  }
+  // Generate a unique 6-char hex code (agent-style)
+  const agentId = Array.from(crypto.getRandomValues(new Uint8Array(3)))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('')
+    .toUpperCase();
+  await setDoc(userRef, { agentId }, { merge: true });
+  return agentId;
+}
+
+export async function updateAgentStatus(uid: string, status: 'vivo' | 'morto' | 'desaparecido'): Promise<void> {
+  await setDoc(doc(db, 'users', uid), { agentStatus: status }, { merge: true });
+}
+
+export async function updateDangerLevel(uid: string, level: number): Promise<void> {
+  await setDoc(doc(db, 'users', uid), { dangerLevel: Math.max(1, Math.min(5, level)) }, { merge: true });
+}
+
+export async function updateUsername(uid: string, newUsername: string): Promise<void> {
+  const trimmed = newUsername.trim();
+  if (!trimmed) return;
+  await setDoc(doc(db, 'users', uid), { username: trimmed, displayName: trimmed }, { merge: true });
+}
+
+export interface ProfilePhoto {
+  id: string;
+  url: string;
+  uploadedAt: any;
+}
+
+const MAX_PROFILE_PHOTOS = 3;
+
+export async function uploadProfilePhoto(uid: string, file: File): Promise<ProfilePhoto> {
+  const photoId = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const storageRef = ref(storage, `profilePhotos/${uid}/${photoId}`);
+  await uploadBytes(storageRef, file);
+  const url = await getDownloadURL(storageRef);
+
+  await setDoc(doc(db, 'users', uid, 'profilePhotos', photoId), {
+    url,
+    uploadedAt: serverTimestamp(),
+  });
+
+  // Set as active photo
+  await setDoc(doc(db, 'users', uid), { profilePhotoUrl: url }, { merge: true });
+
+  // Enforce 3-photo limit: delete oldest if over limit
+  const photosSnap = await getDocs(collection(db, 'users', uid, 'profilePhotos'));
+  const allPhotos = photosSnap.docs
+    .map(d => ({ id: d.id, ...d.data() } as ProfilePhoto))
+    .sort((a, b) => {
+      const ta = a.uploadedAt?.toMillis?.() || 0;
+      const tb = b.uploadedAt?.toMillis?.() || 0;
+      return ta - tb; // oldest first
+    });
+
+  if (allPhotos.length > MAX_PROFILE_PHOTOS) {
+    const toDelete = allPhotos.slice(0, allPhotos.length - MAX_PROFILE_PHOTOS);
+    for (const photo of toDelete) {
+      try {
+        const oldRef = ref(storage, `profilePhotos/${uid}/${photo.id}`);
+        await deleteObject(oldRef);
+      } catch (_) {}
+      await deleteDoc(doc(db, 'users', uid, 'profilePhotos', photo.id));
+    }
+  }
+
+  return { id: photoId, url, uploadedAt: null };
+}
+
+export async function fetchProfilePhotos(uid: string): Promise<ProfilePhoto[]> {
+  const snap = await getDocs(collection(db, 'users', uid, 'profilePhotos'));
+  return snap.docs
+    .map(d => ({ id: d.id, ...d.data() } as ProfilePhoto))
+    .sort((a, b) => {
+      const ta = a.uploadedAt?.toMillis?.() || 0;
+      const tb = b.uploadedAt?.toMillis?.() || 0;
+      return tb - ta; // newest first
+    });
+}
+
+export async function setActiveProfilePhoto(uid: string, url: string): Promise<void> {
+  await setDoc(doc(db, 'users', uid), { profilePhotoUrl: url }, { merge: true });
+}
+
+export async function removeProfilePhoto(uid: string): Promise<void> {
+  await setDoc(doc(db, 'users', uid), { profilePhotoUrl: '' }, { merge: true });
+}
+
 export async function fetchAudioTapeById(audioId: string): Promise<Tape | null> {
   const snap = await getDoc(doc(db, 'audios', audioId));
   if (!snap.exists()) return null;

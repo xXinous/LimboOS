@@ -120,6 +120,8 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
         username: name,
         role: editingUser.role as any,
         spotifyPlaylistUrl: editingUser.spotifyPlaylistUrl ?? '',
+        agentStatus: editingUser.agentStatus ?? 'vivo',
+        dangerLevel: editingUser.dangerLevel ?? 1,
       });
       setEditingUser(null);
       activityLogger.logAdmin('gm.mpg', 'user_updated', `Perfil atualizado: ${name}`);
@@ -414,6 +416,55 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
                   className="w-full bg-zinc-950 border border-zinc-800 text-zinc-200 px-4 py-2.5 text-sm focus:border-[#1DB954] outline-none"
                 />
               </div>
+
+              {/* Agent Dossier Section */}
+              <div className="pt-4 border-t border-zinc-800/50">
+                <h4 className="font-label text-[10px] uppercase tracking-widest text-orange-500/70 mb-4 flex items-center gap-2">
+                  <span className="material-symbols-outlined text-xs">shield</span> Dossiê_do_Agente
+                </h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block font-label text-[10px] text-zinc-500 mb-2 uppercase tracking-widest">Status do Agente</label>
+                    <select
+                      value={editingUser.agentStatus || 'vivo'}
+                      onChange={(e) => setEditingUser({ ...editingUser, agentStatus: e.target.value as any })}
+                      className="w-full bg-zinc-950 border border-zinc-800 text-zinc-200 px-4 py-2.5 text-sm focus:border-orange-500 outline-none"
+                    >
+                      <option value="vivo">🟢 Vivo (Ativo)</option>
+                      <option value="morto">🔴 Morto (Eliminado)</option>
+                      <option value="desaparecido">🟡 Desaparecido</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block font-label text-[10px] text-zinc-500 mb-2 uppercase tracking-widest">Periculosidade</label>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="range"
+                        min={1}
+                        max={5}
+                        value={editingUser.dangerLevel || 1}
+                        onChange={(e) => setEditingUser({ ...editingUser, dangerLevel: Number(e.target.value) })}
+                        className="flex-1 accent-orange-500 h-2"
+                      />
+                      <span className={`font-headline font-bold text-lg min-w-[24px] text-center ${
+                        (editingUser.dangerLevel || 1) >= 4 ? 'text-red-500' : 
+                        (editingUser.dangerLevel || 1) >= 2 ? 'text-orange-500' : 'text-zinc-500'
+                      }`}>{editingUser.dangerLevel || 1}</span>
+                    </div>
+                    <div className="flex justify-between mt-1">
+                      <span className="text-[8px] text-zinc-700 font-label">BAIXO</span>
+                      <span className="text-[8px] text-zinc-700 font-label">CRÍTICO</span>
+                    </div>
+                  </div>
+                </div>
+                {editingUser.agentId && (
+                  <div className="mt-3 p-2 bg-zinc-950 border border-zinc-800 rounded-sm">
+                    <span className="text-[9px] font-mono text-zinc-600">AGENT_ID: </span>
+                    <span className="text-[11px] font-mono font-bold text-orange-500 tracking-[0.2em]">RM-{editingUser.agentId}</span>
+                  </div>
+                )}
+              </div>
+
               <div className="pt-6 flex justify-end gap-4">
                 <button type="button" onClick={() => setEditingUser(null)} className="text-[10px] font-label font-bold text-zinc-500 hover:text-white uppercase tracking-widest">Cancelar</button>
                 <button type="submit" className="bg-orange-600 text-white px-6 py-2 text-[10px] font-label font-bold tracking-widest hover:brightness-110 machined-edge uppercase">Salvar Alterações</button>
