@@ -17,6 +17,8 @@ import MacOsApp from './components/MacOsApp';
 import Windows95App from './components/Windows95App';
 import EvidenceReader from './components/EvidenceReader';
 import CampaignSelection from './components/CampaignSelection';
+import { AgentDossierOverlay } from './components/campaign/AgentDossierOverlay';
+import { campaignService } from './services/CampaignService';
 import { audioEngine } from './services/AudioEngine';
 import { analyticsTracker } from './services/AnalyticsTracker';
 import { activityLogger } from './services/ActivityLogger';
@@ -402,9 +404,15 @@ export default function Player() {
           <motion.div key="windows95" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-50">
             <Windows95App uid={playerData.uid} onClose={() => setScreen('player')} />
           </motion.div>
+        ) : screen === 'agentDossier' ? (
+          <motion.div key="agentDossier" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full h-full flex items-center justify-center p-0 sm:p-4">
+            <div className="bg-cardboard w-full h-full max-w-[520px] rounded-none sm:rounded-[20px] shadow-[0_35px_100px_rgba(0,0,0,0.9)] border-0 sm:border-2 sm:border-cardboard-dark relative flex flex-col mx-auto overflow-hidden text-ink font-chakra">
+              <AgentDossierOverlay onClose={() => setScreen('campaignSelection')} playerData={playerData} campaigns={campaigns} />
+            </div>
+          </motion.div>
         ) : screen === 'campaignSelection' ? (
           <motion.div key="campaignSelection" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full h-full flex items-center justify-center p-0 sm:p-4">
-            <CampaignSelection onSelect={handleCampaignSelect} onLogout={handleLogout} />
+            <CampaignSelection onSelect={handleCampaignSelect} onLogout={handleLogout} onShowProfile={() => setScreen('agentDossier')} playerData={playerData} />
           </motion.div>
         ) : (
           <motion.div 

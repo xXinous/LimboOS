@@ -3,6 +3,7 @@ import { AnimatePresence, motion, useMotionValue, animate } from 'motion/react';
 import { Menu, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Campaign } from '../data/campaigns';
 import { campaignService } from '../services/CampaignService';
+import type { PlayerData } from '../types/player';
 
 import { Barcode, AnalogLogo } from './campaign/Common';
 import { CassetteCard } from './campaign/CassetteCard';
@@ -15,9 +16,10 @@ interface CampaignSelectionProps {
   onSelect: (campaign: Campaign) => void;
   onLogout?: () => void;
   onShowProfile?: () => void;
+  playerData?: PlayerData | null;
 }
 
-export default function CampaignSelection({ onSelect, onLogout, onShowProfile }: CampaignSelectionProps) {
+export default function CampaignSelection({ onSelect, onLogout, onShowProfile, playerData }: CampaignSelectionProps) {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -144,7 +146,7 @@ export default function CampaignSelection({ onSelect, onLogout, onShowProfile }:
       animate={{ opacity: 1 }}
       className="bg-cardboard w-full h-full max-w-[520px] rounded-none sm:rounded-[20px] shadow-[0_35px_100px_rgba(0,0,0,0.9)] border-0 sm:border-2 sm:border-cardboard-dark relative flex flex-col mx-auto overflow-hidden text-ink font-chakra shrink-0 backface-hidden"
     >
-      <header className="flex justify-between items-center h-14 sm:h-16 px-5 relative z-40 border-b border-cardboard-dark/30 bg-cardboard/20">
+      <header className="flex justify-between items-center h-14 sm:h-16 px-5 relative z-30 border-b border-cardboard-dark/30 bg-cardboard/20">
         <button onClick={toggleOverlay('menu', true)} className="p-2 hover:bg-black/5 rounded-xl transition-all group">
           <Menu size={26} className="group-hover:scale-110 transition-transform" />
         </button>
@@ -176,16 +178,26 @@ export default function CampaignSelection({ onSelect, onLogout, onShowProfile }:
         </div>
       </main>
 
-      <footer className="px-5 py-3 flex justify-between items-center bg-cardboard/30 border-t border-cardboard-dark/40 relative z-40">
+      <footer className="px-5 py-3 flex justify-between items-center bg-cardboard/30 border-t border-cardboard-dark/40 relative z-30">
         <div className="flex items-center gap-2 text-[10px] font-mono font-bold tracking-[0.2em] uppercase opacity-60">
           <div className="w-2 h-2 bg-analog-green rounded-full animate-pulse shadow-[0_0_8px_#378b44]" /> SINAL_ESTÁVEL
         </div>
         <div className="font-mono text-[9px] font-bold opacity-30">PORT_RM_84</div>
       </footer>
 
+      {/* Overlays — rendered last with highest z-index to cover header/footer/content */}
       <AnimatePresence>
         {overlays.menu && <SecurityMenu onClose={toggleOverlay('menu', false)} onLogout={() => { toggleOverlay('menu', false)(); onLogout?.(); }} onShowProfile={() => { toggleOverlay('menu', false)(); onShowProfile?.(); }} />}
-        {overlays.metadata && <MetadataOverlay onClose={toggleOverlay('metadata', false)} />}
+        {overlays.metadata && <MetadataOverlay onClose={toggleOverlay('metadata', false)} agent={playerData ? {
+          uid: playerData.uid,
+          username: playerData.username,
+          agentId: playerData.agentId,
+          agentStatus: playerData.agentStatus,
+          dangerLevel: playerData.dangerLevel,
+          lastCampaignName: playerData.campaignId
+            ? campaigns.find(c => c.id === playerData.campaignId)?.name || playerData.campaignId
+            : undefined,
+        } : null} />}
       </AnimatePresence>
     </motion.div>
   );

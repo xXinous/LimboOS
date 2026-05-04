@@ -1,7 +1,7 @@
 import { Timestamp } from 'firebase/firestore';
 
 // --- UI & App State Types ---
-export type AppScreen = 'login' | 'player' | 'profile' | 'bios' | 'limbo' | 'diskRepair' | 'macos' | 'windows95' | 'campaignSelection';
+export type AppScreen = 'login' | 'player' | 'profile' | 'bios' | 'limbo' | 'diskRepair' | 'macos' | 'windows95' | 'campaignSelection' | 'agentDossier';
 export type TapeState = 'empty' | 'loaded' | 'scanning';
 export type WalkmanStatus = 'IDLE' | 'LOADING' | 'LOADED' | 'PLAYING' | 'REWINDING' | 'SCANNING';
 export type DisplayMode = 'default' | 'title' | 'chapter' | 'type';
@@ -34,6 +34,12 @@ export interface UserData {
   forceMacOpen?: boolean;
   hasMacAccess?: boolean;
   spotifyPlaylistUrl?: string;
+
+  // Agent Dossier
+  agentId?: string;
+  agentStatus?: 'vivo' | 'morto' | 'desaparecido';
+  dangerLevel?: number; // 1-5, defined by admin
+  profilePhotoUrl?: string;
 }
 
 export interface TapeData {
