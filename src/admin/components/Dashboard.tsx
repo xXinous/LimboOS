@@ -15,6 +15,7 @@ import RedirectsPanel from './RedirectsPanel';
 import GalleryPanel from './GalleryPanel';
 import JukeboxPanel from './JukeboxPanel';
 import CampaignsPanel from './CampaignsPanel';
+import IntelCreatorPanel from './IntelCreatorPanel';
 
 interface DashboardProps {
   user: User | null;
@@ -126,6 +127,12 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
                 {libraryTab === 'galeria' && <GalleryPanel />}
                 {libraryTab === 'qr' && <RedirectsPanel />}
               </div>
+            </div>
+          )}
+
+          {activeTab === 'intel' && (
+            <div className="space-y-8 animate-in fade-in duration-500">
+              <IntelCreatorPanel />
             </div>
           )}
 

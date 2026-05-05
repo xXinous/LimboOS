@@ -1,3 +1,4 @@
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -49,6 +50,33 @@ service cloud.firestore {
       allow create: if isOwner(userId) || isAdmin();
       allow update: if isAdmin() || (isOwner(userId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastLogin', 'spotifyPlaylistUrl', 'forceTerminalOpen', 'forceMacOpen', 'campaignId']));
       allow delete: if isAdmin();
+
+      // --- Multi-Character Model (current) ---
+      match /characters/{characterId} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow create: if isOwner(userId) || isAdmin();
+        allow update: if isOwner(userId) || isAdmin();
+        allow delete: if isAdmin();
+
+        match /tapes/{tapeId} {
+          allow read: if isOwner(userId) || isAdmin();
+          allow write: if isOwner(userId) || isAdmin();
+        }
+        match /achievements/{achId} {
+          allow read: if isOwner(userId) || isAdmin();
+          allow write: if isOwner(userId) || isAdmin();
+        }
+        match /stats/{statDoc} {
+          allow read: if isOwner(userId) || isAdmin();
+          allow write: if (isOwner(userId) && isValidPayloadSize()) || isAdmin();
+        }
+        match /gallery/{imageId} {
+          allow read: if isOwner(userId) || isAdmin();
+          allow write: if isAdmin();
+        }
+      }
+
+      // --- Legacy direct subcollections (backward compat) ---
       match /tapes/{tapeId} {
         allow read: if isOwner(userId) || isAdmin();
         allow write: if isOwner(userId) || isAdmin();

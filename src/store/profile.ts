@@ -7,39 +7,36 @@ import {
   type User,
 } from 'firebase/auth';
 import { auth } from '../lib/firebase';
-import { createUserDoc, loadPlayerData, updateLastLogin } from './firestore';
-import type { PlayerData } from './firestore';
+import { createUserDoc, loadMasterAccount, updateLastLogin } from './firestore';
+import type { MasterAccount } from '../types/player';
 
-export type { PlayerData };
-
-function codinomeToEmail(codinome: string): string {
-  const slug = codinome.trim().toLowerCase().replace(/[^a-z0-9._-]/g, '_');
+function masterIdToEmail(masterId: string): string {
+  const slug = masterId.trim().toLowerCase().replace(/[^a-z0-9._-]/g, '_');
   return `${slug}@runningman.local`;
 }
 
 export type LoginResult =
-  | { ok: true;  data: PlayerData }
+  | { ok: true;  account: MasterAccount }
   | { ok: false; error: 'wrong_password' | 'network' | 'unknown'; message: string };
 
 export async function loginOrCreate(
-  codinome: string,
+  masterId: string,
   password: string,
 ): Promise<LoginResult> {
-  const email = codinomeToEmail(codinome);
+  const email = masterIdToEmail(masterId);
   try {
     const { user } = await signInWithEmailAndPassword(auth, email, password);
-    // Atualiza o visto por último ao logar
     await updateLastLogin(user.uid);
-    const data = await loadPlayerData(user.uid);
-    return { ok: true, data };
+    const account = await loadMasterAccount(user.uid);
+    return { ok: true, account };
   } catch (signInErr: unknown) {
     const code = (signInErr as { code?: string }).code ?? '';
     if (code === 'auth/user-not-found' || code === 'auth/invalid-credential') {
       try {
         const { user } = await createUserWithEmailAndPassword(auth, email, password);
-        await createUserDoc(user.uid, codinome.trim(), email);
-        const data = await loadPlayerData(user.uid);
-        return { ok: true, data };
+        await createUserDoc(user.uid, email);
+        const account = await loadMasterAccount(user.uid);
+        return { ok: true, account };
       } catch (createErr: unknown) {
         const createCode = (createErr as { code?: string }).code ?? '';
         if (createCode === 'auth/weak-password') {

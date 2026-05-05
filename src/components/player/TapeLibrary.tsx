@@ -1,22 +1,48 @@
 import { AnimatePresence, motion } from 'motion/react';
 import { activityLogger } from '../../services/ActivityLogger';
-import type { Tape } from '../../data/tapes';
+import type { IntelItem } from '../../types/intel';
 import type { DisplayMode } from '../../types/player';
 import React from 'react';
 
-export default function TapeLibrary({ tapes, currentTapeId, isPlaying, displayMode, onTapeSelect }: {
-  tapes: Tape[]; currentTapeId: string | null; isPlaying: boolean; displayMode: DisplayMode;
-  onTapeSelect: (tape: Tape) => void;
+export default function TapeLibrary({ 
+  intelItems, 
+  currentIntelId, 
+  isPlaying, 
+  displayMode, 
+  onIntelSelect 
+}: {
+  intelItems: IntelItem[]; 
+  currentIntelId: string | null; 
+  isPlaying: boolean; 
+  displayMode: DisplayMode;
+  onIntelSelect: (intel: IntelItem) => void;
 }) {
-  const typeOrder = (t: Tape) => t.type === 'gallery-pista' ? 2 : t.type === 'disk' ? 1 : 0;
-  const typeLabel = (t: Tape) => t.type === 'gallery-pista' ? '📷 Imagens' : t.type === 'disk' ? '💾 Textos' : '📼 Áudio';
+  const typeOrder = (item: IntelItem) => {
+    switch (item.type) {
+      case 'AUDIO': return 0;
+      case 'TEXT': return 1;
+      case 'VISUAL': return 2;
+      case 'META': return 3;
+      default: return 99;
+    }
+  };
+
+  const typeLabel = (item: IntelItem) => {
+    switch (item.type) {
+      case 'AUDIO': return '📼 Áudio';
+      case 'TEXT': return '💾 Textos';
+      case 'VISUAL': return '📷 Imagens';
+      case 'META': return '🏆 Conquistas';
+      default: return '❓ Desconhecido';
+    }
+  };
 
   const sorted = React.useMemo(() => {
-    if (displayMode === 'title') return [...tapes].sort((a, b) => a.title.localeCompare(b.title));
-    if (displayMode === 'chapter') return [...tapes].sort((a, b) => a.chapter.localeCompare(b.chapter));
-    if (displayMode === 'type') return [...tapes].sort((a, b) => typeOrder(a) - typeOrder(b) || a.title.localeCompare(b.title));
-    return tapes;
-  }, [tapes, displayMode]);
+    if (displayMode === 'title') return [...intelItems].sort((a, b) => a.title.localeCompare(b.title));
+    if (displayMode === 'chapter') return [...intelItems].sort((a, b) => (a.metadata?.chapter || '').localeCompare(b.metadata?.chapter || ''));
+    if (displayMode === 'type') return [...intelItems].sort((a, b) => typeOrder(a) - typeOrder(b) || a.title.localeCompare(b.title));
+    return intelItems;
+  }, [intelItems, displayMode]);
 
   return (
     <div className="mt-6 flex-1 bg-[#1a1a1a] rounded-2xl border-2 border-[#333] overflow-hidden flex flex-col mr-[76px]">
@@ -32,40 +58,45 @@ export default function TapeLibrary({ tapes, currentTapeId, isPlaying, displayMo
       <div className="flex-1 overflow-y-auto">
         <style>{`.tape-scroll::-webkit-scrollbar{width:4px}.tape-scroll::-webkit-scrollbar-track{background:#1a1a1a}.tape-scroll::-webkit-scrollbar-thumb{background:#ea580c;border-radius:4px}`}</style>
         <div className="tape-scroll overflow-y-auto h-full">
-          {tapes.length === 0 ? (
+          {intelItems.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full p-4 text-center">
               <span className="text-3xl mb-2">📼</span>
-              <p className="text-gray-600 text-xs uppercase tracking-widest">Nenhuma fita</p>
+              <p className="text-gray-600 text-xs uppercase tracking-widest">Nenhuma prova</p>
               <p className="text-gray-700 text-[10px] mt-1">Escaneie um QR code para começar</p>
             </div>
           ) : (
             <AnimatePresence mode="popLayout">
-              {sorted.map((tape, idx) => {
-                const showGroupHeader = displayMode === 'type' && (idx === 0 || typeOrder(sorted[idx - 1]) !== typeOrder(tape));
+              {sorted.map((item, idx) => {
+                const showGroupHeader = displayMode === 'type' && (idx === 0 || typeOrder(sorted[idx - 1]) !== typeOrder(item));
                 return (
-                  <React.Fragment key={tape.id}>
+                  <React.Fragment key={item.id}>
                     {showGroupHeader && (
                       <div className="px-3 py-1.5 bg-[#111] border-b border-[#333] sticky top-0 z-10">
-                        <span className="text-[9px] text-orange-500/80 font-bold uppercase tracking-widest">{typeLabel(tape)}</span>
+                        <span className="text-[9px] text-orange-500/80 font-bold uppercase tracking-widest">{typeLabel(item)}</span>
                       </div>
                     )}
                     <motion.div layout initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                       onClick={() => {
-                        activityLogger.logAction('player', `Selecionou fita: ${tape.title}`, { tapeId: tape.id, tapeTitle: tape.title });
-                        onTapeSelect(tape);
+                        activityLogger.logAction('player', `Selecionou prova: ${item.title}`, { intelId: item.id, title: item.title });
+                        onIntelSelect(item);
                       }}
-                      className={`p-2 border-b border-[#222] cursor-pointer transition-colors flex justify-between items-center ${tape.id === currentTapeId ? 'bg-orange-900/20 border-orange-500/50' : 'hover:bg-[#222]'}`}>
+                      className={`p-2 border-b border-[#222] cursor-pointer transition-colors flex justify-between items-center ${item.id === currentIntelId ? 'bg-orange-900/20 border-orange-500/50' : 'hover:bg-[#222]'}`}>
                       <div className="flex flex-col min-w-0 pr-2">
-                        <span className={`text-xs font-bold truncate ${tape.id === currentTapeId ? 'text-orange-500' : 'text-gray-200'}`}>{tape.title}</span>
-                        <span className="text-[10px] text-orange-400 opacity-80 truncate">{tape.chapter}</span>
+                        <span className={`text-xs font-bold truncate ${item.id === currentIntelId ? 'text-orange-500' : 'text-gray-200'}`}>{item.title}</span>
+                        <span className="text-[10px] text-orange-400 opacity-80 truncate">{item.metadata?.chapter}</span>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
-                        {tape.id === currentTapeId && isPlaying && (
+                        {item.id === currentIntelId && isPlaying && (
                           <motion.div animate={{ opacity: [0, 1] }} transition={{ repeat: Infinity, duration: 0.5 }}
                             className="w-0 h-0 border-t-4 border-t-transparent border-l-[6px] border-l-orange-500 border-b-4 border-b-transparent" />
                         )}
-                        <div className={`w-8 h-8 rounded border flex items-center justify-center text-sm ${tape.type === 'disk' ? 'bg-orange-600/30 border-orange-500 shadow-[0_0_10px_rgba(234,88,12,0.3)]' : tape.type === 'gallery-pista' ? 'bg-cyan-600/30 border-cyan-500 shadow-[0_0_10px_rgba(6,182,212,0.3)]' : 'bg-[#222] border-[#333]'}`}>
-                          {tape.type === 'disk' ? '💾' : tape.type === 'gallery-pista' ? '📷' : '📼'}
+                        <div className={`w-8 h-8 rounded border flex items-center justify-center text-sm ${
+                          item.type === 'TEXT' ? 'bg-orange-600/30 border-orange-500 shadow-[0_0_10px_rgba(234,88,12,0.3)]' : 
+                          item.type === 'VISUAL' ? 'bg-cyan-600/30 border-cyan-500 shadow-[0_0_10px_rgba(6,182,212,0.3)]' : 
+                          item.type === 'META' ? 'bg-yellow-600/30 border-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.3)]' :
+                          'bg-[#222] border-[#333]'
+                        }`}>
+                          {item.type === 'TEXT' ? '💾' : item.type === 'VISUAL' ? '📷' : item.type === 'META' ? '🏆' : '📼'}
                         </div>
                       </div>
                     </motion.div>

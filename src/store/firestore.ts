@@ -9,31 +9,21 @@ import {
   deleteDoc,
   writeBatch,
   runTransaction,
+  query,
+  orderBy,
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { storage, db } from '../lib/firebase';
-import { Tape, resolveTapes } from '../data/tapes';
 import { 
   PlayerData, 
   PlayerStats, 
-  UserData, 
+  MasterAccount,
+  CharacterData,
   LimboGlobalState, 
-  GameEventsState, 
   GalleryImage, 
   GalleryCategory,
   QrRedirect
 } from '../types/player';
-
-export type { 
-  PlayerData, 
-  PlayerStats, 
-  UserData, 
-  LimboGlobalState, 
-  GameEventsState, 
-  GalleryImage, 
-  GalleryCategory,
-  QrRedirect 
-};
 
 const DEFAULT_STATS: PlayerStats = {
   totalListenTime: 0,
@@ -44,41 +34,26 @@ const DEFAULT_STATS: PlayerStats = {
   zeroVolumeTime: 0,
 };
 
-export async function loadPlayerData(uid: string): Promise<PlayerData> {
-  const metaSnap = await getDoc(doc(db, 'users', uid));
-  const userData = metaSnap.exists()
-    ? (metaSnap.data() as UserData)
-    : { 
-        uid, 
-        username: uid, 
-        email: '', 
-        role: 'player' as const, 
-        createdAt: null 
-      };
-
-  const [tapesSnap, achievementsSnap, statsSnap, gallerySnap] = await Promise.all([
-    getDocs(collection(db, 'users', uid, 'tapes')),
-    getDocs(collection(db, 'users', uid, 'achievements')),
-    getDoc(doc(db, 'users', uid, 'stats', 'main')),
-    getDocs(collection(db, 'users', uid, 'gallery'))
-  ]);
-
-  const stats = statsSnap.exists() ? { ...DEFAULT_STATS, ...(statsSnap.data() as Partial<PlayerStats>) } : DEFAULT_STATS;
-
-  return {
-    ...userData,
-    uid,
-    unlockedTapeIds: tapesSnap.docs.map((d) => d.id),
-    achievementIds: achievementsSnap.docs.map((d) => d.id),
-    stats,
-    unlockedGalleryIds: gallerySnap.docs.map((d) => d.id),
-  } as PlayerData;
+// --- Admin Types ---
+export interface PlayerMeta extends MasterAccount {
+  username?: string;
+  forceTerminalOpen?: boolean;
+  forceMacOpen?: boolean;
 }
 
-export async function createUserDoc(uid: string, username: string, email: string): Promise<void> {
+// --- Account Management ---
+
+export async function loadMasterAccount(uid: string): Promise<MasterAccount> {
+  const snap = await getDoc(doc(db, 'users', uid));
+  if (!snap.exists()) {
+    throw new Error('Account not found');
+  }
+  return snap.data() as MasterAccount;
+}
+
+export async function createUserDoc(uid: string, email: string): Promise<void> {
   await setDoc(doc(db, 'users', uid), {
     uid,
-    username,
     email,
     role: 'player',
     createdAt: serverTimestamp(),
@@ -92,18 +67,72 @@ export async function updateLastLogin(uid: string): Promise<void> {
   }, { merge: true });
 }
 
-export async function firestoreUnlockTape(uid: string, tapeId: string, campaignId?: string): Promise<void> {
-  await setDoc(doc(db, 'users', uid, 'tapes', tapeId), {
+// --- Character Management ---
+
+export async function fetchCharacters(uid: string): Promise<CharacterData[]> {
+  if (!uid) return [];
+  const snap = await getDocs(query(collection(db, 'users', uid, 'characters'), orderBy('createdAt', 'desc')));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() } as CharacterData));
+}
+
+export async function createCharacter(uid: string, codinome: string): Promise<CharacterData> {
+  if (!uid) throw new Error('Cannot create character without UID');
+  const charId = `${Date.now()}_${Math.random().toString(36).slice(2, 5)}`;
+  const charData: Omit<CharacterData, 'id'> = {
+    codinome,
+    agentStatus: 'vivo',
+    dangerLevel: 1,
+    createdAt: serverTimestamp() as any,
+  };
+  await setDoc(doc(db, 'users', uid, 'characters', charId), charData);
+  return { id: charId, ...charData } as CharacterData;
+}
+
+export async function loadPlayerData(uid: string, characterId: string): Promise<PlayerData> {
+  if (!uid || !characterId) throw new Error('LoadPlayerData failed: Missing identifiers');
+  
+  const [accountSnap, charSnap, tapesSnap, achievementsSnap, statsSnap, gallerySnap] = await Promise.all([
+    getDoc(doc(db, 'users', uid)),
+    getDoc(doc(db, 'users', uid, 'characters', characterId)),
+    getDocs(collection(db, 'users', uid, 'characters', characterId, 'tapes')),
+    getDocs(collection(db, 'users', uid, 'characters', characterId, 'achievements')),
+    getDoc(doc(db, 'users', uid, 'characters', characterId, 'stats', 'main')),
+    getDocs(collection(db, 'users', uid, 'characters', characterId, 'gallery'))
+  ]);
+
+  if (!accountSnap.exists() || !charSnap.exists()) {
+    throw new Error('Data integrity failure: Account or Character missing');
+  }
+
+  const account = accountSnap.data() as MasterAccount;
+  const character = { id: characterId, ...charSnap.data() } as CharacterData;
+  const stats = statsSnap.exists() ? { ...DEFAULT_STATS, ...(statsSnap.data() as Partial<PlayerStats>) } : DEFAULT_STATS;
+
+  return {
+    ...account,
+    activeCharacterId: characterId,
+    character,
+    unlockedTapeIds: tapesSnap.docs.map((d) => d.id),
+    achievementIds: achievementsSnap.docs.map((d) => d.id),
+    stats,
+    unlockedGalleryIds: gallerySnap.docs.map((d) => d.id),
+  };
+}
+
+// --- Character Progress ---
+
+export async function firestoreUnlockTape(uid: string, characterId: string, tapeId: string, campaignId?: string): Promise<void> {
+  await setDoc(doc(db, 'users', uid, 'characters', characterId, 'tapes', tapeId), {
     tapeId,
     unlockedAt: serverTimestamp(),
     campaignId: campaignId || null
   });
 }
 
-export async function firestoreGrantAchievements(uid: string, achievementIds: string[]): Promise<void> {
+export async function firestoreGrantAchievements(uid: string, characterId: string, achievementIds: string[]): Promise<void> {
   const batch = writeBatch(db);
   achievementIds.forEach((id) => {
-    batch.set(doc(db, 'users', uid, 'achievements', id), {
+    batch.set(doc(db, 'users', uid, 'characters', characterId, 'achievements', id), {
       achievementId: id,
       unlockedAt: serverTimestamp(),
     });
@@ -111,13 +140,105 @@ export async function firestoreGrantAchievements(uid: string, achievementIds: st
   await batch.commit();
 }
 
-export async function firestoreRevokeAchievement(uid: string, achievementId: string): Promise<void> {
-  await deleteDoc(doc(db, 'users', uid, 'achievements', achievementId));
+export async function firestoreUpdateStats(uid: string, characterId: string, statsDelta: Partial<PlayerStats>): Promise<void> {
+  await setDoc(doc(db, 'users', uid, 'characters', characterId, 'stats', 'main'), statsDelta, { merge: true });
 }
 
-export async function recordPlayEvent(uid: string, tapeId: string): Promise<string> {
+export async function firestoreUpdateSpotifyPlaylist(uid: string, characterId: string, url: string): Promise<void> {
+  await setDoc(doc(db, 'users', uid, 'characters', characterId), { spotifyPlaylistUrl: url }, { merge: true });
+}
+
+export async function firestoreSetCampaign(uid: string, characterId: string, campaignId: string): Promise<void> {
+  await setDoc(doc(db, 'users', uid, 'characters', characterId), { campaignId }, { merge: true });
+}
+
+export async function updateAgentStatus(uid: string, characterId: string, status: 'vivo' | 'morto' | 'desaparecido'): Promise<void> {
+  await setDoc(doc(db, 'users', uid, 'characters', characterId), { agentStatus: status }, { merge: true });
+}
+
+export async function updateDangerLevel(uid: string, characterId: string, level: number): Promise<void> {
+  await setDoc(doc(db, 'users', uid, 'characters', characterId), { dangerLevel: Math.max(1, Math.min(5, level)) }, { merge: true });
+}
+
+export async function updateCodinome(uid: string, characterId: string, newCodinome: string): Promise<void> {
+  const trimmed = newCodinome.trim();
+  if (!trimmed) return;
+  await setDoc(doc(db, 'users', uid, 'characters', characterId), { codinome: trimmed }, { merge: true });
+}
+
+// --- Profile Photos ---
+
+export async function uploadProfilePhoto(uid: string, characterId: string, file: File): Promise<{ url: string }> {
+  const photoId = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const storageRef = ref(storage, `profilePhotos/${uid}/${characterId}/${photoId}`);
+  await uploadBytes(storageRef, file);
+  const url = await getDownloadURL(storageRef);
+  await setDoc(doc(db, 'users', uid, 'characters', characterId), { profilePhotoUrl: url }, { merge: true });
+  return { url };
+}
+
+// --- Global/Admin System State ---
+
+export async function setTerminalStateForUsers(uids: string[], force: boolean, grant: boolean): Promise<void> {
+  const batch = writeBatch(db);
+  uids.forEach((uid) => {
+    batch.set(doc(db, 'users', uid), { 
+      forceTerminalOpen: force,
+      hasTerminalAccess: grant 
+    }, { merge: true });
+  });
+  await batch.commit();
+}
+
+export async function setMacStateForUsers(uids: string[], force: boolean, grant: boolean): Promise<void> {
+  const batch = writeBatch(db);
+  uids.forEach((uid) => {
+    batch.set(doc(db, 'users', uid), { 
+      forceMacOpen: force, 
+      hasMacAccess: grant 
+    }, { merge: true });
+  });
+  await batch.commit();
+}
+
+export async function checkTerminalClosed(uid: string): Promise<void> {
+  await setDoc(doc(db, 'users', uid), { forceTerminalOpen: false }, { merge: true });
+}
+
+export async function checkMacClosed(uid: string): Promise<void> {
+  await setDoc(doc(db, 'users', uid), { forceMacOpen: false }, { merge: true });
+}
+
+export async function setLimboMilitarySeizureGlobal(seized: boolean): Promise<void> {
+  await setDoc(doc(db, 'system', 'limboState'), { 
+    seized,
+    seizedAt: seized ? serverTimestamp() : null
+  }, { merge: true });
+}
+
+export async function fetchLimboGlobalState(): Promise<LimboGlobalState> {
+  const snap = await getDoc(doc(db, 'system', 'limboState'));
+  return snap.exists() ? (snap.data() as LimboGlobalState) : { seized: false };
+}
+
+export async function firestoreMarkThreadReadGlobal(threadId: string): Promise<void> {
+  const limboRef = doc(db, 'system', 'limboState');
+  await runTransaction(db, async (transaction) => {
+    const snap = await transaction.get(limboRef);
+    const data = snap.exists() ? snap.data() : { seized: false, readThreadIds: [] };
+    const readThreadIds = data.readThreadIds || [];
+    if (!readThreadIds.includes(threadId)) {
+      transaction.set(limboRef, { readThreadIds: [...readThreadIds, threadId] }, { merge: true });
+    }
+  });
+}
+
+// --- Legacy & Shared Utils ---
+
+export async function recordPlayEvent(uid: string, characterId: string, tapeId: string): Promise<string> {
   const docRef = await addDoc(collection(db, 'playEvents'), {
     uid,
+    characterId,
     tapeId,
     playedAt: serverTimestamp(),
     completed: false,
@@ -129,223 +250,18 @@ export async function markPlayEventCompleted(eventId: string): Promise<void> {
   await setDoc(doc(db, 'playEvents', eventId), { completed: true }, { merge: true });
 }
 
-export async function firestoreUpdateStats(uid: string, statsDelta: Partial<PlayerStats>): Promise<void> {
-  await setDoc(doc(db, 'users', uid, 'stats', 'main'), statsDelta, { merge: true });
-}
-
-export async function setTerminalStateForUsers(uids: string[], forceTerminalOpen: boolean, grantAccess: boolean): Promise<void> {
-  const batch = writeBatch(db);
-  uids.forEach(uid => {
-    batch.set(doc(db, 'users', uid), { forceTerminalOpen, hasTerminalAccess: grantAccess }, { merge: true });
-  });
-  await batch.commit();
-}
-
-export async function checkTerminalClosed(uid: string): Promise<void> {
-  await setDoc(doc(db, 'users', uid), { forceTerminalOpen: false }, { merge: true });
-}
-
-export async function setMacStateForUsers(uids: string[], forceMacOpen: boolean, grantAccess: boolean): Promise<void> {
-  const batch = writeBatch(db);
-  uids.forEach(uid => {
-    batch.set(doc(db, 'users', uid), { forceMacOpen, hasMacAccess: grantAccess }, { merge: true });
-  });
-  await batch.commit();
-}
-
-export async function checkMacClosed(uid: string): Promise<void> {
-  await setDoc(doc(db, 'users', uid), { forceMacOpen: false }, { merge: true });
-}
-
-export async function fetchLimboGlobalState(): Promise<LimboGlobalState> {
-  const snap = await getDoc(doc(db, 'system', 'limboState'));
-  return snap.exists() ? (snap.data() as LimboGlobalState) : { seized: false };
-}
-
-export async function setLimboSeized(uid: string): Promise<void> {
-  await setDoc(doc(db, 'system', 'limboState'), {
-    seized: true,
-    seizedBy: uid,
-    seizedAt: serverTimestamp()
-  }, { merge: true });
-}
-
-export async function resetLimboSeized(): Promise<void> {
-  await setDoc(doc(db, 'system', 'limboState'), {
-    seized: false,
-    seizedBy: null,
-    seizedAt: null,
-    readThreadIds: []
-  }, { merge: true });
-}
-
-export async function firestoreMarkThreadReadGlobal(threadId: string): Promise<void> {
-  const TOTAL_THREADS = 11;
-  const docRef = doc(db, 'system', 'limboState');
-  await runTransaction(db, async (transaction) => {
-    const snap = await transaction.get(docRef);
-    const data = snap.exists() ? (snap.data() as LimboGlobalState) : { seized: false, readThreadIds: [] };
-    const readThreadIds = data.readThreadIds || [];
-    if (!readThreadIds.includes(threadId)) {
-      readThreadIds.push(threadId);
-    }
-    const updatePayload: Record<string, any> = { readThreadIds };
-    if (readThreadIds.length >= TOTAL_THREADS && !data.seized) {
-      updatePayload.seized = true;
-      updatePayload.seizedBy = 'system_auto';
-      updatePayload.seizedAt = serverTimestamp();
-    }
-    transaction.set(docRef, updatePayload, { merge: true });
-  });
-}
-
-export async function setLimboMilitarySeizureGlobal(active: boolean): Promise<void> {
-  if (!active) {
-    await resetLimboSeized();
-    return;
-  }
-  await setDoc(doc(db, 'system', 'limboState'), {
-    seized: true,
-    seizedBy: 'admin',
-    seizedAt: serverTimestamp(),
-  }, { merge: true });
-}
-
-export async function fetchGameEventsState(): Promise<GameEventsState> {
-  const snap = await getDoc(doc(db, 'system', 'gameEvents'));
-  return snap.exists() ? (snap.data() as GameEventsState) : { diskRepairAllowed: false };
-}
-
-export async function setDiskRepairAllowed(allowed: boolean): Promise<void> {
-  await setDoc(doc(db, 'system', 'gameEvents'), { diskRepairAllowed: allowed }, { merge: true });
-}
-
-export async function firestoreUpdateSpotifyPlaylist(uid: string, url: string): Promise<void> {
-  await setDoc(doc(db, 'users', uid), { spotifyPlaylistUrl: url }, { merge: true });
-}
-
-export async function firestoreSetCampaign(uid: string, campaignId: string): Promise<void> {
-  await setDoc(doc(db, 'users', uid), { campaignId }, { merge: true });
-}
-
-export async function generateAgentId(uid: string): Promise<string> {
-  const userRef = doc(db, 'users', uid);
-  const snap = await getDoc(userRef);
-  if (snap.exists() && snap.data().agentId) {
-    return snap.data().agentId;
-  }
-  // Generate a unique 6-char hex code (agent-style)
-  const agentId = Array.from(crypto.getRandomValues(new Uint8Array(3)))
-    .map(b => b.toString(16).padStart(2, '0'))
-    .join('')
-    .toUpperCase();
-  await setDoc(userRef, { agentId }, { merge: true });
+export async function generateAgentId(uid: string, characterId: string): Promise<string> {
+  const charRef = doc(db, 'users', uid, 'characters', characterId);
+  const snap = await getDoc(charRef);
+  if (snap.exists() && snap.data().agentId) return snap.data().agentId;
+  const agentId = Array.from(crypto.getRandomValues(new Uint8Array(3))).map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
+  await setDoc(charRef, { agentId }, { merge: true });
   return agentId;
 }
 
-export async function updateAgentStatus(uid: string, status: 'vivo' | 'morto' | 'desaparecido'): Promise<void> {
-  await setDoc(doc(db, 'users', uid), { agentStatus: status }, { merge: true });
-}
-
-export async function updateDangerLevel(uid: string, level: number): Promise<void> {
-  await setDoc(doc(db, 'users', uid), { dangerLevel: Math.max(1, Math.min(5, level)) }, { merge: true });
-}
-
-export async function updateUsername(uid: string, newUsername: string): Promise<void> {
-  const trimmed = newUsername.trim();
-  if (!trimmed) return;
-  await setDoc(doc(db, 'users', uid), { username: trimmed, displayName: trimmed }, { merge: true });
-}
-
-export interface ProfilePhoto {
-  id: string;
-  url: string;
-  uploadedAt: any;
-}
-
-const MAX_PROFILE_PHOTOS = 3;
-
-export async function uploadProfilePhoto(uid: string, file: File): Promise<ProfilePhoto> {
-  const photoId = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  const storageRef = ref(storage, `profilePhotos/${uid}/${photoId}`);
-  await uploadBytes(storageRef, file);
-  const url = await getDownloadURL(storageRef);
-
-  await setDoc(doc(db, 'users', uid, 'profilePhotos', photoId), {
-    url,
-    uploadedAt: serverTimestamp(),
-  });
-
-  // Set as active photo
-  await setDoc(doc(db, 'users', uid), { profilePhotoUrl: url }, { merge: true });
-
-  // Enforce 3-photo limit: delete oldest if over limit
-  const photosSnap = await getDocs(collection(db, 'users', uid, 'profilePhotos'));
-  const allPhotos = photosSnap.docs
-    .map(d => ({ id: d.id, ...d.data() } as ProfilePhoto))
-    .sort((a, b) => {
-      const ta = a.uploadedAt?.toMillis?.() || 0;
-      const tb = b.uploadedAt?.toMillis?.() || 0;
-      return ta - tb; // oldest first
-    });
-
-  if (allPhotos.length > MAX_PROFILE_PHOTOS) {
-    const toDelete = allPhotos.slice(0, allPhotos.length - MAX_PROFILE_PHOTOS);
-    for (const photo of toDelete) {
-      try {
-        const oldRef = ref(storage, `profilePhotos/${uid}/${photo.id}`);
-        await deleteObject(oldRef);
-      } catch (_) {}
-      await deleteDoc(doc(db, 'users', uid, 'profilePhotos', photo.id));
-    }
-  }
-
-  return { id: photoId, url, uploadedAt: null };
-}
-
-export async function fetchProfilePhotos(uid: string): Promise<ProfilePhoto[]> {
-  const snap = await getDocs(collection(db, 'users', uid, 'profilePhotos'));
-  return snap.docs
-    .map(d => ({ id: d.id, ...d.data() } as ProfilePhoto))
-    .sort((a, b) => {
-      const ta = a.uploadedAt?.toMillis?.() || 0;
-      const tb = b.uploadedAt?.toMillis?.() || 0;
-      return tb - ta; // newest first
-    });
-}
-
-export async function setActiveProfilePhoto(uid: string, url: string): Promise<void> {
-  await setDoc(doc(db, 'users', uid), { profilePhotoUrl: url }, { merge: true });
-}
-
-export async function removeProfilePhoto(uid: string): Promise<void> {
-  await setDoc(doc(db, 'users', uid), { profilePhotoUrl: '' }, { merge: true });
-}
-
-export async function fetchAudioTapeById(audioId: string): Promise<Tape | null> {
+export async function fetchAudioTapeById(audioId: string) {
   const snap = await getDoc(doc(db, 'audios', audioId));
-  if (!snap.exists()) return null;
-  const data = snap.data();
-  return {
-    id: snap.id,
-    title: data.title ?? '',
-    artist: data.artist ?? '',
-    npc: data.npc ?? data.artist ?? '',
-    chapter: data.chapter ?? '',
-    description: data.description ?? '',
-    audioUrl: data.url,
-    duration: data.duration ?? 0,
-    isSecret: Boolean(data.isSecret),
-  } as Tape;
-}
-
-export async function resolveAllTapesAsync(ids: string[]): Promise<Tape[]> {
-  const localTapes = resolveTapes(ids);
-  const foundIds = localTapes.map(t => t.id);
-  const missingIds = ids.filter(id => !foundIds.includes(id));
-  if (missingIds.length === 0) return localTapes;
-  const remoteTapes = await Promise.all(missingIds.map(id => fetchAudioTapeById(id)));
-  return [...localTapes, ...remoteTapes.filter((t): t is Tape => t !== null)];
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 }
 
 export async function fetchQrRedirect(sourceId: string): Promise<string | null> {
@@ -353,11 +269,16 @@ export async function fetchQrRedirect(sourceId: string): Promise<string | null> 
   return snap.exists() ? snap.data().targetId || null : null;
 }
 
+export async function fetchAllQrRedirects(): Promise<QrRedirect[]> {
+  const snap = await getDocs(collection(db, 'qrRedirects'));
+  return snap.docs.map(d => ({ sourceId: d.id, ...d.data() } as QrRedirect));
+}
+
 export async function saveQrRedirect(sourceId: string, targetId: string, reason?: string): Promise<void> {
   await setDoc(doc(db, 'qrRedirects', sourceId), {
     targetId,
+    reason: reason || '',
     updatedAt: serverTimestamp(),
-    reason: reason || ''
   });
 }
 
@@ -365,9 +286,37 @@ export async function deleteQrRedirect(sourceId: string): Promise<void> {
   await deleteDoc(doc(db, 'qrRedirects', sourceId));
 }
 
-export async function fetchAllQrRedirects(): Promise<QrRedirect[]> {
-  const snap = await getDocs(collection(db, 'qrRedirects'));
-  return snap.docs.map(d => ({ sourceId: d.id, ...d.data() } as QrRedirect));
+export async function fetchPlayerGalleryImages(uid: string, characterId: string): Promise<GalleryImage[]> {
+  const grantSnap = await getDocs(collection(db, 'users', uid, 'characters', characterId, 'gallery'));
+  const imageIds = grantSnap.docs.map(d => d.id);
+  if (imageIds.length === 0) return [];
+  const images: GalleryImage[] = [];
+  for (const id of imageIds) {
+    const imgSnap = await getDoc(doc(db, 'gallery', id));
+    if (imgSnap.exists()) images.push({ id: imgSnap.id, ...imgSnap.data() } as GalleryImage);
+  }
+  return images;
+}
+
+export async function grantGalleryImage(uid: string, characterIdOrImageId: string, imageId?: string): Promise<void> {
+  if (imageId) {
+    // Character-scoped grant: grantGalleryImage(uid, characterId, imageId)
+    await setDoc(doc(db, 'users', uid, 'characters', characterIdOrImageId, 'gallery', imageId), { imageId, unlockedAt: serverTimestamp() });
+  } else {
+    // Admin global grant: grantGalleryImage(uid, imageId) — stores in galleryGrants collection
+    await setDoc(doc(db, 'galleryGrants', `${uid}_${characterIdOrImageId}`), {
+      uid,
+      imageId: characterIdOrImageId,
+      grantedAt: serverTimestamp(),
+    });
+  }
+}
+
+// --- Admin Gallery Functions ---
+
+export async function fetchAllGalleryImages(): Promise<GalleryImage[]> {
+  const snap = await getDocs(collection(db, 'gallery'));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() } as GalleryImage));
 }
 
 export async function uploadGalleryImage(
@@ -390,70 +339,42 @@ export async function uploadGalleryImage(
     createdBy,
   };
   await setDoc(doc(db, 'gallery', imageId), data);
-  return { id: imageId, ...data, imageUrl } as GalleryImage;
+  return { id: imageId, ...data } as unknown as GalleryImage;
 }
 
 export async function deleteGalleryImage(imageId: string): Promise<void> {
   try {
     const storageRef = ref(storage, `gallery/${imageId}`);
     await deleteObject(storageRef);
-  } catch (_) {}
-  const usersSnap = await getDocs(collection(db, 'users'));
-  const batch = writeBatch(db);
-  for (const userDoc of usersSnap.docs) {
-    batch.delete(doc(db, 'users', userDoc.id, 'gallery', imageId));
+  } catch {
+    // File may not exist in storage, continue with doc deletion
   }
-  batch.delete(doc(db, 'gallery', imageId));
-  await batch.commit();
-}
-
-export async function fetchAllGalleryImages(): Promise<GalleryImage[]> {
-  const snap = await getDocs(collection(db, 'gallery'));
-  return snap.docs.map(d => ({ id: d.id, ...d.data() } as GalleryImage));
-}
-
-export async function grantGalleryImage(uid: string, imageId: string): Promise<void> {
-  await setDoc(doc(db, 'users', uid, 'gallery', imageId), {
-    imageId,
-    unlockedAt: serverTimestamp(),
-  });
+  await deleteDoc(doc(db, 'gallery', imageId));
 }
 
 export async function revokeGalleryImage(uid: string, imageId: string): Promise<void> {
-  await deleteDoc(doc(db, 'users', uid, 'gallery', imageId));
+  await deleteDoc(doc(db, 'galleryGrants', `${uid}_${imageId}`));
 }
 
 export async function grantGalleryImageToMultiple(uids: string[], imageId: string): Promise<void> {
   const batch = writeBatch(db);
   uids.forEach(uid => {
-    batch.set(doc(db, 'users', uid, 'gallery', imageId), {
+    batch.set(doc(db, 'galleryGrants', `${uid}_${imageId}`), {
+      uid,
       imageId,
-      unlockedAt: serverTimestamp(),
+      grantedAt: serverTimestamp(),
     });
   });
   await batch.commit();
 }
 
-export async function fetchPlayerGalleryImages(uid: string): Promise<GalleryImage[]> {
-  const grantSnap = await getDocs(collection(db, 'users', uid, 'gallery'));
-  const imageIds = grantSnap.docs.map(d => d.id);
-  if (imageIds.length === 0) return [];
-  const images: GalleryImage[] = [];
-  for (const id of imageIds) {
-    const imgSnap = await getDoc(doc(db, 'gallery', id));
-    if (imgSnap.exists()) {
-      images.push({ id: imgSnap.id, ...imgSnap.data() } as GalleryImage);
-    }
-  }
-  return images;
+export async function fetchUserGalleryGrants(imageId: string): Promise<string[]> {
+  const snap = await getDocs(collection(db, 'galleryGrants'));
+  return snap.docs
+    .filter(d => d.data().imageId === imageId)
+    .map(d => d.data().uid as string);
 }
 
-export async function fetchUserGalleryGrants(imageId: string): Promise<string[]> {
-  const usersSnap = await getDocs(collection(db, 'users'));
-  const grantedUids: string[] = [];
-  for (const userDoc of usersSnap.docs) {
-    const grantSnap = await getDoc(doc(db, 'users', userDoc.id, 'gallery', imageId));
-    if (grantSnap.exists()) grantedUids.push(userDoc.id);
-  }
-  return grantedUids;
-}
+// Re-export types used by admin panels
+export type { GalleryImage, GalleryCategory, LimboGlobalState } from '../types/player';
+

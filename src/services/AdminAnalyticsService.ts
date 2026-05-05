@@ -1,21 +1,35 @@
 import { db } from "../lib/firebase";
-import { collection, onSnapshot, getDocs, collectionGroup, writeBatch, doc } from "firebase/firestore";
+import { 
+  collection, 
+  onSnapshot, 
+  getDocs, 
+  collectionGroup, 
+  writeBatch, 
+  doc, 
+  query, 
+  orderBy, 
+  limit 
+} from "firebase/firestore";
 import { ALL_ACHIEVEMENTS } from "../data/achievements";
+
 export interface PlayEvent {
   uid: string;
   tapeId: string;
   playedAt: any;
   completed?: boolean;
 }
+
 export interface AudioMetadata {
   id: string;
   size: number;
   title?: string;
   originalName?: string;
 }
+
 export interface UserAchievement {
   achievementId: string;
 }
+
 export interface PlayerStats {
   totalListenTime?: number;
   screwClicks?: number;
@@ -23,6 +37,7 @@ export interface PlayerStats {
   maxVolumeTime?: number;
   zeroVolumeTime?: number;
 }
+
 export interface UserData {
   uid: string;
   displayName?: string;
@@ -31,15 +46,18 @@ export interface UserData {
   createdAt?: any;
   lastLogin?: any;
 }
+
 export class AdminAnalyticsService {
   private static instance: AdminAnalyticsService;
   private constructor() {}
+
   public static getInstance(): AdminAnalyticsService {
     if (!AdminAnalyticsService.instance) {
       AdminAnalyticsService.instance = new AdminAnalyticsService();
     }
     return AdminAnalyticsService.instance;
   }
+
   public subscribeToRawData(callback: (data: {
     playEvents: PlayEvent[];
     users: UserData[];
@@ -52,11 +70,21 @@ export class AdminAnalyticsService {
     let audios: AudioMetadata[] = [];
     let unlockedAchievements: UserAchievement[] = [];
     let stats: PlayerStats[] = [];
+
     const notify = () => {
       callback({ playEvents, users, audios, unlockedAchievements, stats });
     };
+
+    // Limitamos a 2000 eventos para evitar crash no browser em apps com muito uso
+    // Uma solução melhor seria agregação no lado do servidor (Cloud Functions)
+    const playEventsQuery = query(
+      collection(db, "playEvents"), 
+      orderBy("playedAt", "desc"), 
+      limit(2000)
+    );
+
     const unsubs = [
-      onSnapshot(collection(db, "playEvents"), 
+      onSnapshot(playEventsQuery, 
         (snap) => {
           playEvents = snap.docs.map(d => d.data() as PlayEvent);
           notify();
@@ -92,24 +120,35 @@ export class AdminAnalyticsService {
         (err) => console.warn('[AdminAnalyticsService] stats listener error:', err)
       )
     ];
+
     return () => unsubs.forEach(u => u());
   }
+
   public async resetAnalytics(): Promise<void> {
-    const playEventsSnap = await getDocs(collection(db, 'playEvents'));
+    const [playEventsSnap, usersSnap] = await Promise.all([
+      getDocs(collection(db, 'playEvents')),
+      getDocs(collection(db, 'users'))
+    ]);
+
     let batch = writeBatch(db);
     let count = 0;
+
+    // Delete play events
+    const deletePromises = [];
     playEventsSnap.docs.forEach((docSnap) => {
       batch.delete(docSnap.ref);
       count++;
       if (count % 400 === 0) {
-        batch.commit();
+        deletePromises.push(batch.commit());
         batch = writeBatch(db);
       }
     });
-    await batch.commit();
-    const usersSnap = await getDocs(collection(db, 'users'));
+    deletePromises.push(batch.commit());
+
+    // Reset user stats
     batch = writeBatch(db);
     count = 0;
+    const statsPromises = [];
     usersSnap.docs.forEach((userDoc) => {
       const statsRef = doc(db, 'users', userDoc.id, 'stats', 'main');
       batch.set(statsRef, {
@@ -121,12 +160,15 @@ export class AdminAnalyticsService {
       }, { merge: true });
       count++;
       if (count % 400 === 0) {
-        batch.commit();
+        statsPromises.push(batch.commit());
         batch = writeBatch(db);
       }
     });
-    await batch.commit();
+    statsPromises.push(batch.commit());
+
+    await Promise.all([...deletePromises, ...statsPromises]);
   }
+
   public computeAnalytics(
     playEvents: PlayEvent[],
     users: UserData[],
@@ -136,44 +178,72 @@ export class AdminAnalyticsService {
   ) {
     const now = new Date();
     const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
     const activeUsers = users.filter((u) => {
       if (!u.lastLogin?.toDate) return false;
       return u.lastLogin.toDate() >= sevenDaysAgo;
     }).length;
+
     const tapePlayMap: Record<string, number> = {};
-    playEvents.forEach((e) => {
-      tapePlayMap[e.tapeId] = (tapePlayMap[e.tapeId] || 0) + 1;
-    });
-    const mostPlayed = Object.entries(tapePlayMap)
-      .sort(([, a], [, b]) => b - a)
-      .slice(0, 10);
     const userPlayMap: Record<string, number> = {};
-    playEvents.forEach((e) => {
-      userPlayMap[e.uid] = (userPlayMap[e.uid] || 0) + 1;
-    });
-    const mostActiveUsers = Object.entries(userPlayMap)
-      .sort(([, a], [, b]) => b - a)
-      .slice(0, 10)
-      .map(([uid, count]) => {
-        const user = users.find((u) => u.uid === uid);
-        return { uid, name: user?.displayName || user?.username || uid.slice(0, 8), count };
-      });
     const dailyPlays: Record<string, number> = {};
+    const hourMap: Record<number, number> = {};
+    const userTapePlays: Record<string, number> = {};
+    let completedPlays = 0;
+    let maxObsessionCount = 0;
+
+    // Initialize daily plays for the last 30 days
     for (let i = 0; i < 30; i++) {
       const d = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
       const key = d.toISOString().slice(0, 10);
       dailyPlays[key] = 0;
     }
+
+    // Initialize hour map
+    for (let i = 0; i < 24; i++) hourMap[i] = 0;
+
+    // Single pass over playEvents for multiple metrics
     playEvents.forEach((e) => {
+      tapePlayMap[e.tapeId] = (tapePlayMap[e.tapeId] || 0) + 1;
+      userPlayMap[e.uid] = (userPlayMap[e.uid] || 0) + 1;
+      
+      if (e.completed) completedPlays++;
+
+      const obsessionKey = `${e.uid}_${e.tapeId}`;
+      userTapePlays[obsessionKey] = (userTapePlays[obsessionKey] || 0) + 1;
+      if (userTapePlays[obsessionKey] > maxObsessionCount) {
+        maxObsessionCount = userTapePlays[obsessionKey];
+      }
+
       if (e.playedAt?.toDate) {
-        const key = e.playedAt.toDate().toISOString().slice(0, 10);
-        if (dailyPlays[key] !== undefined) {
-          dailyPlays[key]++;
+        const date = e.playedAt.toDate();
+        const dateKey = date.toISOString().slice(0, 10);
+        if (dailyPlays[dateKey] !== undefined) {
+          dailyPlays[dateKey]++;
         }
+        hourMap[date.getHours()]++;
       }
     });
+
+    const mostPlayed = Object.entries(tapePlayMap)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 10);
+
+    const mostActiveUsers = Object.entries(userPlayMap)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 10)
+      .map(([uid, count]) => {
+        const user = users.find((u) => u.uid === uid);
+        return { uid, name: user?.displayName || user?.username || (uid?.slice ? uid.slice(0, 8) : 'unknown'), count };
+      });
+
     const dailyPlaysSorted = Object.entries(dailyPlays).sort(([a], [b]) => a.localeCompare(b));
     const maxDailyPlays = Math.max(...Object.values(dailyPlays), 1);
+    
+    const peakHours = Object.entries(hourMap).map(([h, count]) => ({ hour: parseInt(h), count }));
+    const maxHourCount = Math.max(...Object.values(hourMap), 1);
+
     const weeklyGrowth: Record<string, number> = {};
     users.forEach((u) => {
       if (u.createdAt?.toDate) {
@@ -184,43 +254,29 @@ export class AdminAnalyticsService {
         weeklyGrowth[key] = (weeklyGrowth[key] || 0) + 1;
       }
     });
+
     const achCountMap: Record<string, number> = {};
     unlockedAchievements.forEach(a => {
       achCountMap[a.achievementId] = (achCountMap[a.achievementId] || 0) + 1;
     });
+
     const rarityList = ALL_ACHIEVEMENTS.map(a => ({
       ...a,
       count: achCountMap[a.id] || 0,
       percentage: users.length > 0 ? ((achCountMap[a.id] || 0) / users.length) * 100 : 0
     })).sort((a, b) => a.count - b.count);
-    const hourMap: Record<number, number> = {};
-    for (let i = 0; i < 24; i++) hourMap[i] = 0;
-    playEvents.forEach(e => {
-      if (e.playedAt?.toDate) {
-        const hour = e.playedAt.toDate().getHours();
-        hourMap[hour]++;
-      }
-    });
-    const peakHours = Object.entries(hourMap).map(([h, count]) => ({ hour: parseInt(h), count }));
-    const maxHourCount = Math.max(...Object.values(hourMap), 1);
-    const completedPlays = playEvents.filter(e => e.completed).length;
-    const completionRate = playEvents.length > 0 ? (completedPlays / playEvents.length) * 100 : 0;
+
     const totalStorageSize = audios.reduce((acc, a) => acc + (a.size || 0), 0);
-    const storageLimit = 5 * 1024 * 1024 * 1024;
-    const storagePercentage = (totalStorageSize / storageLimit) * 100;
-    const totalListenSecs = stats.reduce((acc, s) => acc + (s.totalListenTime || 0), 0);
-    const avgListenSecs = users.length > 0 ? totalListenSecs / users.length : 0;
-    const totalScrews = stats.reduce((acc, s) => acc + (s.screwClicks || 0), 0);
-    const totalEjects = stats.reduce((acc, s) => acc + (s.ejectWithoutPlay || 0), 0);
-    const totalMacVolSecs = stats.reduce((acc, s) => acc + (s.maxVolumeTime || 0), 0);
-    const totalZeroVolSecs = stats.reduce((acc, s) => acc + (s.zeroVolumeTime || 0), 0);
-    let maxObsessionCount = 0;
-    const userTapePlays: Record<string, number> = {};
-    playEvents.forEach(e => {
-       const key = `${e.uid}_${e.tapeId}`;
-       userTapePlays[key] = (userTapePlays[key] || 0) + 1;
-       if (userTapePlays[key] > maxObsessionCount) maxObsessionCount = userTapePlays[key];
-    });
+    const storagePercentage = (totalStorageSize / (5 * 1024 * 1024 * 1024)) * 100;
+
+    const statsTotals = stats.reduce((acc, s) => ({
+      totalListenTime: acc.totalListenTime + (s.totalListenTime || 0),
+      screwClicks: acc.screwClicks + (s.screwClicks || 0),
+      ejectWithoutPlay: acc.ejectWithoutPlay + (s.ejectWithoutPlay || 0),
+      maxVolumeTime: acc.maxVolumeTime + (s.maxVolumeTime || 0),
+      zeroVolumeTime: acc.zeroVolumeTime + (s.zeroVolumeTime || 0),
+    }), { totalListenTime: 0, screwClicks: 0, ejectWithoutPlay: 0, maxVolumeTime: 0, zeroVolumeTime: 0 });
+
     return { 
       activeUsers, 
       mostPlayed, 
@@ -231,19 +287,20 @@ export class AdminAnalyticsService {
       rarityList,
       peakHours,
       maxHourCount,
-      completionRate,
+      completionRate: playEvents.length > 0 ? (completedPlays / playEvents.length) * 100 : 0,
       totalStorageSize,
       storagePercentage,
-      totalListenSecs,
-      avgListenSecs,
-      totalScrews,
-      totalEjects,
-      totalMacVolSecs,
-      totalZeroVolSecs,
+      totalListenSecs: statsTotals.totalListenTime,
+      avgListenSecs: users.length > 0 ? statsTotals.totalListenTime / users.length : 0,
+      totalScrews: statsTotals.screwClicks,
+      totalEjects: statsTotals.ejectWithoutPlay,
+      totalMacVolSecs: statsTotals.maxVolumeTime,
+      totalZeroVolSecs: statsTotals.zeroVolumeTime,
       maxObsessionCount,
       abandonRate: playEvents.length > 0 ? ((playEvents.length - completedPlays) / playEvents.length) * 100 : 0,
       totalAchievements: unlockedAchievements.length,
     };
   }
 }
+
 export const adminAnalyticsService = AdminAnalyticsService.getInstance();

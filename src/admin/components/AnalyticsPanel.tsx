@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useModal } from './ConfirmModal';
 import { adminAnalyticsService, PlayEvent, AudioMetadata, UserAchievement, PlayerStats, UserData } from '../../services/AdminAnalyticsService';
-import { resolveTapes } from '../../data/tapes';
+import { intelRegistry } from '../../data/intel_registry';
 import { activityLogger } from '../../services/ActivityLogger';
+
 export default function AnalyticsPanel() {
   const [playEvents, setPlayEvents] = useState<PlayEvent[]>([]);
   const [users, setUsers] = useState<UserData[]>([]);
@@ -11,6 +12,7 @@ export default function AnalyticsPanel() {
   const [stats, setStats] = useState<PlayerStats[]>([]);
   const [isResetting, setIsResetting] = useState(false);
   const { showConfirm, showAlert, modal } = useModal();
+
   const handleReset = async () => {
     setIsResetting(true);
     try {
@@ -24,6 +26,7 @@ export default function AnalyticsPanel() {
       setIsResetting(false);
     }
   };
+
   useEffect(() => {
     const unsub = adminAnalyticsService.subscribeToRawData((data) => {
       setPlayEvents(data.playEvents);
@@ -34,9 +37,11 @@ export default function AnalyticsPanel() {
     });
     return unsub;
   }, []);
+
   const analytics = useMemo(() => {
     return adminAnalyticsService.computeAnalytics(playEvents, users, audios, unlockedAchievements, stats);
   }, [playEvents, users, audios, unlockedAchievements, stats]);
+
   return (
     <div className="space-y-8">
       {modal}
@@ -51,12 +56,14 @@ export default function AnalyticsPanel() {
           {isResetting ? 'Aplicando Reset...' : 'Zerar Painel BI'}
         </button>
       </div>
+
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <KPICard label="Total_de_Usuários" value={users.length} icon="group" color="text-primary" />
         <KPICard label="Ativos_7d" value={analytics.activeUsers} icon="trending_up" color="text-tertiary" />
         <KPICard label="Total_de_Arquivos_de_Áudio" value={audios.length} icon="library_music" color="text-secondary" />
         <KPICard label="Total_de_Eventos_de_Play" value={playEvents.length} icon="play_circle" color="text-primary-container" />
       </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <section className="bg-surface-container-lowest border border-zinc-800 p-6 machined-edge">
           <div className="flex items-center justify-between mb-4">
@@ -70,6 +77,7 @@ export default function AnalyticsPanel() {
             <div className="h-full bg-secondary transition-all" style={{ width: `${Math.min(analytics.storagePercentage, 100)}%` }} />
           </div>
         </section>
+
         <section className="bg-surface-container-lowest border border-zinc-800 p-6 machined-edge">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
@@ -83,6 +91,7 @@ export default function AnalyticsPanel() {
           </div>
         </section>
       </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <section className="bg-surface-container-lowest border border-zinc-800 p-6 machined-edge lg:col-span-2">
           <div className="flex items-center gap-3 mb-6"><span className="material-symbols-outlined text-orange-500 text-sm">timeline</span><h3 className="font-label text-[10px] uppercase tracking-widest text-zinc-400">Linha_do_Tempo_de_Atividade (30d)</h3></div>
@@ -99,6 +108,7 @@ export default function AnalyticsPanel() {
             <span>{analytics.dailyPlaysSorted[analytics.dailyPlaysSorted.length - 1]?.[0]?.slice(5) || ''}</span>
           </div>
         </section>
+
         <section className="bg-surface-container-lowest border border-zinc-800 p-6 machined-edge">
           <div className="flex items-center gap-3 mb-6"><span className="material-symbols-outlined text-orange-500 text-sm">schedule</span><h3 className="font-label text-[10px] uppercase tracking-widest text-zinc-400">Horários_de_Pico_de_Atividade</h3></div>
           <div className="grid grid-cols-6 gap-2">
@@ -112,6 +122,7 @@ export default function AnalyticsPanel() {
           </div>
         </section>
       </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <section className="bg-surface-container-lowest border border-zinc-800 p-6 machined-edge">
           <div className="flex items-center gap-3 mb-6"><span className="material-symbols-outlined text-orange-500 text-sm">leaderboard</span><h3 className="font-label text-[10px] uppercase tracking-widest text-zinc-400">Fitas_Mais_Tocadas</h3></div>
@@ -119,9 +130,9 @@ export default function AnalyticsPanel() {
             {analytics.mostPlayed.length === 0 ? (<p className="text-zinc-600 text-xs font-label tracking-widest">SEM_DADOS_DE_REPRODUÇÃO_ATÉ_AGORA</p>) : (
               analytics.mostPlayed.map(([tapeId, count], idx) => {
                 const maxCount = analytics.mostPlayed[0][1] as number;
-                const localTape = resolveTapes([tapeId])[0];
+                const intel = intelRegistry.get(tapeId);
                 const remoteTape = audios.find((a) => a.id === tapeId);
-                const tapeName = localTape?.title || remoteTape?.title || remoteTape?.originalName || tapeId;
+                const tapeName = intel?.title || remoteTape?.title || remoteTape?.originalName || tapeId;
                 return (
                   <div key={tapeId} className="flex items-center gap-3">
                     <span className={`font-headline font-bold text-sm w-6 text-right ${idx < 3 ? 'text-orange-500' : 'text-zinc-500'}`}>#{idx + 1}</span>
@@ -140,6 +151,7 @@ export default function AnalyticsPanel() {
             )}
           </div>
         </section>
+
         <section className="bg-surface-container-lowest border border-zinc-800 p-6 machined-edge">
           <div className="flex items-center gap-3 mb-6"><span className="material-symbols-outlined text-orange-500 text-sm">person_play</span><h3 className="font-label text-[10px] uppercase tracking-widest text-zinc-400">Usuários_Mais_Ativos</h3></div>
           <div className="space-y-3">
@@ -167,6 +179,7 @@ export default function AnalyticsPanel() {
           </div>
         </section>
       </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <section className="bg-surface-container-lowest border border-zinc-800 p-6 machined-edge">
           <div className="flex items-center gap-3 mb-6"><span className="material-symbols-outlined text-orange-500 text-sm">stars</span><h3 className="font-label text-[10px] uppercase tracking-widest text-zinc-400">Conquistas_Mais_Raras</h3></div>
@@ -187,6 +200,7 @@ export default function AnalyticsPanel() {
             ))}
           </div>
         </section>
+
         <div className="space-y-8">
           <section className="bg-surface-container-lowest border border-zinc-800 p-6 machined-edge">
             <div className="flex items-center gap-3 mb-6"><span className="material-symbols-outlined text-orange-500 text-sm">group_add</span><h3 className="font-label text-[10px] uppercase tracking-widest text-zinc-400">Crescimento_Semanal_de_Usuários</h3></div>
@@ -204,6 +218,7 @@ export default function AnalyticsPanel() {
               </div>
             )}
           </section>
+
           <section className="bg-surface-container-lowest border border-zinc-800 p-6 machined-edge">
             <div className="flex items-center gap-3 mb-4"><span className="material-symbols-outlined text-orange-500 text-sm">analytics</span><h3 className="font-label text-[10px] uppercase tracking-widest text-zinc-400">Métricas_Rápidas</h3></div>
             <div className="grid grid-cols-2 gap-4">
@@ -214,6 +229,7 @@ export default function AnalyticsPanel() {
               <MetricRow label="Total de Conquistas" value={analytics.totalAchievements.toString()} />
             </div>
           </section>
+
           <section className="bg-surface-container-lowest border border-zinc-800 p-6 machined-edge mt-8">
             <div className="flex items-center gap-3 mb-4"><span className="material-symbols-outlined text-orange-500 text-sm">explore</span><h3 className="font-label text-[10px] uppercase tracking-widest text-zinc-400">Métricas_Comportamentais</h3></div>
             <div className="grid grid-cols-2 gap-4">
@@ -230,6 +246,7 @@ export default function AnalyticsPanel() {
     </div>
   );
 }
+
 function KPICard({ label, value, icon, color }: { label: string; value: number; icon: string; color: string }) {
   return (
     <div className="bg-surface-container-lowest border border-zinc-800 p-5 machined-edge relative overflow-hidden">
@@ -243,6 +260,7 @@ function KPICard({ label, value, icon, color }: { label: string; value: number; 
     </div>
   );
 }
+
 function MetricRow({ label, value, title }: { label: string; value: string; title?: string }) {
   return (
     <div className="flex items-center justify-between border-b border-zinc-800/50 pb-2" title={title}>
@@ -251,6 +269,7 @@ function MetricRow({ label, value, title }: { label: string; value: string; titl
     </div>
   );
 }
+
 function formatSecs(secs: number) {
   if (!secs) return '0s';
   if (secs < 60) return `${Math.floor(secs)}s`;

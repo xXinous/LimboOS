@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useSwipeable } from 'react-swipeable';
 import LoginScreen from './components/LoginScreen';
 import ProfileScreen from './components/ProfileScreen';
+import CharacterSelectionScreen from './components/CharacterSelectionScreen';
 import ToastNotification from './components/ToastNotification';
 import type { Toast } from './components/ToastNotification';
 import CassetteVisor from './components/player/CassetteVisor';
@@ -18,52 +19,51 @@ import Windows95App from './components/Windows95App';
 import EvidenceReader from './components/EvidenceReader';
 import CampaignSelection from './components/CampaignSelection';
 import { AgentDossierOverlay } from './components/campaign/AgentDossierOverlay';
-import { campaignService } from './services/CampaignService';
 import { audioEngine } from './services/AudioEngine';
 import { analyticsTracker } from './services/AnalyticsTracker';
 import { activityLogger } from './services/ActivityLogger';
-import { tapeManager } from './services/TapeManager';
+import { intelService } from './services/IntelService';
 import { playerSyncService } from './services/PlayerSyncService';
 import { diskRepairService } from './services/DiskRepairService';
 import { onAuthStateChanged, logout } from './store/profile';
-import type { PlayerData, PlayerStats, LimboGlobalState, GalleryImage } from './store/firestore';
+import type { MasterAccount, CharacterData, PlayerData, PlayerStats, LimboGlobalState, GalleryImage } from './types/player';
 import { 
+  loadMasterAccount,
   loadPlayerData, 
   firestoreUpdateSpotifyPlaylist, 
   fetchPlayerGalleryImages,
   firestoreSetCampaign
 } from './store/firestore';
-import type { Tape } from './data/tapes';
+import type { IntelItem, PlayerIntelCollection } from './types/intel';
 import { campaigns } from './data/campaigns';
 import type { AppScreen, WalkmanStatus, DisplayMode } from './types/player';
 
 export default function Player() {
-  const [playerData, setPlayerData] = useState<PlayerData | null | undefined>(null);
+  const [masterAccount, setMasterAccount] = useState<MasterAccount | null | undefined>(null);
+  const [playerData, setPlayerData] = useState<PlayerData | null>(null);
   const [localStats, setLocalStats] = useState<PlayerStats | null>(null);
   const [screen, setScreen] = useState<AppScreen>('login');
   
+  // Unified Intel Collection State
+  const [intelCollection, setIntelCollection] = useState<PlayerIntelCollection | null>(null);
+  
   // State Machine: Centralized status
   const [walkmanStatus, setWalkmanStatus] = useState<WalkmanStatus>('IDLE');
-  
-  const [currentTape, setCurrentTape] = useState<Tape | null>(null);
+  const [currentIntel, setCurrentIntel] = useState<IntelItem | null>(null);
   const [volume, setVolume] = useState(80);
   const [displayMode, setDisplayMode] = useState<DisplayMode>('default');
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [scanTimes, setScanTimes] = useState<number[]>([]);
-  const [ownedTapes, setOwnedTapes] = useState<Tape[]>([]);
   const [limboStatus, setLimboStatus] = useState<LimboGlobalState>({ seized: false });
-  const [activeEvidence, setActiveEvidence] = useState<Tape | null>(null);
+  const [activeEvidence, setActiveEvidence] = useState<IntelItem | null>(null);
   const [galleryImages, setGalleryImages] = useState<GalleryImage[]>([]);
   
   const hasPlayedCurrentTape = useRef(false);
   
-  // Derived states for compatibility with child components
+  // Derived states
   const isPlaying = walkmanStatus === 'PLAYING';
-  const isRewinding = walkmanStatus === 'REWINDING';
-  const isChangingTape = walkmanStatus === 'LOADING';
-  const tapeState = walkmanStatus === 'SCANNING' ? 'scanning' : (currentTape ? 'loaded' : 'empty');
 
-  // --- Auth & Sync ---
+  // --- Auth & Initial Load ---
   useEffect(() => {
     const unsub = onAuthStateChanged(async (user) => {
       try {
@@ -72,32 +72,53 @@ export default function Player() {
             window.location.href = '/admin';
             return;
           }
-          const data = await loadPlayerData(user.uid);
-          setPlayerData(data);
-          setLocalStats(data.stats);
-          activityLogger.setUser(data.uid, data.username);
-          
-          if (!data.campaignId) {
-            setScreen('campaignSelection');
-          } else {
-            setScreen('player');
+
+          // Check for legacy migration
+          const { needsMigration, migrateLegacyUser } = await import('./store/migration');
+          if (await needsMigration(user.uid)) {
+            await migrateLegacyUser(user.uid);
           }
-          
-          activityLogger.logAuth('login', `${data.username} entrou no sistema`);
+
+          const account = await loadMasterAccount(user.uid);
+          setMasterAccount(account);
+          setScreen('characterSelection');
+          activityLogger.logAuth('login', `Terminal acessado via ${account.email}`);
         } else {
-          setPlayerData(undefined);
+          setMasterAccount(undefined);
+          setPlayerData(null);
           setLocalStats(null);
           activityLogger.clearUser();
           setScreen('login');
         }
       } catch (err) {
         console.warn('[Auth] Error:', err);
-        setPlayerData(undefined);
+        setMasterAccount(undefined);
         setScreen('login');
       }
     });
     return unsub;
   }, []);
+
+  // --- Character-Specific Initialization ---
+  const handleCharacterSelect = async (char: CharacterData) => {
+    if (!masterAccount) return;
+    try {
+      const data = await loadPlayerData(masterAccount.uid, char.id);
+      setPlayerData(data);
+      setLocalStats(data.stats);
+      
+      activityLogger.setUser(masterAccount.uid, data.character.codinome, data.activeCharacterId);
+      activityLogger.logAction('character_select', `Agente ${data.character.codinome} ativado`);
+
+      if (!data.character.campaignId) {
+        setScreen('campaignSelection');
+      } else {
+        setScreen('player');
+      }
+    } catch (err) {
+      console.error('[CharacterSelect] Error:', err);
+    }
+  };
 
   useEffect(() => {
     if (playerData && localStats) {
@@ -105,9 +126,32 @@ export default function Player() {
         (stats, data) => { setLocalStats(stats); setPlayerData(data); },
         (toast) => addToast(toast)
       );
+
+      playerSyncService.subscribeToPlayerData(playerData.uid, playerData.activeCharacterId,
+        (updatedData) => {
+          setPlayerData((prev) => prev ? { ...prev, ...updatedData } : prev);
+        },
+        setScreen,
+        setLimboStatus
+      );
     }
-    return () => analyticsTracker.stopAll();
-  }, [playerData?.uid]);
+    return () => {
+      analyticsTracker.stopAll();
+      playerSyncService.stopAll();
+    };
+  }, [playerData?.activeCharacterId]);
+
+  // Unified Intel Fetching
+  useEffect(() => {
+    if (!playerData) return;
+    const fetchIntel = async () => {
+      const gallery = playerData.unlockedGalleryIds.length ? await fetchPlayerGalleryImages(playerData.uid, playerData.activeCharacterId) : [];
+      setGalleryImages(gallery);
+      const collection = await intelService.getCollection(playerData, gallery);
+      setIntelCollection(collection);
+    };
+    fetchIntel();
+  }, [playerData?.unlockedTapeIds, playerData?.unlockedGalleryIds]);
 
   useEffect(() => {
     audioEngine.setVolume(volume);
@@ -115,85 +159,30 @@ export default function Player() {
   }, [volume]);
 
   useEffect(() => {
-    playerSyncService.subscribeToPlayerData(playerData?.uid,
-      (updatedData) => {
-        setPlayerData((prev) => {
-          if (!prev) return prev;
-          const merged = { ...prev, ...updatedData };
-          analyticsTracker.updatePlayerData(merged);
-          return merged;
-        });
-      },
-      setScreen,
-      setLimboStatus
-    );
-    return () => playerSyncService.stopAll();
-  }, [playerData?.uid]);
+    if (playerData) diskRepairService.init();
+  }, [playerData?.activeCharacterId]);
 
+  // Audio Engine interactions
   useEffect(() => {
-    if (playerData) {
-      tapeManager.getOwnedTapes(playerData.unlockedTapeIds).then(setOwnedTapes).catch(console.error);
-    } else {
-      setOwnedTapes([]);
-    }
-  }, [playerData?.unlockedTapeIds]);
-
-  useEffect(() => {
-    if (playerData) {
-      diskRepairService.init();
-    }
-  }, [playerData?.uid]);
-
-  useEffect(() => {
-    if (playerData?.unlockedGalleryIds?.length) {
-      fetchPlayerGalleryImages(playerData.uid).then(setGalleryImages).catch(console.error);
-    } else {
-      setGalleryImages([]);
-    }
-  }, [playerData?.unlockedGalleryIds]);
-
-  const allTapesWithPistas = useMemo(() => {
-    const pistaTapes: Tape[] = galleryImages
-      .filter(img => img.category === 'pistas')
-      .map(img => ({
-        id: `gallery-pista-${img.id}`,
-        title: img.title,
-        artist: 'Pista',
-        npc: 'Pista',
-        chapter: 'Pistas',
-        description: img.description,
-        audioUrl: '',
-        duration: 0,
-        type: 'gallery-pista' as const,
-        imageUrl: img.imageUrl,
-      }));
-    return [...ownedTapes, ...pistaTapes];
-  }, [ownedTapes, galleryImages]);
-
-  // --- Audio Engine Interactions ---
-  useEffect(() => {
-    audioEngine.setOnEnded(() => {
-      setWalkmanStatus('LOADED');
-      analyticsTracker.endPlayback();
-    });
+    audioEngine.setOnEnded(() => { setWalkmanStatus('LOADED'); analyticsTracker.endPlayback(); });
   }, []);
 
   useEffect(() => {
-    if (currentTape) {
-      audioEngine.loadTrack(currentTape.audioUrl);
+    if (currentIntel?.type === 'AUDIO' && currentIntel.mediaUrl) {
+      audioEngine.loadTrack(currentIntel.mediaUrl);
       analyticsTracker.pausePlayback();
-    } else {
+    } else if (!currentIntel) {
       audioEngine.clearTrack();
       analyticsTracker.stopAll();
     }
     return () => audioEngine.clearTrack();
-  }, [currentTape?.id]);
+  }, [currentIntel?.id]);
 
   useEffect(() => {
     if (walkmanStatus === 'PLAYING') {
       hasPlayedCurrentTape.current = true;
       audioEngine.play();
-      if (currentTape) analyticsTracker.startPlayback(currentTape);
+      if (currentIntel) analyticsTracker.startPlayback(currentIntel);
     } else if (walkmanStatus === 'REWINDING') {
       audioEngine.stop();
       analyticsTracker.pausePlayback();
@@ -201,139 +190,72 @@ export default function Player() {
       audioEngine.pause();
       analyticsTracker.pausePlayback();
     }
-  }, [walkmanStatus, currentTape?.id]);
+  }, [walkmanStatus, currentIntel?.id]);
 
-  // --- Handlers ---
+  // Handlers
   const addToast = useCallback((toast: Omit<Toast, 'id'>) => {
     const id = Math.random().toString(36).slice(2);
     setToasts(prev => [...prev, { ...toast, id }]);
   }, []);
 
-  const dismissToast = useCallback((id: string) => {
-    setToasts(prev => prev.filter(t => t.id !== id));
-  }, []);
-
   const handleQrDetected = useCallback(async (code: string) => {
-    if (!playerData || !localStats) {
-      addToast({ type: 'error', title: 'Aguarde', subtitle: 'Perfil carregando...', icon: '⏳' });
-      return;
-    }
+    if (!playerData || !localStats) return addToast({ type: 'error', title: 'Aguarde', subtitle: 'Perfil carregando...', icon: '⏳' });
     setWalkmanStatus('IDLE');
-    activityLogger.logAction(playerData.uid, playerData.username, 'qr_scan', `QR: ${code}`, { code });
     
     try {
-      const tape = await tapeManager.resolveTape(code);
-      if (!tape) {
-        addToast({ type: 'error', title: 'Código Desconhecido', subtitle: code, icon: '❌' });
-        return;
-      }
-      const { alreadyOwned, updatedTapeIds } = await tapeManager.unlockTape(playerData, tape.id);
+      const intel = await intelService.resolve(code);
+      if (!intel) return addToast({ type: 'error', title: 'Código Desconhecido', subtitle: code, icon: '❌' });
+      
+      const { alreadyOwned, updatedIds } = await intelService.unlock(playerData, intel.id);
       const now = Date.now();
       const recentScans = [...scanTimes.filter(t => now - t < 300000), now];
       setScanTimes(recentScans);
       analyticsTracker.checkAchievements(recentScans);
-      setPlayerData({ ...playerData, unlockedTapeIds: updatedTapeIds });
+      setPlayerData({ ...playerData, unlockedTapeIds: updatedIds });
       
       hasPlayedCurrentTape.current = false;
       setWalkmanStatus('LOADING');
-      
-      setTimeout(() => {
-        setCurrentTape(tape);
-        setWalkmanStatus('LOADED');
-        addToast({ type: 'tape', title: alreadyOwned ? 'Fita Inserida' : 'Fita Desbloqueada!', subtitle: tape.title, icon: '📼' });
-      }, 400);
-      
-      activityLogger.logAction(playerData.uid, playerData.username, alreadyOwned ? 'tape_insert' : 'tape_unlock', `${alreadyOwned ? 'Inseriu' : 'Desbloqueou'}: ${tape.title}`, { tapeId: tape.id });
-    } catch (err) {
-      addToast({ type: 'error', title: 'Erro QR', subtitle: 'Tente dnv', icon: '⚠️' });
-    }
+      setTimeout(() => { setCurrentIntel(intel); setWalkmanStatus('LOADED'); addToast({ type: 'tape', title: alreadyOwned ? 'Intel Inserida' : 'Intel Desbloqueada!', subtitle: intel.title, icon: '📼' }); }, 400);
+      activityLogger.logAction(alreadyOwned ? 'tape_insert' : 'tape_unlock', `${alreadyOwned ? 'Inseriu' : 'Desbloqueou'}: ${intel.title}`, { tapeId: intel.id });
+    } catch (err) { addToast({ type: 'error', title: 'Erro QR', subtitle: 'Tente dnv', icon: '⚠️' }); }
   }, [playerData, localStats, scanTimes, addToast]);
 
-  const handlePlayPause = (play: boolean) => {
-    if (!currentTape) return;
-    setWalkmanStatus(play ? 'PLAYING' : 'LOADED');
-  };
-
-  const handleRewind = () => {
-    if (!currentTape || walkmanStatus === 'REWINDING') return;
-    setWalkmanStatus('REWINDING');
-    setTimeout(() => setWalkmanStatus('LOADED'), 1500);
-  };
-
-  const handleEject = () => { 
-    if (!hasPlayedCurrentTape.current && currentTape) analyticsTracker.incrementStat('ejectWithoutPlay');
-    if (playerData && currentTape) activityLogger.logAction(playerData.uid, playerData.username, 'tape_eject', `Ejetou: ${currentTape.title}`, { tapeId: currentTape.id });
-    
-    setWalkmanStatus('IDLE');
-    setCurrentTape(null); 
-    analyticsTracker.forceSyncToServer();
-  };
-
-  const handleTapeSelect = (tape: Tape) => {
-    if (tape.type === 'gallery-pista') {
-      const pistaImg = galleryImages.find(img => `gallery-pista-${img.id}` === tape.id);
-      if (pistaImg) {
-        setActiveEvidence({ ...tape, content: pistaImg.description, imageUrl: pistaImg.imageUrl });
-        if (playerData) activityLogger.logAction(playerData.uid, playerData.username, 'pista_open', `Abriu pista: ${tape.title}`, { tapeId: tape.id });
-      }
-      return;
+  const handleIntelSelect = (intel: IntelItem) => {
+    if (!playerData) return;
+    if (intel.type === 'VISUAL' || intel.type === 'TEXT') {
+      setActiveEvidence(intel);
+      activityLogger.logAction(intel.type === 'VISUAL' ? 'pista_open' : 'evidence_open', `Abriu: ${intel.title}`, { intelId: intel.id });
+    } else if (intel.type === 'AUDIO') {
+      if (intel.id === currentIntel?.id) return;
+      if (!hasPlayedCurrentTape.current && currentIntel) analyticsTracker.incrementStat('ejectWithoutPlay');
+      hasPlayedCurrentTape.current = false;
+      setWalkmanStatus('LOADING');
+      setTimeout(() => { setCurrentIntel(intel); setWalkmanStatus('LOADED'); }, 400);
+      activityLogger.logAction('tape_select', `Selecionou: ${intel.title}`, { intelId: intel.id });
     }
-    if (tape.type === 'disk') {
-      setActiveEvidence(tape);
-      if (playerData) activityLogger.logAction(playerData.uid, playerData.username, 'evidence_open', `Abriu: ${tape.title}`, { tapeId: tape.id });
-      return;
-    }
-    if (tape.id === currentTape?.id) return;
-    
-    if (!hasPlayedCurrentTape.current && currentTape) analyticsTracker.incrementStat('ejectWithoutPlay');
-    
-    hasPlayedCurrentTape.current = false;
-    setWalkmanStatus('LOADING');
-    setTimeout(() => { 
-      setCurrentTape(tape); 
-      setWalkmanStatus('LOADED'); 
-    }, 400);
-    
-    if (playerData) activityLogger.logAction(playerData.uid, playerData.username, 'tape_select', `Selecionou: ${tape.title}`, { tapeId: tape.id });
   };
 
-  const handleModeChange = (dir: 'up' | 'down') => {
-    const modes: DisplayMode[] = ['default', 'title', 'chapter', 'type'];
-    const idx = modes.indexOf(displayMode);
-    setDisplayMode(modes[(idx + (dir === 'up' ? 1 : -1) + modes.length) % modes.length]);
+  const handleCharacterSwitch = () => {
+    if (playerData) activityLogger.logAction('character_switch', `Agente ${playerData.character.codinome} desativado para troca`);
+    analyticsTracker.stopAll(false); // Force sync before switching
+    playerSyncService.stopAll();
+    setPlayerData(null);
+    setLocalStats(null);
+    setIntelCollection(null);
+    setScreen('characterSelection');
   };
 
   const handleLogout = async () => {
-    if (playerData) activityLogger.logAuth(playerData.uid, playerData.username, 'logout', `${playerData.username} saiu`);
-    analyticsTracker.stopAll();
+    if (playerData) activityLogger.logAuth('logout', `${playerData.character.codinome} saiu`);
+    // Stop services BEFORE invalidating auth to avoid permission errors on final sync
+    analyticsTracker.stopAll(true);
+    playerSyncService.stopAll();
     await logout();
-    setCurrentTape(null);
+    setMasterAccount(null);
+    setPlayerData(null);
+    setCurrentIntel(null);
     setWalkmanStatus('IDLE');
-  };
-
-  const handleCampaignSelect = async (campaign: any) => {
-    if (!playerData) return;
-    try {
-      await firestoreSetCampaign(playerData.uid, campaign.id);
-      setPlayerData({ ...playerData, campaignId: campaign.id });
-      
-      addToast({ 
-        type: 'success', 
-        title: 'Instância Vinculada', 
-        subtitle: campaign.name, 
-        icon: '🔗' 
-      });
-
-      // Muda o ambiente dependendo da campanha
-      if (campaign.visualTheme === 'terminal') setScreen('bios');
-      else if (campaign.visualTheme === 'macos') setScreen('macos');
-      else if (campaign.visualTheme === 'windows95') setScreen('windows95');
-      else setScreen('player');
-
-      activityLogger.logAction(playerData.uid, playerData.username, 'campaign_select', `Selecionou campanha: ${campaign.name}`, { campaignId: campaign.id });
-    } catch (err) {
-      addToast({ type: 'error', title: 'Erro', subtitle: 'Falha ao vincular instância', icon: '⚠️' });
-    }
+    setScreen('login');
   };
 
   const swipeHandlers = useSwipeable({
@@ -343,132 +265,63 @@ export default function Player() {
     preventScrollOnSwipe: true,
   });
 
-  if (playerData === null) {
-    return (
-      <div className="fixed inset-0 flex items-center justify-center bg-surface">
-        <div className="noise-overlay" /><div className="scanlines" />
-        <motion.div animate={{ opacity: [0.3, 1, 0.3] }} transition={{ repeat: Infinity, duration: 2 }}
-          className="text-orange-500 font-mono text-sm tracking-widest font-black uppercase">SINTONIZANDO...</motion.div>
-      </div>
-    );
-  }
+  if (masterAccount === null) return (
+    <div className="fixed inset-0 flex items-center justify-center bg-surface">
+      <div className="noise-overlay" /><div className="scanlines" />
+      <motion.div animate={{ opacity: [0.3, 1, 0.3] }} transition={{ repeat: Infinity, duration: 2 }} className="text-orange-500 font-mono text-sm tracking-widest font-black uppercase">SINTONIZANDO...</motion.div>
+    </div>
+  );
 
   return (
     <div {...swipeHandlers} className="fixed inset-0 bg-surface flex items-center justify-center p-0 sm:p-4 overflow-hidden select-none touch-none">
       <div className="noise-overlay" /><div className="scanlines" /><div className="vignette" />
       
       <AnimatePresence mode="wait">
-        {screen === 'login' || playerData === undefined ? (
+        {screen === 'login' || !masterAccount ? (
           <motion.div key="login" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full h-full flex items-center justify-center">
-            <LoginScreen onLogin={(data) => { setPlayerData(data); setLocalStats(data.stats); }} />
+            <LoginScreen onLogin={(acc) => { setMasterAccount(acc); setScreen('characterSelection'); }} />
           </motion.div>
+        ) : (screen === 'characterSelection' && masterAccount) ? (
+          <motion.div key="charSelect" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full h-full flex items-center justify-center">
+            <CharacterSelectionScreen account={masterAccount} onSelect={handleCharacterSelect} onLogout={handleLogout} />
+          </motion.div>
+        ) : playerData === null ? (
+          <div className="text-orange-500 font-mono">CARREGANDO AGENTE...</div>
         ) : screen === 'profile' ? (
           <motion.div key="profile" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full h-full flex items-center justify-center">
-            <ProfileScreen 
-              profile={{ ...playerData, galleryImages }} 
-              onBack={() => setScreen('player')} 
-              onLogout={handleLogout} 
-              onChangeMission={() => setScreen('campaignSelection')}
-              onUpdateSpotify={async (url) => { 
-                if (playerData) { 
-                  await firestoreUpdateSpotifyPlaylist(playerData.uid, url); 
-                  setPlayerData({ ...playerData, spotifyPlaylistUrl: url }); 
-                } 
-              }} 
-            />
-          </motion.div>
-        ) : screen === 'bios' ? (
-          <motion.div key="bios" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-50">
-            <BiosTerminal uid={playerData.uid} username={playerData.username}
-              onIpDetected={() => setScreen('limbo')} onClose={() => setScreen('player')} 
-              onAppLaunch={(app) => app === 'diskRepair' && setScreen('diskRepair')} 
-              onBootSystem={() => setScreen('windows95')}
-            />
-          </motion.div>
-        ) : screen === 'limbo' ? (
-          <motion.div key="limbo" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-50">
-            <LimboBoard uid={playerData.uid} onClose={() => setScreen('player')} 
-              onBackToTerminal={() => setScreen('bios')} globalSeizedStatus={limboStatus.seized}
-              readThreadIds={limboStatus.readThreadIds || []}
-            />
-          </motion.div>
-        ) : screen === 'diskRepair' ? (
-          <motion.div key="diskRepair" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-50">
-            <DiskRepairApp uid={playerData.uid} onClose={() => setScreen('player')} onBackToTerminal={() => setScreen('bios')} />
-          </motion.div>
-        ) : screen === 'macos' ? (
-          <motion.div key="macos" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-50">
-            <MacOsApp uid={playerData.uid} onClose={() => setScreen('player')} />
-          </motion.div>
-        ) : screen === 'windows95' ? (
-          <motion.div key="windows95" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-50">
-            <Windows95App uid={playerData.uid} onClose={() => setScreen('player')} />
+            <ProfileScreen profile={{ ...playerData, galleryImages }} onBack={() => setScreen('player')} onLogout={handleLogout} onChangeMission={() => setScreen('campaignSelection')} onChangeCharacter={handleCharacterSwitch} onUpdateSpotify={async (url) => { await firestoreUpdateSpotifyPlaylist(playerData.uid, playerData.activeCharacterId, url); setPlayerData({ ...playerData, character: { ...playerData.character, spotifyPlaylistUrl: url } }); }} />
           </motion.div>
         ) : screen === 'agentDossier' ? (
           <motion.div key="agentDossier" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full h-full flex items-center justify-center p-0 sm:p-4">
             <div className="bg-cardboard w-full h-full max-w-[520px] rounded-none sm:rounded-[20px] shadow-[0_35px_100px_rgba(0,0,0,0.9)] border-0 sm:border-2 sm:border-cardboard-dark relative flex flex-col mx-auto overflow-hidden text-ink font-chakra">
-              <AgentDossierOverlay onClose={() => setScreen('campaignSelection')} playerData={playerData} campaigns={campaigns} />
+              <AgentDossierOverlay onClose={() => setScreen('campaignSelection')} playerData={playerData} campaigns={campaigns} intel={intelCollection} />
             </div>
           </motion.div>
         ) : screen === 'campaignSelection' ? (
           <motion.div key="campaignSelection" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full h-full flex items-center justify-center p-0 sm:p-4">
-            <CampaignSelection onSelect={handleCampaignSelect} onLogout={handleLogout} onShowProfile={() => setScreen('agentDossier')} playerData={playerData} />
+            <CampaignSelection onSelect={async (c) => { await firestoreSetCampaign(playerData.uid, playerData.activeCharacterId, c.id); setPlayerData({ ...playerData, character: { ...playerData.character, campaignId: c.id } }); setScreen(c.visualTheme === 'terminal' ? 'bios' : c.visualTheme === 'macos' ? 'macos' : c.visualTheme === 'windows95' ? 'windows95' : 'player'); }} onLogout={handleLogout} onShowProfile={() => setScreen('agentDossier')} onChangeCharacter={handleCharacterSwitch} playerData={playerData} />
+          </motion.div>
+        ) : screen === 'player' ? (
+          <motion.div key="player" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} className="relative w-full max-w-sm h-full max-h-[750px] bg-surface-container-high rounded-[32px] border-8 border-[#1a1a1a] shadow-2xl flex flex-col p-3 sm:p-4 overflow-hidden z-10">
+            <Screw className="top-4 left-4" /><Screw className="top-4 right-4 -rotate-90" /><Screw className="bottom-4 left-4 -rotate-90" /><Screw className="bottom-4 right-4" />
+            <CassetteVisor currentIntel={currentIntel} status={walkmanStatus} onEject={() => { if (!hasPlayedCurrentTape.current && currentIntel) analyticsTracker.incrementStat('ejectWithoutPlay'); setWalkmanStatus('IDLE'); setCurrentIntel(null); }} onScanClick={() => setWalkmanStatus('SCANNING')} onCancelScan={() => setWalkmanStatus('IDLE')} onQrDetected={handleQrDetected} />
+            <TapeLibrary intelItems={intelCollection?.items || []} currentIntelId={currentIntel?.id ?? null} isPlaying={isPlaying} displayMode={displayMode} onIntelSelect={handleIntelSelect} />
+            <SideControls volume={volume} setVolume={setVolume} onModeChange={(dir) => { const modes: DisplayMode[] = ['default', 'title', 'chapter', 'type']; setDisplayMode(modes[(modes.indexOf(displayMode) + (dir === 'up' ? 1 : -1) + modes.length) % modes.length]); }} onProfileOpen={() => setScreen('profile')} onCharacterSwitch={handleCharacterSwitch} />
+            <BottomControls status={walkmanStatus} setIsPlaying={(p) => setWalkmanStatus(p ? 'PLAYING' : 'LOADED')} hasTape={!!currentIntel} onRewind={() => { setWalkmanStatus('REWINDING'); setTimeout(() => setWalkmanStatus('LOADED'), 1500); }} hasTerminalAccess={playerData.hasTerminalAccess} onTerminalOpen={() => setScreen('bios')} hasMacAccess={playerData.hasMacAccess} onMacOpen={() => setScreen('macos')} />
           </motion.div>
         ) : (
-          <motion.div 
-            key="player" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}
-            className="relative w-full max-w-sm h-full max-h-[750px] bg-surface-container-high rounded-[32px] border-8 border-[#1a1a1a] shadow-[0_20px_50px_rgba(0,0,0,0.8),inset_0_2px_4px_rgba(255,255,255,0.1)] flex flex-col p-3 sm:p-4 overflow-hidden z-10"
-          >
-            <div className="absolute inset-0 bg-linear-to-br from-white/5 to-transparent pointer-events-none" />
-            <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPjxyZWN0IHdpZHRoPSI0IiBoZWlnaHQ9IjQiIGZpbGw9IiMyMjIiPjwvcmVjdD48cGF0aCBkPSJNMCAwTDIgMk0yIDBMMCAyIiBzdHJva2U9IiMzMzMiIHN0cm9rZS13aWR0aD0iMSIvPjwvc3ZnPg==')] opacity-30 pointer-events-none mix-blend-overlay" />
-            
-            <Screw className="top-4 left-4" />
-            <Screw className="top-4 right-4 -rotate-90" />
-            <Screw className="bottom-4 left-4 -rotate-90" />
-            <Screw className="bottom-4 right-4" />
-            
-            <CassetteVisor 
-              currentTape={currentTape} 
-              status={walkmanStatus}
-              onEject={handleEject} 
-              onScanClick={() => setWalkmanStatus('SCANNING')} 
-              onCancelScan={() => setWalkmanStatus('IDLE')} 
-              onQrDetected={handleQrDetected} 
-            />
-            
-            <TapeLibrary 
-              tapes={allTapesWithPistas} 
-              currentTapeId={currentTape?.id ?? null}
-              isPlaying={isPlaying} 
-              displayMode={displayMode} 
-              onTapeSelect={handleTapeSelect} 
-            />
-            
-            <SideControls 
-              volume={volume} 
-              setVolume={setVolume} 
-              onModeChange={handleModeChange}
-              onProfileOpen={() => setScreen('profile')} 
-            />
-            
-            <BottomControls 
-              status={walkmanStatus}
-              setIsPlaying={handlePlayPause} 
-              hasTape={!!currentTape} 
-              onRewind={handleRewind} 
-              hasTerminalAccess={playerData.hasTerminalAccess} 
-              onTerminalOpen={() => setScreen('bios')}
-              hasMacAccess={playerData.hasMacAccess} 
-              onMacOpen={() => setScreen('macos')}
-            />
+          <motion.div key="apps" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-50">
+            {screen === 'bios' && <BiosTerminal uid={playerData.uid} username={playerData.character.codinome} onIpDetected={() => setScreen('limbo')} onClose={() => setScreen('player')} onAppLaunch={(app) => app === 'diskRepair' && setScreen('diskRepair')} onBootSystem={() => setScreen('windows95')} />}
+            {screen === 'limbo' && <LimboBoard uid={playerData.uid} characterId={playerData.activeCharacterId} onClose={() => setScreen('player')} onBackToTerminal={() => setScreen('bios')} globalSeizedStatus={limboStatus.seized} readThreadIds={limboStatus.readThreadIds || []} />}
+            {screen === 'diskRepair' && <DiskRepairApp uid={playerData.uid} characterId={playerData.activeCharacterId} onClose={() => setScreen('player')} onBackToTerminal={() => setScreen('bios')} />}
+            {screen === 'macos' && <MacOsApp uid={playerData.uid} onClose={() => setScreen('player')} />}
+            {screen === 'windows95' && <Windows95App uid={playerData.uid} onClose={() => setScreen('player')} />}
           </motion.div>
         )}
       </AnimatePresence>
 
-      <AnimatePresence>
-        {activeEvidence && <EvidenceReader evidence={activeEvidence} onClose={() => setActiveEvidence(null)} />}
-      </AnimatePresence>
-      <ToastNotification toasts={toasts} onDismiss={dismissToast} />
+      <AnimatePresence>{activeEvidence && <EvidenceReader evidence={activeEvidence} onClose={() => setActiveEvidence(null)} />}</AnimatePresence>
+      <ToastNotification toasts={toasts} onDismiss={(id) => setToasts(prev => prev.filter(t => t.id !== id))} />
     </div>
   );
 }

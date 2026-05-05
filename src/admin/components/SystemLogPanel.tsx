@@ -5,6 +5,7 @@ import { useModal } from './ConfirmModal';
 interface LogEntry {
   id: string;
   uid: string;
+  characterId?: string;
   username: string;
   type: 'navigation' | 'action' | 'system' | 'error' | 'admin' | 'auth' | 'trace';
   category: string;
@@ -87,7 +88,7 @@ const LogRow = React.memo(({
           {entry.source.toUpperCase()}
         </span>
         <span className="text-[10px] font-mono text-purple-300 font-bold shrink-0 truncate max-w-[90px]">
-          {entry.username || entry.uid?.slice(0, 8)}
+          {entry.username || (entry.uid?.slice ? entry.uid.slice(0, 8) : 'unknown')}
         </span>
         <span className={`text-[10px] font-mono flex-1 truncate ${
           entry.type === 'admin' ? 'text-purple-300 font-bold tracking-wide' : 
@@ -107,6 +108,10 @@ const LogRow = React.memo(({
             <div>
               <span className="text-zinc-600">UID: </span>
               <span className="text-zinc-400">{entry.uid}</span>
+            </div>
+            <div>
+              <span className="text-zinc-600">AGENTE_ID: </span>
+              <span className="text-orange-500/70">{entry.characterId || 'N/A'}</span>
             </div>
             <div>
               <span className="text-zinc-600">USUÁRIO: </span>

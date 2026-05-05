@@ -6,7 +6,7 @@ export class AudioEngine {
   private onEndedCallback: (() => void) | null = null;
   private onStateChangeCallback: ((state: AudioState) => void) | null = null;
   private state: AudioState = 'idle';
-  private fadeInterval: any = null;
+  private fadeInterval: ReturnType<typeof setInterval> | null = null;
 
   private constructor() {}
 
@@ -53,18 +53,27 @@ export class AudioEngine {
   public loadTrack(url: string) {
     this.init();
     if (this.audio) {
-      this.setState('loading');
-      this.audio.src = url;
-      this.audio.load();
+      try {
+        this.setState('loading');
+        this.audio.src = url;
+        this.audio.load();
+      } catch (error) {
+        console.error("[AudioEngine] Erro ao carregar faixa:", error);
+        this.setState('error');
+      }
     }
   }
 
   public async play(): Promise<void> {
     if (this.audio && this.audio.src) {
       try {
-        clearInterval(this.fadeInterval);
-        // Fade in suave (0.1s) para evitar estalos
-        const targetVolume = this.audio.volume;
+        if (this.fadeInterval) {
+          clearInterval(this.fadeInterval);
+          this.fadeInterval = null;
+        }
+
+        // Fade in suave (0.15s) para evitar estalos
+        const targetVolume = this.audio.volume || 1.0;
         this.audio.volume = 0;
         
         await this.audio.play();
@@ -89,9 +98,11 @@ export class AudioEngine {
   public stop() {
     if (this.audio) {
       this.fadeVolume(0, 100, () => {
-        this.audio!.pause();
-        this.audio!.currentTime = 0;
-        this.setState('idle');
+        if (this.audio) {
+          this.audio.pause();
+          this.audio.currentTime = 0;
+          this.setState('idle');
+        }
       });
     }
   }
@@ -99,21 +110,30 @@ export class AudioEngine {
   private fadeVolume(target: number, duration: number, onComplete?: () => void) {
     if (!this.audio) return;
     
-    clearInterval(this.fadeInterval);
-    const startVolume = this.audio.volume;
+    if (this.fadeInterval) {
+      clearInterval(this.fadeInterval);
+    }
+
+    const startVol = this.audio.volume;
     const steps = 10;
     const stepTime = duration / steps;
-    const volumeStep = (target - startVolume) / steps;
-    
+    const volStep = (target - startVol) / steps;
     let currentStep = 0;
+
     this.fadeInterval = setInterval(() => {
-      currentStep++;
-      if (this.audio) {
-        this.audio.volume = Math.max(0, Math.min(1, startVolume + (volumeStep * currentStep)));
+      if (!this.audio) {
+        if (this.fadeInterval) clearInterval(this.fadeInterval);
+        return;
       }
-      
+
+      currentStep++;
+      const nextVol = startVol + (volStep * currentStep);
+      this.audio.volume = Math.max(0, Math.min(1, nextVol));
+
       if (currentStep >= steps) {
-        clearInterval(this.fadeInterval);
+        if (this.fadeInterval) clearInterval(this.fadeInterval);
+        this.fadeInterval = null;
+        this.audio.volume = target;
         if (onComplete) onComplete();
       }
     }, stepTime);
@@ -142,7 +162,10 @@ export class AudioEngine {
 
   public clearTrack() {
     if (this.audio) {
-      clearInterval(this.fadeInterval);
+      if (this.fadeInterval) {
+        clearInterval(this.fadeInterval);
+        this.fadeInterval = null;
+      }
       this.audio.pause();
       this.audio.src = '';
       this.setState('idle');
