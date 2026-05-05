@@ -18,9 +18,9 @@ interface MetadataOverlayProps {
 }
 
 const STATUS_CONFIG = {
-  vivo: { label: 'ATIVO', color: 'text-analog-green', dot: 'bg-analog-green', glow: 'shadow-[0_0_8px_#378b44]' },
-  morto: { label: 'ELIMINADO', color: 'text-analog-red', dot: 'bg-analog-red', glow: 'shadow-[0_0_8px_#cc3021]' },
-  desaparecido: { label: 'DESAPARECIDO', color: 'text-yellow-500', dot: 'bg-yellow-500', glow: 'shadow-[0_0_8px_#eab308]' },
+  vivo: { label: 'ATIVO', color: 'text-green-500', dot: 'bg-green-500' },
+  morto: { label: 'ELIMINADO', color: 'text-red-500', dot: 'bg-red-500' },
+  desaparecido: { label: 'DESAPARECIDO', color: 'text-yellow-500', dot: 'bg-yellow-500' },
 } as const;
 
 const DANGER_LABELS = ['—', 'BAIXO', 'MODERADO', 'ELEVADO', 'ALTO', 'CRÍTICO'] as const;
@@ -30,7 +30,6 @@ export const MetadataOverlay = ({ onClose, agent }: MetadataOverlayProps) => {
   const [loading, setLoading] = useState(!agent?.agentId);
   const [revealed, setRevealed] = useState(false);
 
-  // Generate agent ID if user doesn't have one yet
   useEffect(() => {
     if (agent?.uid && !agent.agentId) {
       setLoading(true);
@@ -43,7 +42,6 @@ export const MetadataOverlay = ({ onClose, agent }: MetadataOverlayProps) => {
     }
   }, [agent?.uid, agent?.agentId]);
 
-  // Typewriter reveal animation
   useEffect(() => {
     if (!loading && agentCode) {
       const timer = setTimeout(() => setRevealed(true), 400);
@@ -52,151 +50,80 @@ export const MetadataOverlay = ({ onClose, agent }: MetadataOverlayProps) => {
   }, [loading, agentCode]);
 
   const status = agent?.agentStatus || 'vivo';
-  const statusCfg = STATUS_CONFIG[status];
+  const statusCfg = STATUS_CONFIG[status] || STATUS_CONFIG.vivo;
   const dangerLevel = agent?.dangerLevel || 0;
   const dangerLabel = DANGER_LABELS[dangerLevel] || '—';
-
-  // Danger level bar rendering
-  const dangerBars = Array.from({ length: 5 }, (_, i) => {
-    const active = i < dangerLevel;
-    const colors = [
-      'bg-analog-green',
-      'bg-yellow-500',
-      'bg-analog-orange',
-      'bg-analog-red',
-      'bg-red-700',
-    ];
-    return (
-      <div
-        key={i}
-        className={`h-3 flex-1 rounded-sm transition-all duration-500 ${
-          active ? colors[i] : 'bg-ink/15'
-        }`}
-        style={{ transitionDelay: revealed ? `${i * 100 + 400}ms` : '0ms' }}
-      />
-    );
-  });
 
   return (
     <motion.div 
       initial={{ opacity: 0 }} 
       animate={{ opacity: 1 }} 
       exit={{ opacity: 0 }} 
-      className="absolute inset-0 z-60 bg-black/75 backdrop-blur-md flex items-center justify-center p-6"
+      className="fixed inset-0 z-[120] bg-black/90 backdrop-blur-md flex items-center justify-center p-6"
+      onClick={onClose}
     >
       <motion.div 
-        initial={{ scale: 0.8, y: 20 }} 
+        initial={{ scale: 0.9, y: 20 }} 
         animate={{ scale: 1, y: 0 }} 
-        className="bg-cardboard p-8 rounded-3xl border-4 border-cardboard-dark shadow-2xl w-full max-w-[340px] relative overflow-hidden"
+        className="bg-surface border-2 border-primary/30 p-8 shadow-2xl w-full max-w-[360px] relative overflow-hidden group"
+        onClick={e => e.stopPropagation()}
       >
-        {/* Subtle background pattern */}
-        <div className="absolute inset-0 opacity-[0.03] pointer-events-none scanlines" />
+        <div className="noise-overlay" />
+        <div className="absolute top-0 right-0 w-24 h-24 bg-primary/5 rotate-45 translate-x-12 -translate-y-12 border-b-2 border-primary/10" />
+        
+        <header className="mb-8 border-b border-primary/10 pb-4 relative z-10">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[8px] font-display font-bold text-primary tracking-[0.4em] uppercase opacity-60">Metadados do Agente</span>
+            <div className={`w-2 h-2 rounded-full ${statusCfg.dot} animate-pulse shadow-sm`} />
+          </div>
+          <h2 className="font-display text-2xl font-bold text-white uppercase tracking-tighter">{agent?.username || 'CARREGANDO...'}</h2>
+        </header>
 
-        {/* CLASSIFIED header stamp */}
-        <motion.div
-          initial={{ opacity: 0, rotate: -15, scale: 1.5 }}
-          animate={{ opacity: 0.12, rotate: -12, scale: 1 }}
-          transition={{ delay: 0.6, duration: 0.5, type: 'spring' }}
-          className="absolute top-12 right-4 text-analog-red font-oswald font-bold text-4xl tracking-[0.3em] pointer-events-none select-none z-0 border-4 border-analog-red/20 px-3 py-1 rounded-sm"
-        >
-          SECRETO
-        </motion.div>
-
-        <div className="indented-box p-6 mb-6 font-mono text-[11px] space-y-3 text-ink text-left relative z-10">
-          <div className="text-analog-orange font-black border-b-2 border-ink/10 pb-2 mb-3 text-sm tracking-widest uppercase flex justify-between items-center">
-            <span>Dossiê_Agente</span>
-            <div className="flex gap-1">
-              <div className={`w-1.5 h-1.5 rounded-full animate-pulse ${statusCfg.dot} ${statusCfg.glow}`} />
-              <div className="w-1.5 h-1.5 bg-analog-orange/30 rounded-full" />
+        <div className="space-y-6 relative z-10 font-display text-[11px] uppercase tracking-wider">
+          <div className="grid grid-cols-2 gap-4 border-b border-primary/5 pb-4">
+            <div className="space-y-1">
+              <span className="text-industrial-silver/30 font-bold block">ID Registro</span>
+              {loading ? (
+                <span className="animate-pulse text-primary/40">SINC...</span>
+              ) : (
+                <span className="text-primary font-bold">RM-{agentCode}</span>
+              )}
+            </div>
+            <div className="space-y-1">
+              <span className="text-industrial-silver/30 font-bold block">Status</span>
+              <span className={statusCfg.color}>{statusCfg.label}</span>
             </div>
           </div>
 
-          {/* Agent ID */}
-          <motion.div
-            initial={{ opacity: 0, x: -10 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.2 }}
-          >
-            <span className="opacity-50 font-bold">AGENT_ID:</span>{' '}
-            {loading ? (
-              <span className="animate-pulse text-analog-orange">GERANDO...</span>
-            ) : (
-              <motion.span
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="font-black text-analog-orange tracking-[0.2em] text-sm"
-              >
-                RM-{agentCode}
-              </motion.span>
-            )}
-          </motion.div>
-
-          {/* Codename */}
-          <motion.p
-            initial={{ opacity: 0, x: -10 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.3 }}
-          >
-            <span className="opacity-50 font-bold">CODINOME:</span>{' '}
-            <span className="uppercase font-bold tracking-wider">{agent?.username || 'UNKNOWN'}</span>
-          </motion.p>
-
-          {/* Status */}
-          <motion.p
-            initial={{ opacity: 0, x: -10 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.4 }}
-          >
-            <span className="opacity-50 font-bold">STATUS:</span>{' '}
-            <span className={`font-black ${statusCfg.color}`}>{statusCfg.label}</span>
-          </motion.p>
-
-          {/* Last Mission */}
-          <motion.p
-            initial={{ opacity: 0, x: -10 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.5 }}
-          >
-            <span className="opacity-50 font-bold">ÚLTIMA_MISSÃO:</span>{' '}
-            <span className="uppercase tracking-wide">{agent?.lastCampaignName || 'SEM REGISTRO'}</span>
-          </motion.p>
-
-          {/* Danger Level */}
-          <motion.div
-            initial={{ opacity: 0, x: -10 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.6 }}
-            className="pt-2"
-          >
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="opacity-50 font-bold">PERICULOSIDADE:</span>
-              <span className={`font-black text-[10px] tracking-widest ${
-                dangerLevel >= 4 ? 'text-analog-red' : dangerLevel >= 2 ? 'text-analog-orange' : 'text-ink/50'
-              }`}>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-industrial-silver/30 font-bold">Periculosidade</span>
+              <span className={`font-black tracking-[0.2em] ${dangerLevel >= 4 ? 'text-red-500' : dangerLevel >= 2 ? 'text-primary' : 'text-industrial-silver/40'}`}>
                 {dangerLabel}
               </span>
             </div>
-            <div className="flex gap-1">
-              {dangerBars}
+            <div className="flex gap-1.5">
+              {Array.from({ length: 5 }, (_, i) => (
+                <div key={i} className={`h-2.5 flex-1 rounded-sm transition-all duration-700 ${i < dangerLevel ? 'bg-primary shadow-[0_0_8px_rgba(255,183,125,0.4)]' : 'bg-primary/5 border border-primary/10'}`} />
+              ))}
             </div>
-          </motion.div>
+          </div>
 
-          {/* Encrypted footer */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.8 }}
-            className="pt-3 opacity-70 italic border-t border-ink/10 mt-3 font-chakra leading-snug text-[10px]"
-          >
-            "Informação classificada nível OMEGA. Distribuição não autorizada resulta em eliminação imediata do agente."
-          </motion.div>
+          <div className="space-y-1 pt-2">
+            <span className="text-industrial-silver/30 font-bold block">Última Operação</span>
+            <span className="text-white/80 block truncate">{agent?.lastCampaignName || 'NENHUM REGISTRO'}</span>
+          </div>
+
+          <div className="pt-4 opacity-30 italic border-t border-primary/5 mt-4 text-[9px] leading-relaxed tracking-normal lowercase font-sans">
+            "Informação classificada nível OMEGA. Distribuição não autorizada resulta em eliminação imediata."
+          </div>
         </div>
 
         <button 
-          onClick={onClose} 
-          className="btn-sk-orange w-full py-4 uppercase font-black tracking-widest text-sm shadow-md active:translate-y-0.5 transition-transform"
+          onClick={onClose}
+          className="w-full mt-10 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 py-4 font-display font-bold text-[10px] uppercase tracking-[0.3em] transition-all relative z-10 active:scale-95 glow-orange"
         >
-          Fechar_Dossiê
+          Sincronizar e Sair
         </button>
       </motion.div>
     </motion.div>

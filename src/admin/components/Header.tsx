@@ -1,38 +1,44 @@
 import React from 'react';
 import { User } from 'firebase/auth';
+import { LogOut } from 'lucide-react';
+
 interface HeaderProps {
   user: User | null;
   onLogout: () => void;
 }
+
 export default function Header({ user, onLogout }: HeaderProps) {
   return (
-    <header className="fixed top-0 w-full z-50 flex justify-between items-center px-6 h-14 bg-zinc-950/90 backdrop-blur-md border-b border-zinc-800 shadow-[0_0_15px_rgba(255,140,0,0.1)]">
+    <header className="w-full z-50 flex justify-between items-center px-8 h-16 bg-black/40 border-b-4 border-[#1a1a1a] shrink-0">
       <div className="flex items-center gap-4">
-        <span className="text-xl font-bold tracking-tighter text-orange-500 italic font-headline">SYS_ADMIN_v2.0</span>
-        <div className="h-4 w-px bg-zinc-700"></div>
-        <span className="font-label uppercase tracking-widest text-[10px] text-orange-500 animate-pulse">STATUS_OPERACIONAL: ATIVO</span>
+        <span className="text-xl font-black tracking-tighter text-primary italic font-chakra">SYS_ADMIN_v3.0</span>
+        <div className="h-4 w-1 bg-[#1a1a1a]"></div>
+        <div className="flex items-center gap-2">
+          <div className="w-2 h-2 bg-primary rounded-full animate-pulse shadow-[0_0_8px_rgba(255,140,0,0.4)]" />
+          <span className="font-chakra uppercase font-bold tracking-[0.2em] text-[10px] text-primary">STATUS_OPERACIONAL: ATIVO</span>
+        </div>
       </div>
+      
       <div className="flex items-center gap-6">
-        <div className="hidden md:flex items-center gap-4">
-          {user && (
-            <button 
-              onClick={onLogout} 
-              className="material-symbols-outlined text-zinc-500 hover:bg-zinc-800 hover:text-error transition-colors duration-150 p-2 rounded-sm" 
-              title="Sair"
-            >
-              logout
-            </button>
-          )}
-        </div>
-        <div className="flex items-center gap-3 ml-4">
+        <div className="flex items-center gap-3">
           <div className="text-right hidden sm:block">
-            <p className="text-[10px] font-label uppercase tracking-tighter text-zinc-400">ID_do_Operador</p>
-            <p className="text-xs font-bold text-on-surface">GM.MPG</p>
+            <p className="text-[9px] font-chakra font-bold uppercase tracking-tighter text-zinc-500">Operador_Geral</p>
+            <p className="text-xs font-chakra font-black text-white tracking-widest uppercase">{user?.email?.split('@')[0] || 'GM.MPG'}</p>
           </div>
-          <div className="w-8 h-8 rounded-full border border-orange-500/50 bg-linear-to-br from-orange-600 to-orange-800 flex items-center justify-center">
-            <span className="text-white text-xs font-black">GM</span>
+          <div className="w-9 h-9 border-2 border-primary/30 bg-black flex items-center justify-center text-primary font-chakra font-black text-xs shadow-lg">
+            GM
           </div>
         </div>
+        
+        {user && (
+          <button 
+            onClick={onLogout} 
+            className="p-2 hover:bg-red-500/10 text-zinc-500 hover:text-red-500 transition-all rounded-sm border border-transparent hover:border-red-500/20" 
+            title="Encerrar Sessão"
+          >
+            <LogOut size={18} />
+          </button>
+        )}
       </div>
     </header>
   );

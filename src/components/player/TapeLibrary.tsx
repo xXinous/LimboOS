@@ -4,7 +4,7 @@ import type { IntelItem } from '../../types/intel';
 import type { DisplayMode } from '../../types/player';
 import React from 'react';
 
-export default function TapeLibrary({ 
+export default React.memo(function TapeLibrary({ 
   intelItems, 
   currentIntelId, 
   isPlaying, 
@@ -109,4 +109,4 @@ export default function TapeLibrary({
       </div>
     </div>
   );
-}
+});

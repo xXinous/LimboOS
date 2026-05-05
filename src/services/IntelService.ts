@@ -60,6 +60,7 @@ class IntelService {
         url: remote.audioUrl,
         duration: remote.duration,
         isSecret: remote.isSecret,
+        level: remote.level,
       });
     }
 
@@ -126,6 +127,7 @@ class IntelService {
           url: r.audioUrl,
           duration: r.duration,
           isSecret: r.isSecret,
+          level: r.level,
         });
       }
     });
@@ -208,6 +210,7 @@ class IntelService {
             url: r.audioUrl,
             duration: r.duration,
             isSecret: r.isSecret,
+            level: r.level,
           });
         }
       });

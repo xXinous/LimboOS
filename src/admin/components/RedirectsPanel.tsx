@@ -3,12 +3,15 @@ import { fetchAllQrRedirects, saveQrRedirect, deleteQrRedirect } from '../../sto
 import { activityLogger } from '../../services/ActivityLogger';
 import { useModal } from './ConfirmModal';
 import { format } from 'date-fns';
+import Screw from '../../components/player/Screw';
+
 interface QrRedirect {
   sourceId: string;
   targetId: string;
   updatedAt: any;
   reason?: string;
 }
+
 export default function RedirectsPanel() {
   const [redirects, setRedirects] = useState<QrRedirect[]>([]);
   const [loading, setLoading] = useState(true);
@@ -18,6 +21,7 @@ export default function RedirectsPanel() {
   const [newReason, setNewReason] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const { showAlert, modal } = useModal();
+
   const loadRedirects = async () => {
     setLoading(true);
     try {
@@ -29,9 +33,11 @@ export default function RedirectsPanel() {
       setLoading(false);
     }
   };
+
   useEffect(() => {
     loadRedirects();
   }, []);
+
   const handleAddRedirect = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newSourceId || !newTargetId) return;
@@ -43,7 +49,7 @@ export default function RedirectsPanel() {
       setNewTargetId('');
       setNewReason('');
       await loadRedirects();
-      showAlert('Sucesso', 'Redirecionamento salvo com sucesso.');
+      showAlert('Sucesso', 'Mapeamento sintonizado.');
     } catch (err) {
       console.error('Error saving redirect:', err);
       showAlert('Erro', 'Falha ao salvar redirecionamento.');
@@ -51,6 +57,7 @@ export default function RedirectsPanel() {
       setIsSaving(false);
     }
   };
+
   const handleDelete = async (sourceId: string) => {
     try {
       await deleteQrRedirect(sourceId);
@@ -61,136 +68,147 @@ export default function RedirectsPanel() {
       showAlert('Erro', 'Falha ao remover redirecionamento.');
     }
   };
+
   const filteredRedirects = redirects.filter(r => 
-    r.sourceId.toLowerCase().includes(search.toLowerCase()) || 
-    r.targetId.toLowerCase().includes(search.toLowerCase()) ||
+    (r.sourceId || '').toLowerCase().includes(search.toLowerCase()) || 
+    (r.targetId || '').toLowerCase().includes(search.toLowerCase()) ||
     (r.reason || '').toLowerCase().includes(search.toLowerCase())
   );
+
   return (
-    <section className="space-y-6">
+    <section className="space-y-8 font-chakra">
       {modal}
-      {}
-      <div className="flex items-center gap-4 mb-6">
-        <div className="w-2 h-6 bg-emerald-500" />
-        <h2 className="font-headline font-bold uppercase tracking-widest text-lg">
-          Redirecionamentos_QR
+      <div className="flex items-center gap-4">
+        <div className="w-2 h-8 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(16,185,129,0.4)]" />
+        <h2 className="font-black uppercase tracking-widest text-lg text-white">
+          Interface_de_Redirecionamento_de_Sinal_QR
         </h2>
-        <span className="text-[10px] font-label text-zinc-500 tracking-wider">
-          {redirects.length} MAPEAMENTOS_ATIVOS
+        <span className="text-[10px] font-bold text-zinc-600 tracking-widest uppercase">
+          {redirects.length} MAPEAMENTOS_ATIVOS_NO_GRID
         </span>
       </div>
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {}
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Form Column */}
         <div className="lg:col-span-1">
-          <div className="bg-surface-container-lowest border border-zinc-800 machined-edge p-5">
-            <div className="flex items-center gap-2 mb-4">
-              <span className="material-symbols-outlined text-emerald-500 text-sm">add_link</span>
-              <h3 className="font-label text-[10px] uppercase tracking-widest text-zinc-400">Adicionar_Novo_Mapeamento</h3>
+          <div className="bg-[#1a1a1a] border-4 border-[#1a1a1a] p-8 rounded-xl shadow-xl space-y-8 relative overflow-hidden">
+            <div className="flex items-center gap-3 border-b border-white/5 pb-6">
+              <span className="material-symbols-outlined text-emerald-500 text-2xl">add_link</span>
+              <h3 className="font-black text-xs uppercase tracking-widest text-white">Injetar_Novo_Mapeamento</h3>
             </div>
-            <form onSubmit={handleAddRedirect} className="space-y-4">
-              <div>
-                <label className="block text-[9px] font-label uppercase tracking-widest text-zinc-500 mb-1">ID de Origem (QR Físico)</label>
+            
+            <form onSubmit={handleAddRedirect} className="space-y-6 relative z-10">
+              <div className="space-y-2">
+                <label className="block text-[9px] font-black uppercase tracking-[0.2em] text-zinc-600">ID_ORIGEM (QR_FÍSICO)</label>
                 <input
                   type="text"
                   required
                   value={newSourceId}
                   onChange={(e) => setNewSourceId(e.target.value)}
-                  placeholder="Ex: Ijz0Ie..."
-                  className="w-full bg-zinc-900 border border-zinc-800 text-[10px] font-label uppercase tracking-widest focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 placeholder:text-zinc-700 text-emerald-400 px-3 py-2"
+                  placeholder="EX: IJZ0IE..."
+                  className="w-full bg-black/40 border-2 border-[#1a1a1a] text-[11px] font-mono font-bold uppercase tracking-widest focus:border-emerald-500 outline-none text-emerald-400 px-4 py-3 rounded-sm transition-all"
                 />
               </div>
-              <div>
-                <label className="block text-[9px] font-label uppercase tracking-widest text-zinc-500 mb-1">ID de Destino (Áudio Correto)</label>
+              <div className="space-y-2">
+                <label className="block text-[9px] font-black uppercase tracking-[0.2em] text-zinc-600">ID_DESTINO (DADO_CORRETO)</label>
                 <input
                   type="text"
                   required
                   value={newTargetId}
                   onChange={(e) => setNewTargetId(e.target.value)}
-                  placeholder="Ex: new-tape-id-123"
-                  className="w-full bg-zinc-900 border border-zinc-800 text-[10px] font-label uppercase tracking-widest focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 placeholder:text-zinc-700 text-orange-400 px-3 py-2"
+                  placeholder="EX: TAPE-ID-123..."
+                  className="w-full bg-black/40 border-2 border-[#1a1a1a] text-[11px] font-mono font-bold uppercase tracking-widest focus:border-primary outline-none text-primary px-4 py-3 rounded-sm transition-all"
                 />
               </div>
-              <div>
-                <label className="block text-[9px] font-label uppercase tracking-widest text-zinc-500 mb-1">Motivo / Nota</label>
+              <div className="space-y-2">
+                <label className="block text-[9px] font-black uppercase tracking-[0.2em] text-zinc-600">NOTAS_DO_OPERADOR</label>
                 <textarea
                   value={newReason}
                   onChange={(e) => setNewReason(e.target.value)}
-                  placeholder="O que aconteceu?"
+                  placeholder="MOTIVO DO REDIRECIONAMENTO..."
                   rows={2}
-                  className="w-full bg-zinc-900 border border-zinc-800 text-xs text-zinc-400 px-3 py-2 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 placeholder:text-zinc-700 resize-none"
+                  className="w-full bg-black/40 border-2 border-[#1a1a1a] text-[10px] font-bold text-white px-4 py-3 focus:border-white/20 outline-none rounded-sm resize-none transition-all"
                 />
               </div>
               <button
                 type="submit"
                 disabled={isSaving}
-                className="w-full flex items-center justify-center gap-2 bg-emerald-900/40 text-emerald-300 py-3 font-label text-[10px] font-bold tracking-widest hover:bg-emerald-800/40 transition-all machined-edge border border-emerald-700/30 disabled:opacity-50"
+                className="w-full bg-emerald-600 hover:bg-emerald-500 text-white py-4 font-black text-[10px] uppercase tracking-[0.3em] transition-all rounded-sm active:scale-95 shadow-[0_0_15px_rgba(16,185,129,0.2)] disabled:opacity-20"
               >
-                {isSaving ? 'SALVANDO...' : 'SALVAR_REDIRECIONAMENTO'}
+                {isSaving ? 'SINC_DADOS...' : 'VINCULAR_FREQUÊNCIAS'}
               </button>
             </form>
-            <div className="mt-6 p-4 bg-zinc-900/50 border border-zinc-800/50 rounded">
-              <p className="text-[10px] font-label text-zinc-500 leading-relaxed italic">
-                <span className="text-emerald-500 font-bold">INFO:</span> Use isso para mapear um ID de QR impresso que aponta para dados errados para um novo ID de upload. O código QR físico permanecerá o mesmo, mas o app tocará o conteúdo de destino.
+
+            <div className="bg-black/60 border-2 border-[#1a1a1a] p-5 rounded-xl">
+              <p className="text-[10px] text-zinc-600 leading-relaxed font-bold uppercase tracking-wide">
+                <span className="text-emerald-500 font-black">LOG:</span> Mapeie IDs de QR impressos para novos endereços de memória. O sinal físico permanece o mesmo, mas o núcleo processará o destino.
               </p>
             </div>
           </div>
         </div>
-        {}
+
+        {/* List Column */}
         <div className="lg:col-span-2">
-          <div className="bg-surface-container-lowest border border-zinc-800 machined-edge flex flex-col min-h-[400px]">
-            <div className="p-4 border-b border-zinc-800 flex items-center justify-between">
-              <h3 className="font-label text-[10px] uppercase tracking-widest text-zinc-400">Redirecionamentos_Ativos</h3>
-              <input
-                type="text"
-                placeholder="BUSCAR_POR_ID..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="bg-zinc-900 border border-zinc-800 text-[9px] font-label uppercase tracking-widest focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 placeholder:text-zinc-700 text-zinc-300 px-3 py-1.5 w-48"
-              />
+          <div className="bg-[#1a1a1a] border-4 border-[#1a1a1a] rounded-xl shadow-2xl flex flex-col min-h-[500px] overflow-hidden">
+            <div className="p-6 border-b-4 border-[#1a1a1a] bg-black/40 flex items-center justify-between">
+              <h3 className="font-black text-[10px] uppercase tracking-[0.3em] text-zinc-600">Sequência_de_Mapeamento_Ativa</h3>
+              <div className="relative">
+                 <span className="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-zinc-700 text-xs">search</span>
+                 <input
+                   type="text"
+                   placeholder="LOCALIZAR_VETOR..."
+                   value={search}
+                   onChange={(e) => setSearch(e.target.value)}
+                   className="bg-black/60 border-2 border-[#1a1a1a] text-[9px] font-black uppercase tracking-widest focus:ring-1 focus:ring-emerald-500 placeholder:text-zinc-900 text-white px-10 py-2 w-56 rounded-sm transition-all"
+                 />
+              </div>
             </div>
-            <div className="flex-1 overflow-y-auto">
+            
+            <div className="flex-1 overflow-y-auto bg-black/20 custom-scrollbar">
               {loading ? (
-                <div className="p-12 text-center">
-                  <span className="material-symbols-outlined text-2xl text-zinc-600 animate-spin block mb-2">sync</span>
-                  <p className="font-label text-xs text-zinc-600 tracking-widest">CARREGANDO_MAPEAMENTOS...</p>
+                <div className="p-24 text-center">
+                  <span className="material-symbols-outlined text-3xl text-emerald-900 animate-spin block mb-4">sync</span>
+                  <p className="font-black text-xs text-zinc-700 tracking-[0.4em]">CARREGANDO_GRID...</p>
                 </div>
               ) : filteredRedirects.length === 0 ? (
-                <div className="p-12 text-center">
-                  <span className="material-symbols-outlined text-4xl text-zinc-800 block mb-3">link_off</span>
-                  <p className="font-label text-xs text-zinc-600 uppercase tracking-widest">Nenhum redirecionamento encontrado</p>
+                <div className="p-24 text-center opacity-10">
+                  <span className="material-symbols-outlined text-6xl block mb-4">link_off</span>
+                  <p className="font-black text-sm uppercase tracking-[0.4em]">Grid_de_Mapeamento_Inativo</p>
                 </div>
               ) : (
-                <div className="divide-y divide-zinc-800">
+                <div className="divide-y divide-white/5">
                   {filteredRedirects.map((r) => (
-                    <div key={r.sourceId} className="p-4 hover:bg-zinc-800/20 transition-colors group">
-                      <div className="flex items-center justify-between gap-4">
-                        <div className="flex items-center gap-4 flex-1">
-                          <div className="text-center">
-                            <p className="text-[8px] font-label text-zinc-600 uppercase mb-1">Origem</p>
-                            <code className="text-[10px] font-mono bg-zinc-900 px-2 py-1 rounded text-emerald-400 border border-emerald-500/10">
+                    <div key={r.sourceId} className="p-6 hover:bg-primary/5 transition-all group">
+                      <div className="flex items-center justify-between gap-6">
+                        <div className="flex items-center gap-8 flex-1">
+                          <div className="flex flex-col gap-2">
+                            <p className="text-[8px] font-black text-zinc-700 uppercase tracking-widest">Origem</p>
+                            <code className="text-[11px] font-mono bg-black px-4 py-2 border-2 border-[#1a1a1a] text-emerald-400 group-hover:border-emerald-500/30 transition-all rounded-sm font-black">
                               {r.sourceId}
                             </code>
                           </div>
-                          <span className="material-symbols-outlined text-zinc-600">arrow_forward</span>
-                          <div className="text-center">
-                            <p className="text-[8px] font-label text-zinc-600 uppercase mb-1">Destino</p>
-                            <code className="text-[10px] font-mono bg-zinc-900 px-2 py-1 rounded text-orange-400 border border-orange-500/10">
+                          <div className="pt-4">
+                             <span className="material-symbols-outlined text-zinc-800 text-2xl group-hover:text-primary transition-colors">double_arrow</span>
+                          </div>
+                          <div className="flex flex-col gap-2">
+                            <p className="text-[8px] font-black text-zinc-700 uppercase tracking-widest">Destino</p>
+                            <code className="text-[11px] font-mono bg-black px-4 py-2 border-2 border-[#1a1a1a] text-primary group-hover:border-primary/30 transition-all rounded-sm font-black">
                               {r.targetId}
                             </code>
                           </div>
-                          <div className="flex-1 min-w-0 ml-4">
+                          <div className="flex-1 min-w-0 ml-4 pt-4">
                             {r.reason && (
-                              <p className="text-[10px] text-zinc-500 italic truncate" title={r.reason}>"{r.reason}"</p>
+                              <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-tight truncate group-hover:text-zinc-300" title={r.reason}>"{r.reason}"</p>
                             )}
-                            <p className="text-[8px] font-label text-zinc-700 mt-0.5 uppercase tracking-tighter">
-                              Atualizado: {r.updatedAt?.toDate ? format(r.updatedAt.toDate(), 'dd/MM/yy HH:mm') : 'Desconhecido'}
+                            <p className="text-[8px] font-black text-zinc-800 mt-2 uppercase tracking-widest">
+                              SINC: {r.updatedAt?.toDate ? format(r.updatedAt.toDate(), 'dd/MM/yy HH:mm') : '---'}
                             </p>
                           </div>
                         </div>
                         <button
                           onClick={() => handleDelete(r.sourceId)}
-                          className="material-symbols-outlined text-zinc-700 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
-                          title="Remover Redirecionamento"
+                          className="w-10 h-10 flex items-center justify-center text-zinc-800 hover:text-red-500 hover:bg-red-500/10 transition-all opacity-0 group-hover:opacity-100 material-symbols-outlined rounded-sm border border-transparent hover:border-red-500/20"
+                          title="ELIMINAR MAPEAMENTO"
                         >
                           delete
                         </button>
@@ -199,6 +217,14 @@ export default function RedirectsPanel() {
                   ))}
                 </div>
               )}
+            </div>
+            
+            <div className="bg-black/40 border-t-4 border-[#1a1a1a] p-6 px-10 flex justify-between items-center shrink-0">
+               <div className="flex items-center gap-3">
+                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_5px_rgba(16,185,129,0.6)]" />
+                  <span className="text-[9px] font-black uppercase tracking-[0.2em] text-zinc-600">Integridade_de_Mapeamento: Ótima</span>
+               </div>
+               <span className="text-[9px] font-black text-zinc-800 uppercase tracking-widest">RM-REDIRECT-SYS-v4</span>
             </div>
           </div>
         </div>

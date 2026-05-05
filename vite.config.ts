@@ -14,7 +14,6 @@ export default defineConfig(({mode}) => {
           manualChunks: {
             'vendor-firebase': ['firebase/app', 'firebase/auth', 'firebase/firestore', 'firebase/storage', 'firebase/database'],
             'vendor-ui': ['lucide-react', 'motion', 'clsx'],
-            'vendor-utils': ['date-fns', 'qr-scanner'],
           },
         },
       },

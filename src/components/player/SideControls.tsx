@@ -3,7 +3,7 @@ import { motion, useMotionValue, useTransform, animate } from 'motion/react';
 import { User } from 'lucide-react';
 import { analyticsTracker } from '../../services/AnalyticsTracker';
 import { activityLogger } from '../../services/ActivityLogger';
-export default function SideControls({ volume, setVolume, onModeChange, onProfileOpen, onCharacterSwitch }: {
+export default React.memo(function SideControls({ volume, setVolume, onModeChange, onProfileOpen, onCharacterSwitch }: {
   volume: number; setVolume: (v: number) => void;
   onModeChange: (dir: 'up' | 'down') => void; onProfileOpen: () => void;
   onCharacterSwitch?: () => void;
@@ -148,4 +148,4 @@ export default function SideControls({ volume, setVolume, onModeChange, onProfil
       </div>
     </div>
   );
-}
+});

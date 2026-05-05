@@ -6,6 +6,8 @@ import { User } from 'firebase/auth';
 import { parseBlob } from 'music-metadata';
 import { useModal } from './ConfirmModal';
 import QRCode from 'react-qr-code';
+import Screw from '../../components/player/Screw';
+
 interface AudioData {
   id: string;
   ownerUid: string;
@@ -16,7 +18,9 @@ interface AudioData {
   url: string;
   storagePath?: string;
   createdAt: any;
+  level?: number;
 }
+
 export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAdmin: boolean }) {
   const [audios, setAudios] = useState<AudioData[]>([]);
   const [isUploading, setIsUploading] = useState(false);
@@ -33,7 +37,9 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
   const [editNpc, setEditNpc] = useState('');
   const [editChapter, setEditChapter] = useState('');
   const [editDescription, setEditDescription] = useState('');
+  const [editLevel, setEditLevel] = useState<number>(1);
   const [editSaving, setEditSaving] = useState(false);
+
   useEffect(() => {
     const q = query(collection(db, 'audios'), orderBy('createdAt', 'desc'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -45,6 +51,7 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
     });
     return () => unsubscribe();
   }, []);
+
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, 'playEvents'), (snap) => {
       const counts: Record<string, number> = {};
@@ -58,6 +65,7 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
     });
     return () => unsubscribe();
   }, []);
+
   const openEditMetadata = async (audio: AudioData) => {
     const snap = await getDoc(doc(db, 'audios', audio.id));
     const data = snap.exists() ? snap.data() : {};
@@ -66,8 +74,10 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
     setEditNpc(data.npc ?? '');
     setEditChapter(data.chapter ?? '');
     setEditDescription(data.description ?? '');
+    setEditLevel(data.level ?? (data.isSecret ? 3 : 1));
     setEditAudio(audio);
   };
+
   const saveEditMetadata = async () => {
     if (!editAudio) return;
     setEditSaving(true);
@@ -78,6 +88,7 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
         npc: editNpc,
         chapter: editChapter,
         description: editDescription,
+        level: editLevel,
       });
       setEditAudio(null);
     } catch (err) {
@@ -87,6 +98,7 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
       setEditSaving(false);
     }
   };
+
   const handleUploadClick = () => {
     if (!user) {
       showAlert('Login Necessário', 'Você precisa estar logado para fazer upload.');
@@ -94,6 +106,7 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
     }
     fileInputRef.current?.click();
   };
+
   const uploadFile = async (file: File) => {
     if (!user) return;
     if (file.size > 50 * 1024 * 1024) {
@@ -150,6 +163,7 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
       isSecret: parsedIsSecret,
     });
   };
+
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0 || !user) return;
@@ -166,6 +180,7 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
+
   const handleDrop = useCallback(async (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragOver(false);
@@ -187,6 +202,7 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
       setIsUploading(false);
     }
   }, [user]);
+
   const handleDelete = (audio: AudioData) => {
     if (!isAdmin && audio.ownerUid !== user?.uid) {
       showAlert('Não Autorizado', 'Você não tem permissão para deletar este arquivo.');
@@ -194,6 +210,7 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
     }
     executeDelete(audio);
   };
+
   const executeDelete = async (audio: AudioData) => {
     setConfirmDeleteAudio(null);
     try {
@@ -209,6 +226,7 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
       showAlert('Erro ao Deletar', 'Falha ao deletar o arquivo de áudio.');
     }
   };
+
   const getQrCodeSvgDataUri = () => {
     const container = document.getElementById("qr-code-container");
     if (!container) return null;
@@ -217,6 +235,7 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
     const svgData = new XMLSerializer().serializeToString(svgElement);
     return "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svgData)));
   };
+
   const handleDownloadQrCode = () => {
     const dataUri = getQrCodeSvgDataUri();
     if (!dataUri) return;
@@ -240,6 +259,7 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
     };
     img.src = dataUri;
   };
+
   const handleCopyQrCode = () => {
     const dataUri = getQrCodeSvgDataUri();
     if (!dataUri) return;
@@ -271,168 +291,158 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
     };
     img.src = dataUri;
   };
+
   const formatSize = (bytes: number) => {
     const mb = bytes / (1024 * 1024);
     return mb >= 1 ? mb.toFixed(1) + ' MB' : (bytes / 1024).toFixed(0) + ' KB';
   };
+
   const filteredAudios = audios.filter((a) =>
-    a.originalName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    a.ownerName.toLowerCase().includes(searchQuery.toLowerCase())
+    (a.originalName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (a.ownerName || '').toLowerCase().includes(searchQuery.toLowerCase())
   );
+  
   const totalSize = audios.reduce((acc, a) => acc + a.size, 0);
+
   return (
-    <section className="space-y-4">
+    <section className="space-y-6 font-chakra">
       {modal}
-      {}
-      <div className="flex items-center justify-between mb-2">
+      
+      <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <div className="w-2 h-6 bg-zinc-400"></div>
-          <h2 className="font-headline font-bold uppercase tracking-widest text-lg">Buffer_de_Stream_de_Áudio</h2>
-          <span className="text-[10px] font-label text-zinc-500 tracking-wider">{audios.length} ARQUIVOS • {formatSize(totalSize)}</span>
+          <div className="w-2 h-8 bg-primary rounded-full animate-pulse shadow-[0_0_10px_rgba(255,140,0,0.4)]" />
+          <h2 className="font-black uppercase tracking-widest text-lg text-white">Buffer_de_Stream_de_Áudio</h2>
+          <span className="text-[10px] font-bold text-zinc-600 tracking-[0.2em] uppercase">{audios.length} ARQUIVOS SINC // {formatSize(totalSize)}</span>
         </div>
-        <div className="flex items-center gap-3">
-          <input
-            type="text"
-            placeholder="BUSCAR_ÁUDIO..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="bg-surface-container-lowest border-zinc-800 text-[10px] font-label uppercase tracking-widest focus:ring-1 focus:ring-orange-500 focus:border-orange-500 w-48 placeholder:text-zinc-700 text-zinc-300 px-3 py-2"
-          />
-          <input 
-            type="file" 
-            ref={fileInputRef} 
-            onChange={handleFileChange} 
-            accept="audio/*" 
-            multiple
-            className="hidden" 
-          />
+        <div className="flex items-center gap-4">
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-zinc-600 text-xs">search</span>
+            <input
+              type="text"
+              placeholder="BUSCAR_ÁUDIO..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="bg-black/40 border border-[#1a1a1a] text-[10px] font-bold uppercase tracking-widest focus:ring-1 focus:ring-primary w-56 placeholder:text-zinc-800 text-white px-10 py-2.5 outline-none rounded-sm"
+            />
+          </div>
+          <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="audio/*" multiple className="hidden" />
           <button 
             onClick={handleUploadClick}
             disabled={isUploading}
-            className="flex items-center gap-2 bg-secondary-container text-on-secondary-container px-4 py-2 rounded-sm font-label text-[10px] font-bold tracking-widest hover:bg-zinc-700 transition-all machined-edge group disabled:opacity-50"
+            className="flex items-center gap-2 bg-primary/10 text-primary px-6 py-2.5 rounded-sm font-black text-[10px] tracking-widest hover:bg-primary/20 transition-all border border-primary/20 uppercase group active:scale-95 glow-orange"
           >
             <span className="material-symbols-outlined text-xs group-hover:rotate-90 transition-transform">
               {isUploading ? 'sync' : 'add'}
             </span>
-            {isUploading ? 'ENVIANDO...' : 'ENVIAR'}
+            {isUploading ? 'ENVIANDO...' : 'NOVO_ÁUDIO'}
           </button>
         </div>
       </div>
-      {}
+
       <div
         onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
         onDragLeave={() => setIsDragOver(false)}
         onDrop={handleDrop}
-        className={`border-2 border-dashed rounded-sm p-6 text-center transition-all ${
+        className={`border-4 border-dashed rounded-xl p-10 text-center transition-all group ${
           isDragOver 
-            ? 'border-orange-500 bg-orange-500/10' 
-            : 'border-zinc-800 hover:border-zinc-700'
+            ? 'border-primary bg-primary/5' 
+            : 'border-[#1a1a1a] bg-black/20 hover:border-primary/20 hover:bg-black/40'
         }`}
       >
-        <span className="material-symbols-outlined text-2xl text-zinc-600 mb-2 block">
-          {isDragOver ? 'downloading' : 'cloud_upload'}
+        <span className="material-symbols-outlined text-5xl text-zinc-800 mb-4 block group-hover:text-primary/40 transition-colors">
+          {isDragOver ? 'downloading' : 'album'}
         </span>
-        <p className="text-zinc-500 text-[10px] font-label uppercase tracking-widest">
-          {isDragOver ? 'SOLTE_OS_ARQUIVOS_AQUI' : 'ARRASTE_E_SOLTE_ARQUIVOS_DE_ÁUDIO_AQUI'}
+        <p className="text-zinc-500 text-[11px] font-black uppercase tracking-[0.4em] group-hover:text-zinc-400">
+          {isDragOver ? 'SOLTAR_ARQUIVOS_AGORA' : 'ARRASTAR_E_SOLTAR_ÁUDIO_AQUI'}
         </p>
-        <p className="text-zinc-700 text-[8px] font-label mt-1">MÁX 50MB POR ARQUIVO</p>
+        <p className="text-zinc-800 text-[9px] font-bold mt-2 tracking-widest">LIMITE_MÁX: 50MB POR UNIDADE</p>
       </div>
-      {}
-      <div className="grid grid-cols-1 gap-3">
+
+      <div className="grid grid-cols-1 gap-4">
         {filteredAudios.map((audio, index) => (
-          <div key={audio.id} className={`bg-surface-container-low p-4 flex items-center justify-between border-l-2 machined-edge ${index % 2 === 0 ? 'border-orange-500' : 'border-zinc-700'}`}>
-            <div className="flex items-center gap-4">
+          <div key={audio.id} className="bg-[#1a1a1a] border-4 border-[#1a1a1a] p-5 flex items-center justify-between rounded-xl shadow-lg group hover:border-primary/20 transition-all active:scale-[0.995]">
+            <div className="flex items-center gap-6">
               <button 
                 onClick={() => {
                   const a = new Audio(audio.url);
                   a.play();
                 }}
-                className={`w-10 h-10 rounded-full flex items-center justify-center border hover:scale-105 active:scale-90 transition-all ${
+                className={`w-12 h-12 rounded-sm flex items-center justify-center border-2 transition-all active:scale-90 ${
                   index % 2 === 0 
-                    ? 'bg-primary-container/20 text-orange-500 border-orange-500/20' 
-                    : 'bg-zinc-800 text-zinc-500 border-zinc-700'
+                    ? 'bg-primary text-black border-primary' 
+                    : 'bg-black text-primary border-white/5 group-hover:border-primary/40'
                 }`}
               >
-                <span className="material-symbols-outlined fill" style={{ fontVariationSettings: "'FILL' 1" }}>play_arrow</span>
+                <span className="material-symbols-outlined text-2xl fill" style={{ fontVariationSettings: "'FILL' 1" }}>play_arrow</span>
               </button>
               <div>
-                <h4 className="font-headline font-bold text-sm tracking-tight">{audio.originalName}</h4>
-                <p className="text-[10px] font-label uppercase text-zinc-500 tracking-tighter">
-                  Proprietário: <span className="text-zinc-300">{audio.ownerName}</span> • {formatSize(audio.size)}
-                  {playCountMap[audio.id] !== undefined && (
-                    <> • <span className="text-tertiary">{playCountMap[audio.id]} reproduções</span></>
-                  )}
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-6">
-              <div className="hidden sm:block">
-                <div className="flex gap-0.5">
-                  {[1,2,3,4,5].map(i => (
-                    <div key={i} className={`w-1 h-3 ${index % 2 === 0 && i <= 3 ? 'bg-orange-500' : 'bg-zinc-700'}`}></div>
-                  ))}
+                <h4 className="font-black text-sm text-white uppercase tracking-wider group-hover:text-primary transition-colors">{audio.originalName}</h4>
+                <div className="flex items-center gap-3 mt-1">
+                   <p className="text-[10px] font-bold uppercase text-zinc-600 tracking-widest">
+                     Proprietário: <span className="text-zinc-400">{audio.ownerName}</span> // {formatSize(audio.size)}
+                   </p>
+                   {playCountMap[audio.id] !== undefined && (
+                     <div className="flex items-center gap-1.5 bg-black/40 px-2 py-0.5 rounded-sm border border-white/5">
+                        <div className="w-1 h-1 bg-tertiary rounded-full animate-pulse" />
+                        <span className="text-[9px] font-black text-tertiary uppercase">{playCountMap[audio.id]} REPRODUÇÕES</span>
+                     </div>
+                   )}
                 </div>
               </div>
-              {isAdmin && (
-                <button 
-                  onClick={() => openEditMetadata(audio)}
-                  className="material-symbols-outlined text-zinc-500 hover:text-emerald-400 transition-colors"
-                  title="Editar Metadados"
-                >
-                  edit
-                </button>
-              )}
-              <button 
-                onClick={() => setQrCodeModal(audio)}
-                className="material-symbols-outlined text-zinc-500 hover:text-orange-500 transition-colors"
-                title="Mostrar QR Code"
-              >
-                qr_code_2
-              </button>
-              {(isAdmin || audio.ownerUid === user?.uid) && (
-                <button 
-                  onClick={() => handleDelete(audio)}
-                  className="material-symbols-outlined text-zinc-500 hover:text-error transition-colors" 
-                  title="Excluir Áudio"
-                >
-                  delete
-                </button>
-              )}
+            </div>
+            <div className="flex items-center gap-8">
+              <div className="hidden md:flex gap-1">
+                {[1,2,3,4,5,6,7,8].map(i => (
+                  <div key={i} className={`w-1 h-4 rounded-full ${index % 2 === 0 && i <= 5 ? 'bg-primary shadow-[0_0_5px_rgba(255,140,0,0.5)]' : 'bg-black'}`}></div>
+                ))}
+              </div>
+              <div className="flex items-center gap-3">
+                {isAdmin && (
+                  <button onClick={() => openEditMetadata(audio)} className="p-2 text-zinc-600 hover:text-emerald-400 hover:bg-emerald-500/10 rounded-sm transition-all material-symbols-outlined text-xl">edit</button>
+                )}
+                <button onClick={() => setQrCodeModal(audio)} className="p-2 text-zinc-600 hover:text-primary hover:bg-primary/10 rounded-sm transition-all material-symbols-outlined text-xl">qr_code_2</button>
+                {(isAdmin || audio.ownerUid === user?.uid) && (
+                  <button onClick={() => handleDelete(audio)} className="p-2 text-zinc-600 hover:text-red-500 hover:bg-red-500/10 rounded-sm transition-all material-symbols-outlined text-xl">delete</button>
+                )}
+              </div>
             </div>
           </div>
         ))}
         {filteredAudios.length === 0 && (
-          <div className="bg-surface-container-low p-8 text-center border-l-2 border-zinc-800 machined-edge">
-            <p className="text-zinc-500 font-label text-xs tracking-widest">
-              {searchQuery ? 'NENHUM_ARQUIVO_DE_ÁUDIO_CORRESPONDENTE' : 'NENHUM_ARQUIVO_DE_ÁUDIO_ENCONTRADO'}
+          <div className="bg-black/20 p-24 text-center border-4 border-dashed border-[#1a1a1a] rounded-2xl opacity-20">
+            <p className="text-zinc-500 font-black text-[12px] uppercase tracking-[0.4em]">
+              {searchQuery ? 'Sem_Correspondência_de_Sinal' : 'Buffer_de_Áudio_Vazio'}
             </p>
           </div>
         )}
       </div>
-      {}
+
       {qrCodeModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
-          <div className="bg-surface-container-low border border-zinc-700 p-6 w-full max-w-sm machined-edge flex flex-col items-center">
-            <h3 className="font-headline font-bold text-lg mb-4 text-orange-500 tracking-wider">
-              CÓDIGO DA FITA
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/95 p-4 backdrop-blur-xl">
+          <div className="bg-[#222] border-8 border-[#1a1a1a] p-10 w-full max-w-sm rounded-[32px] shadow-2xl flex flex-col items-center relative overflow-hidden">
+            <Screw className="top-4 left-4" /><Screw className="top-4 right-4 -rotate-90" /><Screw className="bottom-4 left-4 -rotate-90" /><Screw className="bottom-4 right-4" />
+            <div className="noise-overlay" /><div className="scanlines" />
+            
+            <h3 className="font-black text-xl mb-8 text-primary uppercase tracking-[0.3em] border-b-4 border-[#1a1a1a] w-full text-center pb-6 relative z-10">
+              Assinatura_Digital
             </h3>
-            <div id="qr-code-container" className="bg-white p-4 rounded mb-4">
+            <div id="qr-code-container" className="bg-white p-6 rounded-lg mb-8 shadow-2xl relative z-10">
               <QRCode value={qrCodeModal.id} size={200} />
             </div>
-            <p className="font-label text-xs text-zinc-400 mb-6 text-center tracking-widest break-all">
+            <p className="font-mono text-[10px] text-zinc-600 mb-10 text-center tracking-widest break-all font-bold px-4 relative z-10 bg-black/40 py-2 rounded border border-white/5">
               ID: {qrCodeModal.id}
             </p>
-            <div className="flex gap-3 mb-6 w-full justify-center">
+            <div className="flex gap-4 mb-8 w-full justify-center relative z-10">
               <button
                 onClick={handleCopyQrCode}
-                className="flex items-center gap-2 px-4 py-2 text-[10px] font-label border border-zinc-700 text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors machined-edge"
+                className="flex-1 flex items-center justify-center gap-3 px-4 py-3 text-[10px] font-black border-2 border-white/5 text-zinc-400 hover:text-white hover:border-primary/40 hover:bg-primary/5 transition-all rounded-sm"
               >
                 <span className="material-symbols-outlined text-sm">content_copy</span>
                 COPIAR
               </button>
               <button
                 onClick={handleDownloadQrCode}
-                className="flex items-center gap-2 px-4 py-2 text-[10px] font-label border border-zinc-700 text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors machined-edge"
+                className="flex-1 flex items-center justify-center gap-3 px-4 py-3 text-[10px] font-black border-2 border-white/5 text-zinc-400 hover:text-white hover:border-primary/40 hover:bg-primary/5 transition-all rounded-sm"
               >
                 <span className="material-symbols-outlined text-sm">download</span>
                 SALVAR
@@ -440,67 +450,90 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
             </div>
             <button
               onClick={() => setQrCodeModal(null)}
-              className="px-6 py-2 text-xs font-label bg-zinc-800 text-white hover:bg-zinc-700 transition-colors machined-edge w-full"
+              className="px-10 py-4 text-[10px] font-black bg-[#333] hover:bg-[#444] text-white transition-all rounded-sm w-full relative z-10"
             >
-              FECHAR
+              ENCERRAR_MODAL
             </button>
           </div>
         </div>
       )}
-      {}
+
       {editAudio && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
-          <div className="bg-surface-container-low border border-emerald-500/30 p-6 w-full max-w-md machined-edge flex flex-col">
-            <div className="flex items-center gap-3 mb-1">
-              <span className="material-symbols-outlined text-emerald-400 text-xl">edit_note</span>
-              <h3 className="font-headline text-lg text-zinc-200">EDITAR_METADADOS</h3>
-            </div>
-            <p className="font-body text-xs text-zinc-500 mb-5 truncate">
-              Áudio: <span className="text-orange-400 font-bold">{editAudio.originalName}</span>
-            </p>
-            <div className="space-y-3 mb-6">
-              {[
-                { label: 'TÍTULO', value: editTitle, set: setEditTitle, placeholder: 'Nome da fita' },
-                { label: 'ARTISTA', value: editArtist, set: setEditArtist, placeholder: 'Artista / Autor' },
-                { label: 'NPC', value: editNpc, set: setEditNpc, placeholder: 'NPC associado' },
-                { label: 'CAPÍTULO', value: editChapter, set: setEditChapter, placeholder: 'Capítulo / Álbum' },
-              ].map(({ label, value, set, placeholder }) => (
-                <div key={label}>
-                  <label className="block text-[9px] font-label uppercase tracking-widest text-zinc-500 mb-1">{label}</label>
-                  <input
-                    type="text"
-                    value={value}
-                    onChange={(e) => set(e.target.value)}
-                    placeholder={placeholder}
-                    className="w-full bg-surface-container-lowest border border-zinc-800 text-sm font-body text-zinc-200 px-3 py-2 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 placeholder:text-zinc-700"
-                  />
-                </div>
-              ))}
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/95 p-4 backdrop-blur-xl">
+          <div className="bg-[#222] border-8 border-[#1a1a1a] p-10 w-full max-w-xl rounded-[32px] shadow-2xl flex flex-col relative overflow-hidden">
+            <Screw className="top-4 left-4" /><Screw className="top-4 right-4 -rotate-90" /><Screw className="bottom-4 left-4 -rotate-90" /><Screw className="bottom-4 right-4" />
+            <div className="noise-overlay" /><div className="scanlines" />
+            
+            <div className="flex items-center gap-4 mb-8 border-b-4 border-[#1a1a1a] pb-6 relative z-10">
+              <div className="p-3 bg-emerald-500/10 border-2 border-emerald-500/20 rounded-sm">
+                <span className="material-symbols-outlined text-emerald-400 text-2xl">edit_note</span>
+              </div>
               <div>
-                <label className="block text-[9px] font-label uppercase tracking-widest text-zinc-500 mb-1">DESCRIÇÃO</label>
+                <h3 className="font-black text-xl text-white uppercase tracking-widest">Ajustar_Metadados</h3>
+                <p className="text-[10px] text-zinc-600 font-bold uppercase tracking-widest mt-1 truncate max-w-xs">Arquivo: <span className="text-emerald-400">{editAudio.originalName}</span></p>
+              </div>
+            </div>
+
+            <div className="space-y-5 mb-10 relative z-10">
+              <div className="grid grid-cols-2 gap-5">
+                {[
+                  { label: 'TÍTULO_DA_FITA', value: editTitle, set: setEditTitle, placeholder: 'Identificador do Arquivo' },
+                  { label: 'ARTISTA_/_AUTOR', value: editArtist, set: setEditArtist, placeholder: 'Origem do Áudio' },
+                  { label: 'NPC_RELACIONADO', value: editNpc, set: setEditNpc, placeholder: 'Assinatura Biológica' },
+                  { label: 'CAPÍTULO_/_NÓ', value: editChapter, set: setEditChapter, placeholder: 'Setor de Armazenamento' },
+                ].map(({ label, value, set, placeholder }) => (
+                  <div key={label}>
+                    <label className="block text-[9px] font-black uppercase tracking-widest text-zinc-600 mb-2">{label}</label>
+                    <input
+                      type="text"
+                      value={value}
+                      onChange={(e) => set(e.target.value)}
+                      placeholder={placeholder}
+                      className="w-full bg-black/60 border-2 border-[#1a1a1a] text-[11px] font-bold text-white px-4 py-3 focus:border-emerald-500/40 outline-none placeholder:text-zinc-800 rounded-sm transition-all"
+                    />
+                  </div>
+                ))}
+              </div>
+              <div>
+                <label className="block text-[9px] font-black uppercase tracking-widest text-zinc-600 mb-2">DESCRIÇÃO_E_DADOS_ADICIONAIS</label>
                 <textarea
                   value={editDescription}
                   onChange={(e) => setEditDescription(e.target.value)}
-                  placeholder="Descrição da fita"
+                  placeholder="Informações classificadas..."
                   rows={3}
-                  className="w-full bg-surface-container-lowest border border-zinc-800 text-sm font-body text-zinc-200 px-3 py-2 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 placeholder:text-zinc-700 resize-none"
+                  className="w-full bg-black/60 border-2 border-[#1a1a1a] text-[11px] font-bold text-white px-4 py-3 focus:border-emerald-500/40 outline-none placeholder:text-zinc-800 rounded-sm transition-all resize-none"
                 />
               </div>
+              <div>
+                <label className="block text-[9px] font-black uppercase tracking-widest text-zinc-600 mb-2">NÍVEL_DE_CRIPTOGRAFIA</label>
+                <div className="flex gap-2">
+                  {[1, 2, 3, 4].map((lvl) => (
+                    <button
+                      key={lvl}
+                      onClick={() => setEditLevel(lvl)}
+                      className={`flex-1 py-3 text-[9px] font-black uppercase border-2 transition-all rounded-sm ${editLevel === lvl ? 'border-emerald-500 bg-emerald-500/10 text-emerald-400' : 'border-[#1a1a1a] bg-black/40 text-zinc-700 hover:text-zinc-500 hover:border-white/5'}`}
+                    >
+                      {lvl === 1 ? 'RESTRITO' : lvl === 2 ? 'CONFIDENCIAL' : lvl === 3 ? 'SIGILOSO' : 'TOP SECRET'}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
-            <div className="flex justify-end gap-3">
+            
+            <div className="flex justify-end gap-5 relative z-10 pt-6 border-t-4 border-[#1a1a1a]">
               <button
                 onClick={() => setEditAudio(null)}
                 disabled={editSaving}
-                className="px-4 py-2 text-xs font-label text-zinc-400 hover:text-white border border-zinc-700 hover:border-zinc-500 transition-colors"
+                className="px-8 py-3 text-[10px] font-black text-zinc-500 hover:text-white transition-colors uppercase tracking-widest"
               >
-                CANCELAR
+                ABORTAR
               </button>
               <button
                 onClick={saveEditMetadata}
                 disabled={editSaving}
-                className="px-5 py-2 text-xs font-label bg-emerald-900/60 text-emerald-300 font-bold tracking-wider hover:bg-emerald-800/60 transition-all disabled:opacity-50 border border-emerald-700/30"
+                className="bg-emerald-600 hover:bg-emerald-500 text-white px-10 py-3 rounded-sm font-black text-[10px] tracking-widest uppercase transition-all active:scale-95 shadow-[0_0_15px_rgba(16,185,129,0.2)]"
               >
-                {editSaving ? 'SALVANDO...' : 'SALVAR'}
+                {editSaving ? 'GRAVANDO...' : 'SALVAR_ALTERAÇÕES'}
               </button>
             </div>
           </div>

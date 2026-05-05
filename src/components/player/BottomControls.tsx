@@ -6,7 +6,7 @@ import { analyticsTracker } from '../../services/AnalyticsTracker';
 import { activityLogger } from '../../services/ActivityLogger';
 import type { WalkmanStatus } from '../../types/player';
 
-export default function BottomControls({ 
+export default React.memo(function BottomControls({ 
   status,
   setIsPlaying, 
   hasTape,
@@ -123,4 +123,4 @@ export default function BottomControls({
       </button>
     </div>
   );
-}
+});

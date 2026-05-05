@@ -1,5 +1,7 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
+import Screw from '../../components/player/Screw';
+
 type ModalVariant = 'confirm' | 'alert';
 interface ModalState {
   open: boolean;
@@ -14,12 +16,15 @@ interface ConfirmModalProps {
   onConfirm: () => void;
   onCancel: () => void;
 }
+
 export function ConfirmModal({ state, onConfirm, onCancel }: ConfirmModalProps) {
-  const isDanger = state.title.toLowerCase().includes('atenção') || state.title.toLowerCase().includes('delete') || state.title.toLowerCase().includes('apagar') || state.title.toLowerCase().includes('zerar') || state.title.toLowerCase().includes('reset');
+  const isDanger = state.title.toLowerCase().includes('atenção') || state.title.toLowerCase().includes('delete') || state.title.toLowerCase().includes('apagar') || state.title.toLowerCase().includes('zerar') || state.title.toLowerCase().includes('reset') || state.title.toLowerCase().includes('excluir') || state.title.toLowerCase().includes('remover');
   const confirmRef = useRef<HTMLButtonElement>(null);
+  
   useEffect(() => {
     if (state.open) setTimeout(() => confirmRef.current?.focus(), 50);
   }, [state.open]);
+
   return (
     <AnimatePresence>
       {state.open && (
@@ -27,47 +32,54 @@ export function ConfirmModal({ state, onConfirm, onCancel }: ConfirmModalProps) 
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-9999 flex items-center justify-center bg-black/70 backdrop-blur-sm"
+          className="fixed inset-0 z-9999 flex items-center justify-center bg-black/90 backdrop-blur-xl p-4"
           onMouseDown={(e) => { if (e.target === e.currentTarget) onCancel(); }}
         >
           <motion.div
-            initial={{ scale: 0.94, opacity: 0, y: 10 }}
+            initial={{ scale: 0.94, opacity: 0, y: 20 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
-            exit={{ scale: 0.94, opacity: 0, y: 10 }}
+            exit={{ scale: 0.94, opacity: 0, y: 20 }}
             transition={{ type: 'spring', stiffness: 360, damping: 30 }}
-            className="bg-zinc-900 border border-zinc-700 w-full max-w-md mx-4 shadow-2xl machined-edge"
+            className="bg-[#222] border-8 border-[#1a1a1a] w-full max-w-md rounded-[32px] shadow-2xl flex flex-col relative overflow-hidden font-chakra"
           >
-            {}
-            <div className={`px-6 py-4 border-b ${isDanger ? 'border-red-800/50 bg-red-950/30' : 'border-zinc-800'} flex items-center gap-3`}>
-              <span className={`material-symbols-outlined text-lg ${isDanger ? 'text-red-400' : 'text-orange-500'}`}>
-                {isDanger ? 'warning' : 'info'}
-              </span>
-              <h2 className="font-label text-[11px] uppercase tracking-widest text-zinc-200 font-bold">{state.title}</h2>
+            <Screw className="top-4 left-4" /><Screw className="top-4 right-4 -rotate-90" /><Screw className="bottom-4 left-4 -rotate-90" /><Screw className="bottom-4 right-4" />
+            <div className="noise-overlay" /><div className="scanlines" />
+
+            {/* Header */}
+            <div className={`px-10 py-6 border-b-4 relative z-10 flex items-center gap-4 bg-black/40 ${isDanger ? 'border-red-800/30' : 'border-[#1a1a1a]'}`}>
+              <div className={`p-2 rounded-sm border-2 ${isDanger ? 'bg-red-500/10 border-red-500/20 text-red-500' : 'bg-primary/10 border-primary/20 text-primary'}`}>
+                <span className="material-symbols-outlined text-lg">
+                  {isDanger ? 'report' : 'info'}
+                </span>
+              </div>
+              <h2 className={`font-black text-xs uppercase tracking-[0.2em] ${isDanger ? 'text-red-400' : 'text-white'}`}>{state.title}</h2>
             </div>
-            {}
-            <div className="px-6 py-5">
-              <p className="text-zinc-300 text-sm font-mono leading-relaxed">{state.message}</p>
+
+            {/* Content */}
+            <div className="px-10 py-8 relative z-10">
+              <p className="text-zinc-400 text-sm font-bold uppercase leading-relaxed tracking-wide">{state.message}</p>
             </div>
-            {}
-            <div className="px-6 pb-5 flex gap-3 justify-end">
+
+            {/* Actions */}
+            <div className="px-10 pb-10 flex gap-6 relative z-10">
               {state.variant === 'confirm' && (
                 <button
                   onClick={onCancel}
-                  className="px-4 py-2 text-[10px] font-label font-bold uppercase tracking-widest text-zinc-400 hover:text-zinc-200 border border-zinc-700 hover:border-zinc-500 transition-colors"
+                  className="flex-1 px-6 py-4 text-[10px] font-black uppercase tracking-widest text-zinc-600 hover:text-white transition-all bg-[#333] hover:bg-[#444] rounded-sm active:scale-95"
                 >
-                  Cancelar
+                  ABORTAR
                 </button>
               )}
               <button
                 ref={confirmRef}
                 onClick={onConfirm}
-                className={`px-5 py-2 text-[10px] font-label font-bold uppercase tracking-widest transition-colors ${
+                className={`flex-1 px-6 py-4 text-[10px] font-black uppercase tracking-widest transition-all rounded-sm active:scale-95 shadow-lg ${
                   isDanger
-                    ? 'bg-red-700 hover:bg-red-600 text-white border border-red-600'
-                    : 'bg-orange-600 hover:bg-orange-500 text-white border border-orange-500'
+                    ? 'bg-red-700 hover:bg-red-600 text-white shadow-[0_0_15px_rgba(239,68,68,0.2)]'
+                    : 'bg-primary hover:bg-primary-container text-black glow-orange'
                 }`}
               >
-                {state.confirmLabel ?? (state.variant === 'confirm' ? 'Confirmar' : 'OK')}
+                {state.confirmLabel ?? (state.variant === 'confirm' ? 'CONFIRMAR' : 'ENTENDIDO')}
               </button>
             </div>
           </motion.div>
@@ -76,6 +88,7 @@ export function ConfirmModal({ state, onConfirm, onCancel }: ConfirmModalProps) 
     </AnimatePresence>
   );
 }
+
 export function useModal() {
   const [modalState, setModalState] = useState<ModalState>({
     open: false,

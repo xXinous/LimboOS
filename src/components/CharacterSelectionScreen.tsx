@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { UserPlus, Shield, User, Loader2, ChevronRight, AlertCircle, Skull, Search, LogOut } from 'lucide-react';
 import { fetchCharacters, createCharacter } from '../store/firestore';
+import { userService } from '../services/UserService';
 import type { CharacterData, MasterAccount } from '../types/player';
 
 interface CharacterSelectionScreenProps {
@@ -16,6 +17,26 @@ export default function CharacterSelectionScreen({ account, onSelect, onLogout }
   const [isCreating, setIsCreating] = useState(false);
   const [newCodinome, setNewCodinome] = useState('');
   const [creating, setCreating] = useState(false);
+
+  // Master Name Flow
+  const [showMasterNamePrompt, setShowMasterNamePrompt] = useState(!account.masterName);
+  const [newMasterName, setNewMasterName] = useState('');
+  const [savingMasterName, setSavingMasterName] = useState(false);
+
+  const handleSaveMasterName = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newMasterName.trim() || savingMasterName) return;
+    setSavingMasterName(true);
+    try {
+      await userService.updateMasterAccount(account.uid, { masterName: newMasterName.trim() });
+      account.masterName = newMasterName.trim(); // Local update
+      setShowMasterNamePrompt(false);
+    } catch (err) {
+      console.error("Failed to save master name:", err);
+    } finally {
+      setSavingMasterName(false);
+    }
+  };
 
   useEffect(() => {
     loadCharacters();
@@ -69,7 +90,7 @@ export default function CharacterSelectionScreen({ account, onSelect, onLogout }
               Seleção de <span className="text-primary">Agente</span>
             </h1>
             <p className="text-[10px] font-display uppercase tracking-[0.2em] text-industrial-silver/50 mt-1">
-              Terminal: {account.email} // Registros Encontrados: {characters.length}
+              Conta: {account.masterName || account.email} // Registros: {characters.length}
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -182,6 +203,46 @@ export default function CharacterSelectionScreen({ account, onSelect, onLogout }
                     {creating ? <Loader2 size={16} className="animate-spin" /> : 'Confirmar Registro'}
                   </button>
                 </div>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Mandatory Master Name Modal */}
+      <AnimatePresence>
+        {showMasterNamePrompt && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/95 backdrop-blur-md">
+            <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="w-full max-w-md bg-surface-container-low border-2 border-primary/50 p-8 shadow-[0_0_50px_rgba(255,100,0,0.15)] relative">
+              <div className="absolute -top-3 left-6 bg-primary px-2 py-0.5 text-[10px] font-display font-bold text-black tracking-widest uppercase animate-pulse">
+                ATUALIZAÇÃO DE PROTOCOLO OBRIGATÓRIA
+              </div>
+              <h2 className="font-display text-2xl font-bold text-white uppercase tracking-tight mb-4 mt-2">
+                Identificação <span className="text-primary">Mestra</span>
+              </h2>
+              <p className="text-xs font-mono text-industrial-silver/70 mb-8 leading-relaxed">
+                Para facilitar o gerenciamento da rede, todos os operadores devem definir um <strong className="text-primary">Nome Geral</strong> para sua conta mestra. Este nome substituirá o uso do UID alfanumérico.
+              </p>
+              
+              <form onSubmit={handleSaveMasterName} className="space-y-6">
+                <div className="group">
+                  <label className="block text-[10px] font-display font-bold uppercase tracking-[0.2em] mb-2 text-industrial-silver/60 group-focus-within:text-primary transition-colors">
+                    Nome Geral (Conta Mestra)
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-industrial-silver/40 group-focus-within:text-primary transition-colors">
+                      <User size={16} />
+                    </div>
+                    <input type="text" autoFocus required value={newMasterName} onChange={e => setNewMasterName(e.target.value)}
+                      placeholder="Ex: João Silva ou Mestre123"
+                      className="w-full bg-surface-container-lowest border-none py-4 pl-12 pr-4 text-white font-sans text-sm tracking-wide focus:ring-0 placeholder:text-industrial-silver/20 outline-none" />
+                    <div className="absolute bottom-0 left-0 h-0.5 w-0 bg-primary transition-all duration-300 group-focus-within:w-full" />
+                  </div>
+                </div>
+
+                <button type="submit" disabled={savingMasterName} className="w-full bg-primary hover:bg-primary-container text-black font-display font-bold text-xs uppercase tracking-[0.2em] py-4 transition-all flex items-center justify-center gap-3 disabled:opacity-50 glow-orange">
+                  {savingMasterName ? <Loader2 size={16} className="animate-spin" /> : 'Confirmar Identificação'}
+                </button>
               </form>
             </motion.div>
           </motion.div>

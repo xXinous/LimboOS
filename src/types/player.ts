@@ -11,6 +11,7 @@ export type DisplayMode = 'default' | 'title' | 'chapter' | 'type';
 export interface MasterAccount {
   uid: string;
   email: string;
+  masterName?: string;
   role: 'player' | 'admin';
   createdAt: Timestamp | null;
   lastLogin?: Timestamp | null;
@@ -94,6 +95,7 @@ export interface GalleryImage {
   title: string;
   description: string;
   imageUrl: string;
+  level?: number;
   createdAt?: Timestamp;
   createdBy?: string;
 }

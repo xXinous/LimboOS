@@ -1,6 +1,6 @@
 import React, { memo, useState } from 'react';
 import { motion, useTransform, MotionValue } from 'motion/react';
-import { Zap, Loader2 } from 'lucide-react';
+import { Zap, Loader2, ChevronRight } from 'lucide-react';
 import { Campaign } from '../../data/campaigns';
 
 interface CassetteCardProps {
@@ -20,67 +20,97 @@ export const CassetteCard = memo(({ campaign, onSelect, index, dragX, cardWidth,
 
   const range = [-(index + 1) * step, -index * step, -(index - 1) * step];
   const scale = useTransform(dragX, range, [0.9, 1, 0.9]);
-  const opacity = useTransform(dragX, range, [0.55, 1, 0.55]);
-  const rotateY = useTransform(dragX, range, [-3, 0, 3]);
-  const y = useTransform(dragX, range, [12, 0, 12]);
+  const opacity = useTransform(dragX, range, [0.4, 1, 0.4]);
+  const rotateY = useTransform(dragX, range, [-5, 0, 5]);
+  const y = useTransform(dragX, range, [10, 0, 10]);
   
   return (
     <motion.div
       style={{ scale, opacity, rotateY, y, width: cardWidth, height: cardHeight }}
       className="relative shrink-0 select-none origin-center will-change-transform"
     >
-      <div className="cassette-plastic" />
-      <div className="cassette-base w-full h-full flex flex-col p-4 pb-6 items-center">
+      <div className="absolute inset-0 bg-primary/5 border-2 border-primary/20 rounded-sm -m-2 opacity-0 group-hover:opacity-100 transition-opacity" />
+      <div className="bg-surface-container-low border-2 border-industrial-silver/10 w-full h-full flex flex-col p-6 shadow-2xl relative overflow-hidden group">
+        <div className="absolute top-0 right-0 w-16 h-16 bg-primary/5 rotate-45 translate-x-8 -translate-y-8 border-b-2 border-primary/10" />
+        
         <div 
           onClick={() => !isLocked && setIsExpanded(!isExpanded)}
-          className={`w-full bg-[#eeeae0] flex-1 flex flex-col p-3 border border-[#d2cab7] rounded-sm shadow-sm relative overflow-hidden transition-all ${!isLocked ? 'cursor-pointer hover:brightness-[1.02]' : ''}`}
+          className={`w-full flex-1 flex flex-col min-h-0 transition-all ${!isLocked ? 'cursor-pointer' : ''}`}
         >
-          <div className="h-10 sm:h-12 flex items-center justify-center mb-2">
-            <h3 className="font-oswald text-lg sm:text-xl uppercase tracking-wider text-center text-ink leading-tight wrap-break-word px-1">{campaign.name}</h3>
+          <div className="flex items-start justify-between mb-4 shrink-0">
+            <div className="space-y-1">
+              <span className="text-[8px] font-display font-bold text-primary tracking-[0.3em] uppercase opacity-60">Identificador de Missão</span>
+              <h3 className="font-display text-2xl font-bold uppercase tracking-tight text-white leading-tight group-hover:text-primary transition-colors">{campaign.name}</h3>
+            </div>
+            <div className="w-10 h-10 border border-primary/20 flex items-center justify-center text-primary/40 group-hover:text-primary group-hover:border-primary/50 transition-all">
+              <Zap size={20} />
+            </div>
           </div>
           
-          <div className="w-full flex-1 min-h-0 border-2 border-ink overflow-hidden bg-zinc-950 mb-3 relative group shadow-inner">
-            {!imageLoaded && <div className="absolute inset-0 flex items-center justify-center bg-zinc-900"><Loader2 className="w-6 h-6 text-analog-orange animate-spin opacity-20" /></div>}
+          <div className="w-full flex-1 min-h-0 border border-primary/10 overflow-hidden bg-black/40 mb-4 relative shadow-inner group-hover:border-primary/30 transition-colors">
+            {!imageLoaded && <div className="absolute inset-0 flex items-center justify-center bg-zinc-950/50"><Loader2 className="w-6 h-6 text-primary animate-spin opacity-20" /></div>}
             {campaign.imageUrl ? (
               <img 
                 src={campaign.imageUrl} alt={campaign.name} 
                 onLoad={() => setImageLoaded(true)}
-                className={`w-full h-full object-contain transition-opacity duration-500 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`} 
+                className={`w-full h-full object-cover transition-all duration-700 group-hover:scale-105 ${imageLoaded ? 'opacity-70 group-hover:opacity-100' : 'opacity-0'}`} 
                 draggable={false} 
               />
-            ) : <div className="w-full h-full flex items-center justify-center bg-zinc-900 text-zinc-700"><Zap size={40} /></div>}
+            ) : <div className="w-full h-full flex items-center justify-center bg-zinc-950/50 text-industrial-silver/10"><Zap size={48} /></div>}
             
-            {isLocked && <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px] flex items-center justify-center z-20"><div className="bg-red-600 text-white font-black px-3 py-1 rotate-[-10deg] shadow-2xl border-2 border-white text-sm uppercase tracking-tighter">BLOQUEADO</div></div>}
+            <div className="absolute top-0 left-0 w-full h-full pointer-events-none bg-linear-to-t from-black/80 via-transparent to-transparent opacity-60" />
+            
+            {isLocked && (
+              <div className="absolute inset-0 bg-black/80 backdrop-blur-md flex flex-col items-center justify-center z-20">
+                <div className="bg-red-500/10 border border-red-500/50 text-red-500 font-display font-bold px-4 py-2 uppercase tracking-widest text-xs mb-2">ACESSO NEGADO</div>
+                <div className="text-[9px] text-red-500/60 font-display uppercase tracking-[0.2em]">Nível de Autorização Insuficiente</div>
+              </div>
+            )}
           </div>
 
-          <div className="mb-2 shrink-0 overflow-hidden relative">
-            <p className={`text-[10px] text-ink/80 leading-snug font-mono italic border-l-2 border-analog-orange/30 pl-2 text-justify ${isExpanded ? 'overflow-y-auto max-h-[80px]' : 'line-clamp-3'}`}>
-              {campaign.description}
-            </p>
+          <div className={`mb-4 transition-all duration-300 ${isExpanded ? 'h-24' : 'h-12'} shrink-0 relative overflow-hidden`}>
+            <div className="text-[10px] text-industrial-silver/60 leading-relaxed font-sans text-justify border-l-2 border-primary/30 pl-4 py-1 h-full">
+              <p className={`custom-scrollbar h-full overflow-y-auto ${!isExpanded ? 'line-clamp-2' : ''}`}>
+                {campaign.description}
+              </p>
+            </div>
           </div>
           
-          <div className="grid grid-cols-2 gap-x-3 gap-y-2 text-ink mt-auto font-chakra border-t border-ink/10 pt-3">
-            <div className="col-span-2 flex flex-col gap-0.5">
-              <span className="font-mono opacity-50 text-[8px] uppercase font-bold tracking-widest">SISTEMA:</span>
-              <span className="text-[10px] font-bold uppercase truncate">{campaign.rpgSystem}</span>
+          <div className="grid grid-cols-2 gap-4 text-industrial-silver font-display border-t border-white/5 pt-4 shrink-0">
+            <div className="col-span-2 flex flex-col gap-1">
+              <span className="text-[8px] font-bold text-primary/40 uppercase tracking-[0.3em]">Sistema de Operação</span>
+              <span className="text-[11px] font-bold uppercase text-white/80">{campaign.rpgSystem}</span>
             </div>
-            <div className="flex flex-col gap-0.5 overflow-hidden">
-              <span className="font-mono opacity-50 text-[8px] uppercase font-bold tracking-widest">LOCAL:</span>
-              <span className="text-[10px] font-bold truncate">{campaign.location}</span>
+            <div className="flex flex-col gap-1">
+              <span className="text-[8px] font-bold text-primary/40 uppercase tracking-[0.3em]">Setor</span>
+              <span className="text-[11px] font-bold text-white/80">{campaign.location}</span>
             </div>
-            <div className="flex flex-col gap-0.5">
-              <span className="font-mono opacity-50 text-[8px] uppercase font-bold tracking-widest">ANO:</span>
-              <span className="text-[10px] font-bold truncate">{campaign.year}</span>
+            <div className="flex flex-col gap-1">
+              <span className="text-[8px] font-bold text-primary/40 uppercase tracking-[0.3em]">Registro Temporal</span>
+              <span className="text-[11px] font-bold text-white/80">{campaign.year}</span>
             </div>
           </div>
         </div>
 
-        <div className="mt-5 flex justify-center w-full px-2 z-20">
+        <div className="mt-6 w-full z-20 shrink-0">
           {!isLocked ? (
-            <button onClick={(e) => { e.stopPropagation(); onSelect(campaign); }} className="btn-sk-orange px-6 py-2.5 sm:py-3.5 w-full uppercase tracking-[0.2em] text-sm sm:text-base cursor-pointer">Acessar</button>
+            <button 
+              onClick={(e) => { e.stopPropagation(); onSelect(campaign); }} 
+              className="w-full bg-primary hover:bg-primary-container text-black font-display font-bold text-xs uppercase tracking-[0.3em] py-4 transition-all flex items-center justify-center gap-2 group/btn glow-orange active:scale-95"
+            >
+              Iniciar Missão
+              <ChevronRight size={14} className="group-hover/btn:translate-x-1 transition-transform" />
+            </button>
           ) : (
-            <button className="btn-sk-disabled px-4 py-2.5 sm:py-3.5 w-full uppercase tracking-wide text-xs sm:text-sm leading-tight opacity-90 cursor-not-allowed">Indisponível</button>
+            <button className="w-full bg-surface-container-highest/50 text-industrial-silver/20 font-display font-bold text-xs uppercase tracking-[0.3em] py-4 cursor-not-allowed border border-white/5">
+              Protocolo Bloqueado
+            </button>
           )}
+        </div>
+        
+        {/* Decorative elements */}
+        <div className="absolute bottom-2 right-4 flex gap-1 opacity-20">
+          {[1,2,3].map(i => <div key={i} className="w-1 h-1 bg-primary rounded-full" />)}
         </div>
       </div>
     </motion.div>

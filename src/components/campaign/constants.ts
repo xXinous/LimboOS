@@ -4,7 +4,7 @@
 // --- Design-time reference dimensions (the "ideal" card at 460px container) ---
 const REF_CONTAINER = 460;
 const REF_CARD_W = 320;
-const REF_CARD_H = 580;
+const REF_CARD_H = 480;
 const REF_GAP = 40;
 
 /**

@@ -6,6 +6,7 @@ import {
 } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import { useModal } from './ConfirmModal';
+import Screw from '../../components/player/Screw';
 
 /* ── Types ─────────────────────────────────────────────── */
 interface JukeboxTrack {
@@ -268,176 +269,187 @@ export default function JukeboxPanel() {
 
   /* ── Render ──────────────────────────────────────────── */
   return (
-    <section className="space-y-6">
+    <section className="space-y-6 font-chakra">
       {modal}
       <audio ref={audioRef} preload="auto" className="hidden" />
 
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <div className="w-2 h-6 bg-orange-500"></div>
-          <h2 className="font-headline font-bold uppercase tracking-widest text-lg">Jukebox</h2>
-          <span className="text-[10px] font-label text-zinc-500 tracking-wider">{tracks.length} FAIXAS</span>
+          <div className="w-2 h-8 bg-primary rounded-full animate-pulse shadow-[0_0_10px_rgba(255,140,0,0.4)]" />
+          <h2 className="font-black uppercase tracking-widest text-lg text-white">Interface_de_Broadcast_Jukebox</h2>
+          <span className="text-[10px] font-bold text-zinc-600 tracking-widest uppercase">{tracks.length} FAIXAS NO BUFFER</span>
         </div>
-        <div className={`flex items-center gap-2 px-3 py-1 border text-[10px] font-label uppercase tracking-widest ${
-          isPlaying ? 'border-orange-500/40 text-orange-400 bg-orange-500/5' :
+        <div className={`flex items-center gap-3 px-4 py-1.5 border-2 text-[10px] font-black uppercase tracking-widest rounded-sm ${
+          isPlaying ? 'border-primary/40 text-primary bg-primary/5 shadow-[0_0_15px_rgba(255,140,0,0.1)]' :
           isLooping ? 'border-amber-500/40 text-amber-400 bg-amber-500/5' :
-          'border-zinc-700 text-zinc-500'
+          'border-[#1a1a1a] text-zinc-600'
         }`}>
-          <span className={`w-2 h-2 rounded-full ${isPlaying ? 'bg-orange-500 animate-pulse' : 'bg-zinc-700'}`}></span>
+          <div className={`w-1.5 h-1.5 rounded-full ${isPlaying ? 'bg-primary animate-pulse shadow-[0_0_5px_rgba(255,140,0,0.8)]' : 'bg-zinc-800'}`} />
           {statusLabel}
         </div>
       </div>
 
       {/* Player Area */}
-      <div className="bg-surface-container-lowest border border-zinc-800 machined-edge overflow-hidden">
-        <div className="p-4 border-b border-zinc-800 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <span className="material-symbols-outlined text-orange-500">music_note</span>
+      <div className="bg-[#1a1a1a] border-4 border-[#1a1a1a] rounded-xl overflow-hidden shadow-2xl relative">
+        <div className="p-6 border-b-4 border-[#1a1a1a] bg-black/40 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="p-2 bg-primary/10 rounded-sm border border-primary/20">
+               <span className="material-symbols-outlined text-primary text-xl">music_note</span>
+            </div>
             <div>
-              <p className="font-headline font-bold text-sm tracking-tight text-zinc-200">
-                {currentTrack ? currentTrack.title : 'NENHUMA_FAIXA_SELECIONADA'}
+              <p className="font-black text-sm tracking-tight text-white uppercase group-hover:text-primary transition-colors">
+                {currentTrack ? currentTrack.title : 'BUFFER_AGUARDANDO_SINAL'}
               </p>
-              <p className="text-[9px] font-label uppercase text-zinc-600 tracking-widest">
-                {currentTrack ? (currentTrack.type === 'youtube' ? 'YOUTUBE' : 'ÁUDIO_LOCAL') : '—'}
+              <p className="text-[9px] font-black uppercase text-zinc-600 tracking-widest mt-1">
+                {currentTrack ? (currentTrack.type === 'youtube' ? 'TRANSMISSÃO_YOUTUBE' : 'STREAM_ÁUDIO_LOCAL') : '---'}
               </p>
             </div>
           </div>
           {/* Transport Controls */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-4">
             <button onClick={togglePause} disabled={!currentTrack}
-              className="w-9 h-9 rounded-full border border-zinc-700 flex items-center justify-center text-zinc-400 hover:text-orange-500 hover:border-orange-500/50 transition-all disabled:opacity-30 disabled:cursor-not-allowed">
-              <span className="material-symbols-outlined text-lg" style={{ fontVariationSettings: "'FILL' 1" }}>
+              className="w-12 h-12 rounded-sm border-2 border-primary/20 flex items-center justify-center text-primary hover:bg-primary hover:text-black transition-all disabled:opacity-10 active:scale-90 shadow-lg">
+              <span className="material-symbols-outlined text-2xl fill" style={{ fontVariationSettings: "'FILL' 1" }}>
                 {isPlaying ? 'pause' : 'play_arrow'}
               </span>
             </button>
             <button onClick={stopPlayback} disabled={!currentTrack}
-              className="w-9 h-9 rounded-full border border-zinc-700 flex items-center justify-center text-zinc-400 hover:text-red-400 hover:border-red-500/50 transition-all disabled:opacity-30 disabled:cursor-not-allowed">
-              <span className="material-symbols-outlined text-lg" style={{ fontVariationSettings: "'FILL' 1" }}>stop</span>
+              className="w-12 h-12 rounded-sm border-2 border-red-500/20 flex items-center justify-center text-red-500 hover:bg-red-500 hover:text-white transition-all disabled:opacity-10 active:scale-90 shadow-lg">
+              <span className="material-symbols-outlined text-2xl fill" style={{ fontVariationSettings: "'FILL' 1" }}>stop</span>
             </button>
             <button onClick={() => setIsLooping(!isLooping)}
-              className={`w-9 h-9 rounded-full border flex items-center justify-center transition-all ${
-                isLooping ? 'border-amber-500 text-amber-400 bg-amber-500/10 animate-pulse' : 'border-zinc-700 text-zinc-500 hover:text-amber-400 hover:border-amber-500/50'
-              }`} title="Loop contínuo">
-              <span className="material-symbols-outlined text-lg">repeat_one</span>
+              className={`w-12 h-12 rounded-sm border-2 flex items-center justify-center transition-all active:scale-90 ${
+                isLooping ? 'border-amber-500 text-amber-400 bg-amber-500/10 shadow-[0_0_10px_rgba(245,158,11,0.3)]' : 'border-[#1a1a1a] text-zinc-700 hover:text-amber-400 hover:border-amber-500/40'
+              }`} title="Loop de Frequência">
+              <span className="material-symbols-outlined text-2xl">repeat_one</span>
             </button>
           </div>
         </div>
 
         {/* YouTube / Audio display */}
-        <div className="relative bg-black" style={{ minHeight: currentTrack?.type === 'youtube' ? 320 : 80 }}>
+        <div className="relative bg-black" style={{ minHeight: currentTrack?.type === 'youtube' ? 360 : 120 }}>
+          <div className="noise-overlay" /><div className="scanlines" />
           {currentTrack?.type === 'youtube' ? (
-            <div ref={ytContainerRef} className="w-full" style={{ height: 320 }} />
+            <div ref={ytContainerRef} className="w-full relative z-10" style={{ height: 360 }} />
           ) : currentTrack?.type === 'audio' ? (
-            <div className="flex items-center justify-center h-20 gap-3">
-              {/* VU meter bars */}
-              {Array.from({ length: 24 }).map((_, i) => (
-                <div key={i} className={`w-1.5 rounded-sm transition-all duration-150 ${isPlaying ? 'bg-orange-500' : 'bg-zinc-800'}`}
-                  style={{ height: isPlaying ? `${12 + Math.random() * 40}px` : '8px', animationDelay: `${i * 50}ms` }} />
+            <div className="flex items-center justify-center h-32 gap-3 relative z-10">
+              {Array.from({ length: 32 }).map((_, i) => (
+                <div key={i} className={`w-1.5 rounded-full transition-all duration-150 ${isPlaying ? 'bg-primary shadow-[0_0_8px_rgba(255,140,0,0.4)]' : 'bg-zinc-900'}`}
+                  style={{ height: isPlaying ? `${15 + Math.random() * 60}px` : '10px', animationDelay: `${i * 40}ms` }} />
               ))}
             </div>
           ) : (
-            <div className="flex items-center justify-center h-20 text-zinc-700 text-[10px] font-label uppercase tracking-widest">
-              SELECIONE_UMA_FAIXA_PARA_REPRODUZIR
+            <div className="flex items-center justify-center h-32 text-zinc-800 text-[11px] font-black uppercase tracking-[0.4em] relative z-10">
+              SELECIONE_FAIXA_PARA_INICIAR_TRANSMISSÃO
             </div>
           )}
         </div>
       </div>
 
       {/* Add Track Form */}
-      <div className="bg-surface-container-low border border-zinc-800 p-4 machined-edge space-y-3">
-        <div className="flex items-center gap-2 mb-2">
-          <span className="material-symbols-outlined text-zinc-500 text-sm">add_circle</span>
-          <p className="font-label text-[10px] uppercase tracking-widest text-zinc-400">ADICIONAR_FAIXA</p>
+      <div className="bg-[#1a1a1a] border-4 border-[#1a1a1a] p-6 rounded-xl shadow-xl space-y-4">
+        <div className="flex items-center gap-3 mb-2">
+          <span className="material-symbols-outlined text-zinc-700 text-lg">add_circle</span>
+          <p className="font-black text-[10px] uppercase tracking-widest text-zinc-500">Injetar_Novo_Sinal_na_Playlist</p>
         </div>
 
-        <div className="flex gap-3">
-          <input type="text" placeholder="TÍTULO (OPCIONAL)" value={titleInput}
-            onChange={(e) => setTitleInput(e.target.value)}
-            className="flex-1 bg-surface-container-lowest border border-zinc-800 text-[10px] font-label uppercase tracking-widest text-zinc-300 px-3 py-2 focus:ring-1 focus:ring-orange-500 focus:border-orange-500 placeholder:text-zinc-700" />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+           <input type="text" placeholder="IDENTIFICADOR_DA_FAIXA (OPCIONAL)" value={titleInput}
+             onChange={(e) => setTitleInput(e.target.value)}
+             className="w-full bg-black/60 border-2 border-[#1a1a1a] text-[10px] font-black uppercase tracking-widest text-white px-4 py-3 focus:border-primary outline-none rounded-sm placeholder:text-zinc-800 transition-all" />
+           <div className="flex gap-2">
+             <input type="text" placeholder="URL_DO_YOUTUBE..." value={linkInput}
+               onChange={(e) => setLinkInput(e.target.value)}
+               onKeyDown={(e) => e.key === 'Enter' && handleAddLink()}
+               className="flex-1 bg-black/60 border-2 border-[#1a1a1a] text-[10px] font-black uppercase tracking-widest text-white px-4 py-3 focus:border-red-500 outline-none rounded-sm placeholder:text-zinc-800 transition-all" />
+             <button onClick={handleAddLink}
+               className="px-6 py-3 bg-red-950/20 text-red-500 border-2 border-red-500/20 text-[10px] font-black tracking-widest hover:bg-red-500 hover:text-white transition-all rounded-sm active:scale-95">
+               YOUTUBE
+             </button>
+           </div>
         </div>
 
-        <div className="flex gap-3">
-          <input type="text" placeholder="COLE_UM_LINK_DO_YOUTUBE..." value={linkInput}
-            onChange={(e) => setLinkInput(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleAddLink()}
-            className="flex-1 bg-surface-container-lowest border border-zinc-800 text-[10px] font-label uppercase tracking-widest text-zinc-300 px-3 py-2 focus:ring-1 focus:ring-orange-500 focus:border-orange-500 placeholder:text-zinc-700" />
-          <button onClick={handleAddLink}
-            className="px-4 py-2 bg-red-900/40 text-red-300 border border-red-800/40 text-[10px] font-label font-bold tracking-widest hover:bg-red-800/40 transition-all machined-edge flex items-center gap-2">
-            <span className="material-symbols-outlined text-sm">smart_display</span>
-            YOUTUBE
-          </button>
+        <div className="flex items-center gap-4 pt-2">
+          <div className="h-px flex-1 bg-white/5" />
+          <span className="text-[8px] font-black text-zinc-700 uppercase tracking-widest">OU</span>
+          <div className="h-px flex-1 bg-white/5" />
         </div>
 
-        <div className="flex gap-3 items-center">
+        <div className="flex justify-center">
           <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept="audio/*" className="hidden" />
           <button onClick={() => fileInputRef.current?.click()} disabled={isUploading}
-            className="px-4 py-2 bg-secondary-container text-on-secondary-container border border-zinc-700 text-[10px] font-label font-bold tracking-widest hover:bg-zinc-700 transition-all machined-edge flex items-center gap-2 disabled:opacity-50">
+            className="flex items-center gap-3 px-10 py-3.5 bg-primary/10 text-primary border-2 border-primary/20 text-[10px] font-black tracking-widest hover:bg-primary/20 transition-all rounded-sm active:scale-95 glow-orange disabled:opacity-10">
             <span className="material-symbols-outlined text-sm">{isUploading ? 'sync' : 'upload_file'}</span>
-            {isUploading ? 'ENVIANDO...' : 'UPLOAD_ÁUDIO'}
+            {isUploading ? 'TRANSMITINDO_DADOS...' : 'UPLOAD_DE_ÁUDIO_LOCAL'}
           </button>
         </div>
       </div>
 
       {/* Playlist */}
-      <div className="space-y-2">
-        <div className="flex items-center gap-2 mb-1">
-          <span className="material-symbols-outlined text-zinc-500 text-sm">playlist_play</span>
-          <p className="font-label text-[10px] uppercase tracking-widest text-zinc-400">FILA_DE_REPRODUÇÃO</p>
+      <div className="space-y-4">
+        <div className="flex items-center gap-3 mb-2 px-2">
+          <span className="material-symbols-outlined text-zinc-700 text-lg">playlist_play</span>
+          <p className="font-black text-[10px] uppercase tracking-widest text-zinc-500">Sequência_de_Frequências_Ativas</p>
         </div>
 
         {tracks.length === 0 ? (
-          <div className="bg-surface-container-low p-8 text-center border-l-2 border-zinc-800 machined-edge">
-            <p className="text-zinc-500 font-label text-xs tracking-widest">NENHUMA_FAIXA_NA_JUKEBOX</p>
+          <div className="bg-black/20 p-24 text-center border-4 border-dashed border-[#1a1a1a] rounded-2xl opacity-20">
+            <p className="text-zinc-700 font-black text-[12px] uppercase tracking-[0.4em]">LISTA_DE_REPRODUÇÃO_VAZIA</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-2">
+          <div className="grid grid-cols-1 gap-3">
             {tracks.map((track, idx) => {
               const isActive = currentTrack?.id === track.id;
               return (
-                <div key={track.id} className={`bg-surface-container-low p-3 flex items-center justify-between machined-edge border-l-2 transition-all ${
-                  isActive ? 'border-orange-500 bg-orange-500/5 shadow-[0_0_15px_rgba(255,140,0,0.08)]' : idx % 2 === 0 ? 'border-zinc-700' : 'border-zinc-800'
+                <div key={track.id} className={`bg-[#1a1a1a] border-4 p-4 flex items-center justify-between rounded-xl shadow-lg transition-all group ${
+                  isActive ? 'border-primary bg-primary/5 shadow-[0_0_20px_rgba(255,140,0,0.1)]' : 'border-[#1a1a1a] hover:border-white/5'
                 }`}>
-                  <div className="flex items-center gap-3 min-w-0 flex-1">
-                    <span className={`font-label text-[10px] w-6 text-center ${isActive ? 'text-orange-500 font-bold' : 'text-zinc-600'}`}>
+                  <div className="flex items-center gap-5 min-w-0 flex-1">
+                    <span className={`font-black text-[11px] w-8 text-right font-mono ${isActive ? 'text-primary' : 'text-zinc-800'}`}>
                       {String(idx + 1).padStart(2, '0')}
                     </span>
                     <button onClick={() => playTrackAtIndex(idx)}
-                      className={`w-8 h-8 rounded-full flex items-center justify-center border transition-all hover:scale-110 active:scale-90 ${
-                        isActive ? 'bg-orange-500/20 text-orange-500 border-orange-500/40' : 'bg-zinc-800 text-zinc-500 border-zinc-700 hover:text-orange-400 hover:border-orange-500/30'
+                      className={`w-10 h-10 rounded-sm flex items-center justify-center border-2 transition-all active:scale-90 ${
+                        isActive ? 'bg-primary text-black border-primary' : 'bg-black text-zinc-600 border-[#1a1a1a] group-hover:border-zinc-700 hover:text-white'
                       }`}>
-                      <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>
+                      <span className="material-symbols-outlined text-xl" style={{ fontVariationSettings: "'FILL' 1" }}>
                         {isActive && isPlaying ? 'equalizer' : 'play_arrow'}
                       </span>
                     </button>
                     <div className="min-w-0 flex-1">
-                      <p className={`font-headline font-bold text-sm tracking-tight truncate ${isActive ? 'text-orange-400' : 'text-zinc-200'}`}>
+                      <p className={`font-black text-sm tracking-tight truncate uppercase ${isActive ? 'text-white' : 'text-zinc-500 group-hover:text-zinc-300'}`}>
                         {track.title}
                       </p>
-                      <p className="text-[9px] font-label uppercase text-zinc-600 tracking-widest">
-                        {track.type === 'youtube' ? '▶ YOUTUBE' : '♫ ÁUDIO'}
-                      </p>
+                      <div className="flex items-center gap-3 mt-1">
+                         <span className={`text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-sm border ${
+                           track.type === 'youtube' ? 'border-red-500/20 text-red-500/60' : 'border-emerald-500/20 text-emerald-500/60'
+                         }`}>
+                           {track.type === 'youtube' ? 'YOUTUBE' : 'ÁUDIO_LOCAL'}
+                         </span>
+                         {isActive && isPlaying && (
+                           <div className="flex gap-0.5">
+                             {[1,2,3,4].map(i => <div key={i} className="w-1 h-2.5 bg-primary animate-pulse rounded-full" style={{ animationDelay: `${i * 100}ms` }} />)}
+                           </div>
+                         )}
+                      </div>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-1">
-                    {/* VU dots */}
-                    {isActive && isPlaying && (
-                      <div className="flex gap-0.5 mr-3">
-                        {[1,2,3].map(i => <div key={i} className="w-1 h-3 bg-orange-500 animate-pulse" style={{ animationDelay: `${i * 150}ms` }} />)}
-                      </div>
-                    )}
-                    <button onClick={() => moveTrack(idx, -1)} disabled={idx === 0}
-                      className="material-symbols-outlined text-zinc-600 hover:text-zinc-300 text-sm p-1 disabled:opacity-20">
-                      arrow_upward
-                    </button>
-                    <button onClick={() => moveTrack(idx, 1)} disabled={idx === tracks.length - 1}
-                      className="material-symbols-outlined text-zinc-600 hover:text-zinc-300 text-sm p-1 disabled:opacity-20">
-                      arrow_downward
-                    </button>
+                  <div className="flex items-center gap-3">
+                    <div className="flex flex-col gap-1">
+                       <button onClick={() => moveTrack(idx, -1)} disabled={idx === 0}
+                         className="material-symbols-outlined text-zinc-800 hover:text-primary text-lg disabled:opacity-5 transition-all">
+                         keyboard_arrow_up
+                       </button>
+                       <button onClick={() => moveTrack(idx, 1)} disabled={idx === tracks.length - 1}
+                         className="material-symbols-outlined text-zinc-800 hover:text-primary text-lg disabled:opacity-5 transition-all">
+                         keyboard_arrow_down
+                       </button>
+                    </div>
                     <button onClick={() => handleDelete(track)}
-                      className="material-symbols-outlined text-zinc-600 hover:text-red-400 text-sm p-1 transition-colors ml-1">
-                      delete
+                      className="w-10 h-10 bg-black/40 border border-white/5 flex items-center justify-center text-zinc-800 hover:text-red-500 hover:border-red-500/30 transition-all rounded-sm group/del ml-2">
+                      <span className="material-symbols-outlined text-lg">delete</span>
                     </button>
                   </div>
                 </div>
@@ -447,15 +459,23 @@ export default function JukeboxPanel() {
         )}
       </div>
 
-      {/* Status Bar */}
-      <div className="flex items-center justify-between bg-surface-container-lowest border border-zinc-800 px-4 py-2 machined-edge">
-        <span className="text-[9px] font-label uppercase tracking-widest text-zinc-600">
-          FAIXA {currentIndex >= 0 ? currentIndex + 1 : '—'} / {tracks.length}
-        </span>
-        <div className="flex items-center gap-3">
-          {isLooping && <span className="text-[9px] font-label uppercase tracking-widest text-amber-500 animate-pulse">⟳ LOOP</span>}
-          <span className={`text-[9px] font-label uppercase tracking-widest ${isPlaying ? 'text-orange-500' : 'text-zinc-600'}`}>
-            {statusLabel}
+      {/* Footer / Status Bar */}
+      <div className="flex items-center justify-between bg-black/40 border-4 border-[#1a1a1a] rounded-xl px-8 py-4 shadow-inner">
+        <div className="flex items-center gap-4">
+           <div className="w-1.5 h-1.5 rounded-full bg-zinc-800" />
+           <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-700">
+             FAIXA_ATUAL: {currentIndex >= 0 ? `${currentIndex + 1} / ${tracks.length}` : 'TRANSMISSÃO_INATIVA'}
+           </span>
+        </div>
+        <div className="flex items-center gap-6">
+          {isLooping && (
+            <div className="flex items-center gap-2 text-amber-500/60">
+               <span className="material-symbols-outlined text-sm animate-spin-slow">sync</span>
+               <span className="text-[9px] font-black uppercase tracking-widest">REDUNDÂNCIA_ATIVA</span>
+            </div>
+          )}
+          <span className={`text-[10px] font-black uppercase tracking-[0.2em] ${isPlaying ? 'text-primary' : 'text-zinc-800'}`}>
+            ESTADO: {statusLabel}
           </span>
         </div>
       </div>
