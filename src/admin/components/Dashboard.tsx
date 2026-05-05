@@ -28,6 +28,8 @@ interface Stats {
   totalPlays: number;
 }
 
+import Screw from '../../components/player/Screw';
+
 export default function Dashboard({ user, onLogout }: DashboardProps) {
   const [isAdmin, setIsAdmin] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -65,101 +67,110 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
   }, [isAdmin, user]);
 
   return (
-    <div className="min-h-screen bg-background text-on-background font-body selection:bg-primary-container selection:text-on-primary-container">
-      <div className="fixed top-0 left-0 w-full h-full pointer-events-none opacity-[0.03] z-100 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-size-[100%_2px,3px_100%]"></div>
+    <div className="min-h-screen bg-surface flex items-center justify-center p-0 sm:p-6 overflow-hidden">
+      <div className="noise-overlay" /><div className="scanlines" />
 
-      <Header user={user} onLogout={onLogout} />
-      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
+      <div className="relative w-full h-full max-w-7xl max-h-[95vh] bg-surface-container-high rounded-[32px] border-8 border-[#1a1a1a] shadow-2xl flex flex-col overflow-hidden z-10">
+        <Screw className="top-4 left-4" /><Screw className="top-4 right-4 -rotate-90" /><Screw className="bottom-4 left-4 -rotate-90" /><Screw className="bottom-4 right-4" />
+        
+        <Header user={user} onLogout={onLogout} />
+        
+        <div className="flex flex-1 overflow-hidden">
+          <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
 
-      <main className="ml-64 pt-20 px-8 pb-12">
-        <div className="max-w-7xl mx-auto space-y-8">
+          <main className="flex-1 overflow-y-auto p-8 custom-scrollbar bg-black/20">
+            <div className="space-y-8">
 
-          {/* Status Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <StatCard label="Usuários Ativos" value={stats.totalUsers} color="primary" />
-            <StatCard label="Arquivos de Áudio" value={stats.totalAudios} color="tertiary" />
-            <StatCard label="Reproduções" value={stats.totalPlays} color="secondary" />
-            <div className="bg-surface-container-highest/80 backdrop-blur-xl border border-orange-500/20 p-5 flex flex-col justify-center machined-edge">
-              <p className="font-label text-[10px] uppercase tracking-widest text-orange-500/70 mb-1">Sessão_Ativa</p>
-              <p className="text-2xl font-headline font-bold text-on-surface tracking-tighter">{sessionTime}</p>
-              <p className="font-label text-[8px] uppercase tracking-widest text-zinc-600 mt-1">MODO_ADMIN</p>
-            </div>
-          </div>
-
-          {/* Renderização de Abas */}
-          {activeTab === 'dashboard' && (
-            <div className="space-y-8 animate-in fade-in duration-500">
-              <AnalyticsPanel />
-              <div className="border-t border-zinc-800 pt-8">
-                <h3 className="text-zinc-500 font-label text-[10px] uppercase tracking-widest mb-4">Log_Central_do_Nucleo</h3>
-                <SystemLogPanel />
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'missions' && <CampaignsPanel />}
-
-          {activeTab === 'players' && <UserRegistry isAdmin={isAdmin} />}
-
-          {activeTab === 'inventory' && (
-            <div className="space-y-8 animate-in fade-in duration-500">
-              <InventoryManager />
-              <div className="border-t border-zinc-800 pt-8">
-                <h3 className="text-zinc-500 font-label text-[10px] uppercase tracking-widest mb-4">Conquistas_do_Sistema</h3>
-                <AchievementsPanel />
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'library' && (
-            <div className="bg-surface border border-zinc-800 machined-edge overflow-hidden animate-in fade-in duration-500">
-              {/* Navegação da Biblioteca */}
-              <div className="flex border-b border-zinc-800 bg-zinc-900/30">
-                <LibrarySubTab label="Acervo de Fitas" active={libraryTab === 'acervo'} onClick={() => setLibraryTab('acervo')} icon="album" />
-                <LibrarySubTab label="Jukebox" active={libraryTab === 'jukebox'} onClick={() => setLibraryTab('jukebox')} icon="queue_music" />
-                <LibrarySubTab label="Galeria" active={libraryTab === 'galeria'} onClick={() => setLibraryTab('galeria')} icon="photo_library" />
-                <LibrarySubTab label="QR Codes" active={libraryTab === 'qr'} onClick={() => setLibraryTab('qr')} icon="qr_code" />
+              {/* Status Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <StatCard label="Usuários Ativos" value={stats.totalUsers} color="primary" />
+                <StatCard label="Arquivos de Áudio" value={stats.totalAudios} color="tertiary" />
+                <StatCard label="Reproduções" value={stats.totalPlays} color="secondary" />
+                <div className="bg-[#222] border-4 border-[#1a1a1a] p-5 flex flex-col justify-center shadow-[inset_0_4px_10px_rgba(0,0,0,0.6)] rounded-xl relative">
+                   <div className="absolute top-2 right-2 flex gap-1"><div className="w-1 h-1 rounded-full bg-primary animate-pulse" /><div className="w-1 h-1 rounded-full bg-primary/20" /></div>
+                  <p className="font-chakra text-[10px] uppercase font-bold tracking-widest text-primary/70 mb-1">Sessão_Ativa</p>
+                  <p className="text-2xl font-chakra font-black text-white tracking-tighter">{sessionTime}</p>
+                  <p className="font-chakra text-[8px] uppercase tracking-widest text-zinc-600 mt-1">NÚCLEO_OPERACIONAL</p>
+                </div>
               </div>
 
-              <div className="p-6">
-                {libraryTab === 'acervo' && <AudioBuffer user={user} isAdmin={isAdmin} />}
-                {libraryTab === 'jukebox' && <JukeboxPanel />}
-                {libraryTab === 'galeria' && <GalleryPanel />}
-                {libraryTab === 'qr' && <RedirectsPanel />}
-              </div>
-            </div>
-          )}
+              {/* Renderização de Abas */}
+              {activeTab === 'dashboard' && (
+                <div className="space-y-8 animate-in fade-in duration-500">
+                  <AnalyticsPanel />
+                  <div className="border-t border-white/5 pt-8">
+                    <h3 className="text-zinc-500 font-chakra text-[10px] uppercase font-bold tracking-widest mb-4">Log_Central_do_Nucleo</h3>
+                    <SystemLogPanel />
+                  </div>
+                </div>
+              )}
 
-          {activeTab === 'intel' && (
-            <div className="space-y-8 animate-in fade-in duration-500">
-              <IntelCreatorPanel />
-            </div>
-          )}
+              {activeTab === 'missions' && <CampaignsPanel />}
+              {activeTab === 'players' && <UserRegistry isAdmin={isAdmin} />}
+              {activeTab === 'inventory' && (
+                <div className="space-y-8 animate-in fade-in duration-500">
+                  <InventoryManager />
+                  <div className="border-t border-white/5 pt-8">
+                    <h3 className="text-zinc-500 font-chakra text-[10px] uppercase font-bold tracking-widest mb-4">Conquistas_do_Sistema</h3>
+                    <AchievementsPanel />
+                  </div>
+                </div>
+              )}
 
-          {activeTab === 'systems' && (
-            <div className="space-y-8 animate-in fade-in duration-500">
-              <TerminalPanel />
-            </div>
-          )}
+              {activeTab === 'library' && (
+                <div className="bg-[#222] border-4 border-[#1a1a1a] overflow-hidden animate-in fade-in duration-500 rounded-2xl shadow-2xl">
+                  {/* Navegação da Biblioteca */}
+                  <div className="flex border-b-4 border-[#1a1a1a] bg-black/40">
+                    <LibrarySubTab label="Acervo" active={libraryTab === 'acervo'} onClick={() => setLibraryTab('acervo')} icon="album" />
+                    <LibrarySubTab label="Jukebox" active={libraryTab === 'jukebox'} onClick={() => setLibraryTab('jukebox')} icon="queue_music" />
+                    <LibrarySubTab label="Galeria" active={libraryTab === 'galeria'} onClick={() => setLibraryTab('galeria')} icon="photo_library" />
+                    <LibrarySubTab label="QR Codes" active={libraryTab === 'qr'} onClick={() => setLibraryTab('qr')} icon="qr_code" />
+                  </div>
 
+                  <div className="p-6 bg-[#222]">
+                    {libraryTab === 'acervo' && <AudioBuffer user={user} isAdmin={isAdmin} />}
+                    {libraryTab === 'jukebox' && <JukeboxPanel />}
+                    {libraryTab === 'galeria' && <GalleryPanel />}
+                    {libraryTab === 'qr' && <RedirectsPanel />}
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'intel' && (
+                <div className="space-y-8 animate-in fade-in duration-500">
+                  <IntelCreatorPanel />
+                </div>
+              )}
+
+              {activeTab === 'systems' && (
+                <div className="space-y-8 animate-in fade-in duration-500">
+                  <TerminalPanel />
+                </div>
+              )}
+
+            </div>
+          </main>
         </div>
-      </main>
+      </div>
     </div>
   );
 }
 
 function StatCard({ label, value, color }: { label: string, value: number, color: string }) {
   const colorMap: any = {
-    primary: 'text-primary-container',
+    primary: 'text-primary',
     secondary: 'text-secondary',
     tertiary: 'text-tertiary'
   };
   return (
-    <div className="bg-surface-container-lowest border border-zinc-800 p-5 relative overflow-hidden machined-edge">
-      <p className="font-label text-[10px] uppercase tracking-widest text-zinc-500 mb-2">{label.replace(/ /g, '_')}</p>
-      <p className={`text-3xl font-headline font-bold ${colorMap[color]} tracking-tighter`}>{value}</p>
-      <div className="mt-2 flex gap-0.5">
-        {[1,2,3,4,5].map(i => <div key={i} className={`w-1 h-3 ${i <= Math.min(5, Math.ceil(value/10)) ? 'bg-orange-500' : 'bg-zinc-800'}`}></div>)}
+    <div className="bg-[#222] border-4 border-[#1a1a1a] p-5 relative overflow-hidden rounded-xl shadow-[inset_0_4px_10px_rgba(0,0,0,0.6)] group">
+      <div className="absolute top-2 right-3 opacity-10 group-hover:opacity-30 transition-opacity">
+         {[1,2,3].map(i => <div key={i} className="w-1 h-1 bg-primary rounded-full mb-1" />)}
+      </div>
+      <p className="font-chakra text-[10px] uppercase font-bold tracking-widest text-zinc-500 mb-2">{label.replace(/ /g, '_')}</p>
+      <p className={`text-3xl font-chakra font-black ${colorMap[color]} tracking-tighter`}>{value}</p>
+      <div className="mt-3 flex gap-1">
+        {[1,2,3,4,5,6,7,8].map(i => <div key={i} className={`h-1.5 flex-1 ${i <= Math.min(8, Math.ceil(value/5)) ? 'bg-primary shadow-[0_0_8px_rgba(255,140,0,0.4)]' : 'bg-black/40'}`}></div>)}
       </div>
     </div>
   );
@@ -169,7 +180,7 @@ function LibrarySubTab({ label, active, onClick, icon }: { label: string, active
   return (
     <button 
       onClick={onClick}
-      className={`flex items-center gap-2 px-6 py-4 text-[10px] font-label font-bold tracking-widest transition-all border-r border-zinc-800 uppercase ${active ? 'bg-orange-600 text-white' : 'text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300'}`}
+      className={`flex items-center gap-2 px-6 py-4 text-[10px] font-chakra font-black tracking-widest transition-all border-r-4 border-[#1a1a1a] uppercase ${active ? 'bg-primary text-black' : 'text-zinc-500 hover:bg-white/5 hover:text-zinc-300'}`}
     >
       <span className="material-symbols-outlined text-sm">{icon}</span>
       {label}

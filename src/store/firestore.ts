@@ -324,7 +324,8 @@ export async function uploadGalleryImage(
   category: GalleryCategory,
   title: string,
   description: string,
-  createdBy: string
+  createdBy: string,
+  level: number
 ): Promise<GalleryImage> {
   const imageId = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   const storageRef = ref(storage, `gallery/${imageId}`);
@@ -335,11 +336,16 @@ export async function uploadGalleryImage(
     title,
     description,
     imageUrl,
+    level,
     createdAt: serverTimestamp(),
     createdBy,
   };
   await setDoc(doc(db, 'gallery', imageId), data);
   return { id: imageId, ...data } as unknown as GalleryImage;
+}
+
+export async function updateGalleryImage(imageId: string, updates: Partial<GalleryImage>): Promise<void> {
+  await setDoc(doc(db, 'gallery', imageId), updates, { merge: true });
 }
 
 export async function deleteGalleryImage(imageId: string): Promise<void> {

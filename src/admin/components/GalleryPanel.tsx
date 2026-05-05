@@ -11,8 +11,11 @@ import {
   revokeGalleryImage,
   grantGalleryImageToMultiple,
   fetchUserGalleryGrants,
+  updateGalleryImage,
 } from '../../store/firestore';
 import type { GalleryImage, GalleryCategory } from '../../store/firestore';
+import Screw from '../../components/player/Screw';
+
 interface UserData {
   uid: string;
   displayName: string;
@@ -26,6 +29,7 @@ const CATEGORIES: { id: GalleryCategory; label: string; icon: string }[] = [
   { id: 'pessoas', label: 'Pessoas', icon: 'person' },
   { id: 'itens', label: 'Itens', icon: 'inventory_2' },
 ];
+
 export default function GalleryPanel() {
   const { showAlert, modal } = useModal();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -39,12 +43,20 @@ export default function GalleryPanel() {
   const [uploadTitle, setUploadTitle] = useState('');
   const [uploadDesc, setUploadDesc] = useState('');
   const [uploadCategory, setUploadCategory] = useState<GalleryCategory>('locais');
+  const [uploadLevel, setUploadLevel] = useState<number>(1);
   const [uploading, setUploading] = useState(false);
   const [showGrantModal, setShowGrantModal] = useState<GalleryImage | null>(null);
+  const [editModalImage, setEditModalImage] = useState<GalleryImage | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editDesc, setEditDesc] = useState('');
+  const [editCategory, setEditCategory] = useState<GalleryCategory>('locais');
+  const [editLevel, setEditLevel] = useState<number>(1);
+  const [editSaving, setEditSaving] = useState(false);
   const [grantedUids, setGrantedUids] = useState<Set<string>>(new Set());
   const [grantLoading, setGrantLoading] = useState(false);
   const [playerSearch, setPlayerSearch] = useState('');
   const [previewImage, setPreviewImage] = useState<GalleryImage | null>(null);
+
   const loadImages = useCallback(async () => {
     try {
       const data = await fetchAllGalleryImages();
@@ -55,9 +67,11 @@ export default function GalleryPanel() {
       setLoading(false);
     }
   }, []);
+
   useEffect(() => {
     loadImages();
   }, [loadImages]);
+
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'users'), (snap) => {
       const list: UserData[] = [];
@@ -66,10 +80,12 @@ export default function GalleryPanel() {
     });
     return () => unsub();
   }, []);
+
   const filteredImages = useMemo(() => {
     if (activeCategory === 'all') return images;
     return images.filter(img => img.category === activeCategory);
   }, [images, activeCategory]);
+
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -78,12 +94,13 @@ export default function GalleryPanel() {
     reader.onload = (ev) => setUploadPreview(ev.target?.result as string);
     reader.readAsDataURL(file);
   };
+
   const handleUpload = async () => {
     if (!uploadFile || !uploadTitle.trim()) return;
     setUploading(true);
     try {
-      await uploadGalleryImage(uploadFile, uploadCategory, uploadTitle.trim(), uploadDesc.trim(), 'gm.mpg');
-      activityLogger.logAdmin('gm.mpg', 'gallery_upload', `Enviou imagem: ${uploadTitle.trim()}`, { category: uploadCategory });
+      await uploadGalleryImage(uploadFile, uploadCategory, uploadTitle.trim(), uploadDesc.trim(), 'gm.mpg', uploadLevel);
+      activityLogger.logAdmin('gm.mpg', 'gallery_upload', `Enviou imagem: ${uploadTitle.trim()}`, { category: uploadCategory, level: uploadLevel });
       await loadImages();
       setShowUpload(false);
       resetUploadForm();
@@ -94,14 +111,46 @@ export default function GalleryPanel() {
       setUploading(false);
     }
   };
+
   const resetUploadForm = () => {
     setUploadFile(null);
     setUploadPreview(null);
     setUploadTitle('');
     setUploadDesc('');
     setUploadCategory('locais');
+    setUploadLevel(1);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
+
+  const openEditModal = (img: GalleryImage) => {
+    setEditTitle(img.title);
+    setEditDesc(img.description);
+    setEditCategory(img.category);
+    setEditLevel(img.level || 1);
+    setEditModalImage(img);
+  };
+
+  const saveEdit = async () => {
+    if (!editModalImage || !editTitle.trim()) return;
+    setEditSaving(true);
+    try {
+      await updateGalleryImage(editModalImage.id, {
+        title: editTitle.trim(),
+        description: editDesc.trim(),
+        category: editCategory,
+        level: editLevel
+      });
+      activityLogger.logAdmin('gm.mpg', 'gallery_edit', `Editou imagem: ${editTitle.trim()}`, { imageId: editModalImage.id });
+      await loadImages();
+      setEditModalImage(null);
+    } catch (err) {
+      console.error('Edit error:', err);
+      showAlert('Erro', 'Falha ao editar imagem.');
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
   const handleDelete = async (image: GalleryImage) => {
     try {
       await deleteGalleryImage(image.id);
@@ -112,6 +161,7 @@ export default function GalleryPanel() {
       showAlert('Erro', 'Falha ao remover imagem.');
     }
   };
+
   const openGrantModal = async (image: GalleryImage) => {
     setShowGrantModal(image);
     setPlayerSearch('');
@@ -125,6 +175,7 @@ export default function GalleryPanel() {
       setGrantLoading(false);
     }
   };
+
   const toggleGrant = async (uid: string) => {
     if (!showGrantModal) return;
     const imageId = showGrantModal.id;
@@ -143,6 +194,7 @@ export default function GalleryPanel() {
       console.error('Grant toggle error:', err);
     }
   };
+
   const grantToAll = async () => {
     if (!showGrantModal) return;
     setGrantLoading(true);
@@ -157,6 +209,7 @@ export default function GalleryPanel() {
       setGrantLoading(false);
     }
   };
+
   const filteredPlayers = useMemo(() => {
     return users.filter(u => {
       if (u.role === 'admin') return false;
@@ -169,32 +222,43 @@ export default function GalleryPanel() {
       );
     });
   }, [users, playerSearch]);
+
   const getCategoryInfo = (cat: GalleryCategory) => CATEGORIES.find(c => c.id === cat)!;
+
   return (
-    <section className="space-y-0">
+    <section className="space-y-6 font-chakra">
       {modal}
-      <div className="flex items-center gap-4 mb-6">
-        <div className="w-2 h-6 bg-cyan-500" />
-        <h2 className="font-headline font-bold uppercase tracking-widest text-lg">
-          Galeria_de_Imagens
-        </h2>
-        <span className="text-[10px] font-label text-zinc-500 tracking-wider">
-          {images.length} IMAGENS
-        </span>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <div className="w-2 h-8 bg-cyan-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(6,182,212,0.4)]" />
+          <h2 className="font-black uppercase tracking-widest text-lg text-white">
+            Galeria_de_Registros_Visuais
+          </h2>
+          <span className="text-[10px] font-bold text-zinc-600 tracking-widest uppercase">
+            {images.length} ARQUIVOS SINCRONIZADOS
+          </span>
+        </div>
+        <button
+          onClick={() => { setShowUpload(true); resetUploadForm(); }}
+          className="flex items-center gap-2 bg-cyan-900/20 text-cyan-400 px-6 py-2.5 rounded-sm font-black text-[10px] tracking-widest hover:bg-cyan-900/40 transition-all border border-cyan-500/20 active:scale-95 shadow-[0_0_15px_rgba(6,182,212,0.1)]"
+        >
+          <span className="material-symbols-outlined text-sm">add_photo_alternate</span>
+          NOVO_REGISTRO
+        </button>
       </div>
-      {}
-      <div className="bg-surface-container-lowest border border-zinc-800 machined-edge mb-4">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800">
-          <div className="flex gap-1">
+
+      <div className="bg-[#1a1a1a] border-4 border-[#1a1a1a] rounded-xl shadow-xl overflow-hidden">
+        <div className="flex items-center justify-between px-6 py-4 bg-black/40 border-b-4 border-[#1a1a1a]">
+          <div className="flex gap-2">
             <button
               onClick={() => setActiveCategory('all')}
-              className={`px-3 py-1.5 text-[10px] font-label uppercase tracking-widest transition-all ${
+              className={`px-4 py-2 text-[10px] font-black uppercase tracking-widest transition-all rounded-sm border-2 ${
                 activeCategory === 'all'
-                  ? 'text-cyan-400 bg-cyan-500/10 border border-cyan-500/30'
-                  : 'text-zinc-500 hover:text-zinc-300 border border-transparent'
+                  ? 'text-cyan-400 border-cyan-500/40 bg-cyan-500/10'
+                  : 'text-zinc-600 border-transparent hover:text-zinc-300 hover:bg-white/5'
               }`}
             >
-              Todos ({images.length})
+              TODOS ({images.length})
             </button>
             {CATEGORIES.map(cat => {
               const count = images.filter(i => i.category === cat.id).length;
@@ -202,10 +266,10 @@ export default function GalleryPanel() {
                 <button
                   key={cat.id}
                   onClick={() => setActiveCategory(cat.id)}
-                  className={`px-3 py-1.5 text-[10px] font-label uppercase tracking-widest transition-all flex items-center gap-1.5 ${
+                  className={`px-4 py-2 text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 rounded-sm border-2 ${
                     activeCategory === cat.id
-                      ? 'text-cyan-400 bg-cyan-500/10 border border-cyan-500/30'
-                      : 'text-zinc-500 hover:text-zinc-300 border border-transparent'
+                      ? 'text-cyan-400 border-cyan-500/40 bg-cyan-500/10'
+                      : 'text-zinc-600 border-transparent hover:text-zinc-300 hover:bg-white/5'
                   }`}
                 >
                   <span className="material-symbols-outlined text-xs">{cat.icon}</span>
@@ -214,71 +278,68 @@ export default function GalleryPanel() {
               );
             })}
           </div>
-          <button
-            onClick={() => { setShowUpload(true); resetUploadForm(); }}
-            className="flex items-center gap-2 bg-cyan-900/40 text-cyan-300 px-4 py-2 font-label text-[10px] font-bold tracking-widest hover:bg-cyan-800/40 transition-all machined-edge border border-cyan-700/30"
-          >
-            <span className="material-symbols-outlined text-sm">add_photo_alternate</span>
-            ENVIAR_IMAGEM
-          </button>
         </div>
-        {}
+
         {loading ? (
-          <div className="p-12 text-center">
-            <span className="material-symbols-outlined text-2xl text-zinc-600 animate-spin block mb-2">sync</span>
-            <p className="font-label text-xs text-zinc-600 tracking-widest">CARREGANDO_GALERIA...</p>
+          <div className="p-24 text-center">
+            <span className="material-symbols-outlined text-3xl text-cyan-900 animate-spin block mb-4">sync</span>
+            <p className="font-black text-xs text-zinc-600 tracking-[0.4em]">CARREGANDO_GALERIA...</p>
           </div>
         ) : filteredImages.length === 0 ? (
-          <div className="p-12 text-center">
-            <span className="material-symbols-outlined text-4xl text-zinc-700 block mb-3">photo_library</span>
-            <p className="font-label text-xs uppercase tracking-widest text-zinc-600">
-              {activeCategory === 'all' ? 'NENHUMA_IMAGEM_NA_GALERIA' : 'NENHUMA_IMAGEM_NESTA_CATEGORIA'}
+          <div className="p-24 text-center border-4 border-dashed border-[#1a1a1a] m-6 rounded-xl opacity-20">
+            <span className="material-symbols-outlined text-6xl text-zinc-800 block mb-4">photo_library</span>
+            <p className="font-black text-sm uppercase tracking-[0.4em] text-zinc-600">
+              {activeCategory === 'all' ? 'GALERIA_VAZIA' : 'SEM_REGISTROS_NESTA_CATEGORIA'}
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 p-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 p-6">
             {filteredImages.map(img => {
               const catInfo = getCategoryInfo(img.category);
               return (
                 <div
                   key={img.id}
-                  className="bg-zinc-900 border border-zinc-800 group relative overflow-hidden hover:border-cyan-500/30 transition-all"
+                  className="bg-black border-4 border-[#1a1a1a] group relative overflow-hidden hover:border-cyan-500/40 transition-all rounded-xl shadow-lg active:scale-95"
                 >
                   <div
-                    className="aspect-square bg-zinc-800 overflow-hidden cursor-pointer"
+                    className="aspect-square bg-zinc-950 overflow-hidden cursor-pointer"
                     onClick={() => setPreviewImage(img)}
                   >
                     <img
                       src={img.imageUrl}
                       alt={img.title}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      className="w-full h-full object-cover opacity-60 group-hover:opacity-100 group-hover:scale-105 transition-all duration-500 grayscale group-hover:grayscale-0"
                       loading="lazy"
                     />
                   </div>
-                  <div className="p-2.5">
-                    <div className="flex items-center gap-1.5 mb-1">
-                      <span className="material-symbols-outlined text-[10px] text-cyan-500">{catInfo.icon}</span>
-                      <span className="text-[8px] font-label uppercase tracking-widest text-cyan-500/70">{catInfo.label}</span>
+                  <div className="p-4 bg-[#1a1a1a]">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="material-symbols-outlined text-[12px] text-cyan-500">{catInfo.icon}</span>
+                      <span className="text-[8px] font-black uppercase tracking-widest text-cyan-500/50">{catInfo.label}</span>
                     </div>
-                    <p className="font-headline text-xs font-bold text-zinc-200 truncate">{img.title}</p>
-                    {img.description && (
-                      <p className="text-[9px] text-zinc-500 truncate mt-0.5">{img.description}</p>
-                    )}
+                    <p className="font-black text-xs text-white truncate uppercase tracking-wide group-hover:text-cyan-400 transition-colors">{img.title}</p>
                   </div>
-                  <div className="absolute top-1.5 right-1.5 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="absolute top-2 right-2 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-all translate-x-2 group-hover:translate-x-0">
                     <button
                       onClick={() => openGrantModal(img)}
-                      className="w-7 h-7 bg-black/70 backdrop-blur-sm border border-cyan-500/30 flex items-center justify-center hover:bg-cyan-900/50 transition-colors"
-                      title="Gerenciar acesso"
+                      className="w-8 h-8 bg-black/80 backdrop-blur-md border border-cyan-500/30 flex items-center justify-center hover:bg-cyan-500 hover:text-black transition-all rounded-sm"
+                      title="Liberar Acesso"
                     >
-                      <span className="material-symbols-outlined text-cyan-400 text-xs">group_add</span>
+                      <span className="material-symbols-outlined text-xs">group_add</span>
+                    </button>
+                    <button
+                      onClick={() => openEditModal(img)}
+                      className="w-8 h-8 bg-black/80 backdrop-blur-md border border-emerald-500/30 flex items-center justify-center hover:bg-emerald-500 hover:text-black transition-all rounded-sm"
+                      title="Editar"
+                    >
+                      <span className="material-symbols-outlined text-xs">edit</span>
                     </button>
                     <button
                       onClick={() => handleDelete(img)}
-                      className="w-7 h-7 bg-black/70 backdrop-blur-sm border border-red-500/30 flex items-center justify-center hover:bg-red-900/50 transition-colors"
-                      title="Deletar imagem"
+                      className="w-8 h-8 bg-black/80 backdrop-blur-md border border-red-500/30 flex items-center justify-center hover:bg-red-500 hover:text-white transition-all rounded-sm"
+                      title="Remover"
                     >
-                      <span className="material-symbols-outlined text-red-400 text-xs">delete</span>
+                      <span className="material-symbols-outlined text-xs">delete</span>
                     </button>
                   </div>
                 </div>
@@ -287,226 +348,362 @@ export default function GalleryPanel() {
           </div>
         )}
       </div>
-      {}
+
       {showUpload && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
-          <div className="bg-surface-container-low border border-cyan-500/30 w-full max-w-lg machined-edge flex flex-col max-h-[85vh]">
-            <div className="px-6 pt-5 pb-4 border-b border-zinc-800">
-              <div className="flex items-center gap-3 mb-1">
-                <span className="material-symbols-outlined text-cyan-400 text-xl">add_photo_alternate</span>
-                <h3 className="font-headline text-lg text-zinc-200">ENVIAR_IMAGEM</h3>
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/95 p-4 backdrop-blur-xl">
+          <div className="bg-[#222] border-8 border-[#1a1a1a] w-full max-w-xl rounded-[32px] shadow-2xl flex flex-col max-h-[85vh] relative overflow-hidden">
+            <Screw className="top-4 left-4" /><Screw className="top-4 right-4 -rotate-90" /><Screw className="bottom-4 left-4 -rotate-90" /><Screw className="bottom-4 right-4" />
+            <div className="noise-overlay" /><div className="scanlines" />
+            
+            <div className="px-10 pt-10 pb-6 border-b-4 border-[#1a1a1a] relative z-10 bg-black/40">
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-cyan-500/10 border-2 border-cyan-500/20 rounded-sm">
+                   <span className="material-symbols-outlined text-cyan-400 text-2xl">add_photo_alternate</span>
+                </div>
+                <div>
+                   <h3 className="font-black text-xl text-white uppercase tracking-widest">Enviar_Novo_Registro</h3>
+                   <p className="text-[10px] text-zinc-600 font-bold uppercase mt-1 tracking-widest">Documentação visual de campo</p>
+                </div>
               </div>
             </div>
-            <div className="flex-1 overflow-y-auto p-6 space-y-4">
-              {}
-              <div>
-                <label className="block font-label text-[10px] text-zinc-400 mb-2 uppercase tracking-widest">Categoria</label>
-                <div className="flex gap-2">
+
+            <div className="flex-1 overflow-y-auto p-10 space-y-8 relative z-10 custom-scrollbar">
+              <div className="space-y-4">
+                <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest">Classificação_por_Categoria</label>
+                <div className="grid grid-cols-2 gap-3">
                   {CATEGORIES.map(cat => (
                     <button
                       key={cat.id}
                       type="button"
                       onClick={() => setUploadCategory(cat.id)}
-                      className={`flex-1 py-2 text-[10px] font-label uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 border ${
+                      className={`py-3 text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-3 border-2 rounded-sm ${
                         uploadCategory === cat.id
-                          ? 'text-cyan-400 border-cyan-500/50 bg-cyan-500/10'
-                          : 'text-zinc-500 border-zinc-700 hover:text-zinc-300'
+                          ? 'text-cyan-400 border-cyan-500/40 bg-cyan-500/10 shadow-[0_0_10px_rgba(6,182,212,0.2)]'
+                          : 'text-zinc-700 border-[#1a1a1a] bg-black/40 hover:text-zinc-500'
                       }`}
                     >
-                      <span className="material-symbols-outlined text-xs">{cat.icon}</span>
+                      <span className="material-symbols-outlined text-sm">{cat.icon}</span>
                       {cat.label}
                     </button>
                   ))}
                 </div>
               </div>
-              {}
-              <div>
-                <label className="block font-label text-[10px] text-zinc-400 mb-1 uppercase tracking-widest">Título</label>
-                <input
-                  type="text"
-                  value={uploadTitle}
-                  onChange={e => setUploadTitle(e.target.value)}
-                  placeholder="NOME_DA_IMAGEM..."
-                  className="w-full bg-zinc-900 border border-zinc-800 text-sm text-zinc-200 px-3 py-2 focus:border-cyan-500 outline-none placeholder:text-zinc-700 font-label"
-                />
+
+              <div className="space-y-4">
+                <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest">Nível_de_Criptografia</label>
+                <div className="flex gap-2">
+                  {[1, 2, 3, 4].map(lvl => (
+                    <button
+                      key={lvl}
+                      type="button"
+                      onClick={() => setUploadLevel(lvl)}
+                      className={`flex-1 py-3 text-[9px] font-black uppercase tracking-widest transition-all flex items-center justify-center border-2 rounded-sm ${
+                        uploadLevel === lvl
+                          ? 'text-cyan-400 border-cyan-500/40 bg-cyan-500/10'
+                          : 'text-zinc-700 border-[#1a1a1a] bg-black/40 hover:text-zinc-500'
+                      }`}
+                    >
+                      {lvl === 1 ? 'RESTRITO' : lvl === 2 ? 'CONFIDENCIAL' : lvl === 3 ? 'SIGILOSO' : 'TOP SECRET'}
+                    </button>
+                  ))}
+                </div>
               </div>
-              {}
-              <div>
-                <label className="block font-label text-[10px] text-zinc-400 mb-1 uppercase tracking-widest">Descrição</label>
-                <textarea
-                  value={uploadDesc}
-                  onChange={e => setUploadDesc(e.target.value)}
-                  placeholder="Descrição da imagem..."
-                  rows={3}
-                  className="w-full bg-zinc-900 border border-zinc-800 text-sm text-zinc-200 px-3 py-2 focus:border-cyan-500 outline-none placeholder:text-zinc-700 font-body resize-none"
-                />
+
+              <div className="grid grid-cols-1 gap-6">
+                <div>
+                  <label className="block text-[10px] font-black text-zinc-600 uppercase tracking-widest mb-2">Identificador_do_Registro (Título)</label>
+                  <input
+                    type="text"
+                    value={uploadTitle}
+                    onChange={e => setUploadTitle(e.target.value)}
+                    placeholder="DIGITAR_TÍTULO..."
+                    className="w-full bg-black/60 border-2 border-[#1a1a1a] text-[11px] font-bold text-white px-5 py-4 focus:border-cyan-500/40 outline-none placeholder:text-zinc-800 rounded-sm uppercase tracking-widest"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-zinc-600 uppercase tracking-widest mb-2">Notas_de_Campo (Descrição)</label>
+                  <textarea
+                    value={uploadDesc}
+                    onChange={e => setUploadDesc(e.target.value)}
+                    placeholder="Informações adicionais..."
+                    rows={3}
+                    className="w-full bg-black/60 border-2 border-[#1a1a1a] text-[11px] font-bold text-white px-5 py-4 focus:border-cyan-500/40 outline-none placeholder:text-zinc-800 rounded-sm resize-none tracking-wide"
+                  />
+                </div>
               </div>
-              {}
-              <div>
-                <label className="block font-label text-[10px] text-zinc-400 mb-2 uppercase tracking-widest">Arquivo</label>
+
+              <div className="space-y-4">
+                <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest">Arquivo_de_Imagem</label>
                 {uploadPreview ? (
-                  <div className="relative">
-                    <img src={uploadPreview} alt="Preview" className="w-full max-h-48 object-contain bg-zinc-800 border border-zinc-700" />
+                  <div className="relative group">
+                    <img src={uploadPreview} alt="Preview" className="w-full max-h-64 object-contain bg-black border-4 border-[#1a1a1a] rounded-xl shadow-2xl" />
                     <button
                       onClick={resetUploadForm}
-                      className="absolute top-2 right-2 w-6 h-6 bg-black/70 border border-zinc-600 flex items-center justify-center hover:bg-red-900/50 transition-colors"
+                      className="absolute top-4 right-4 w-10 h-10 bg-black/80 border-2 border-white/10 flex items-center justify-center hover:bg-red-500 hover:text-white transition-all rounded-full"
                     >
-                      <span className="material-symbols-outlined text-xs text-zinc-300">close</span>
+                      <span className="material-symbols-outlined text-sm">close</span>
                     </button>
                   </div>
                 ) : (
                   <button
                     onClick={() => fileInputRef.current?.click()}
-                    className="w-full border-2 border-dashed border-zinc-700 py-8 flex flex-col items-center gap-2 hover:border-cyan-500/30 transition-colors"
+                    className="w-full border-4 border-dashed border-[#1a1a1a] bg-black/20 py-16 flex flex-col items-center gap-4 hover:border-cyan-500/20 transition-all rounded-xl group"
                   >
-                    <span className="material-symbols-outlined text-3xl text-zinc-600">cloud_upload</span>
-                    <span className="text-[10px] font-label text-zinc-500 tracking-widest uppercase">Clique para selecionar</span>
+                    <span className="material-symbols-outlined text-5xl text-zinc-800 group-hover:text-cyan-900 transition-colors">cloud_upload</span>
+                    <span className="text-[10px] font-black text-zinc-700 tracking-[0.4em] uppercase group-hover:text-zinc-500">Selecionar_Unidade_de_Dados</span>
                   </button>
                 )}
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handleFileSelect}
-                  className="hidden"
-                />
+                <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileSelect} className="hidden" />
               </div>
             </div>
-            <div className="px-6 py-4 border-t border-zinc-800 flex justify-end gap-2">
+            
+            <div className="px-10 py-8 border-t-4 border-[#1a1a1a] flex justify-end gap-6 relative z-10 bg-black/40">
               <button
                 onClick={() => { setShowUpload(false); resetUploadForm(); }}
-                className="px-4 py-2 text-xs font-label text-zinc-400 hover:text-white border border-zinc-700 hover:border-zinc-500 transition-colors"
+                className="px-8 py-3 text-[10px] font-black text-zinc-500 hover:text-white transition-colors uppercase tracking-widest"
               >
-                CANCELAR
+                ABORTAR
               </button>
               <button
                 onClick={handleUpload}
                 disabled={!uploadFile || !uploadTitle.trim() || uploading}
-                className="px-5 py-2 text-xs font-label bg-cyan-900/60 text-cyan-300 font-bold tracking-wider hover:bg-cyan-800/60 transition-all disabled:opacity-30 disabled:cursor-not-allowed border border-cyan-700/30"
+                className="bg-cyan-600 hover:bg-cyan-500 text-white px-12 py-3 rounded-sm font-black text-[10px] tracking-widest uppercase transition-all active:scale-95 disabled:opacity-20 shadow-[0_0_15px_rgba(6,182,212,0.2)]"
               >
-                {uploading ? 'ENVIANDO...' : 'ENVIAR'}
+                {uploading ? 'TRANSMITINDO...' : 'ENVIAR_PARA_GRID'}
               </button>
             </div>
           </div>
         </div>
       )}
-      {}
+
       {showGrantModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
-          <div className="bg-surface-container-low border border-cyan-500/30 w-full max-w-lg machined-edge flex flex-col max-h-[85vh]">
-            <div className="px-6 pt-5 pb-4 border-b border-zinc-800">
-              <div className="flex items-center gap-3 mb-1">
-                <span className="material-symbols-outlined text-cyan-400 text-xl">group_add</span>
-                <h3 className="font-headline text-lg text-zinc-200">GERENCIAR_ACESSO</h3>
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/95 p-4 backdrop-blur-xl">
+          <div className="bg-[#222] border-8 border-[#1a1a1a] w-full max-w-xl rounded-[32px] shadow-2xl flex flex-col max-h-[85vh] relative overflow-hidden">
+            <Screw className="top-4 left-4" /><Screw className="top-4 right-4 -rotate-90" /><Screw className="bottom-4 left-4 -rotate-90" /><Screw className="bottom-4 right-4" />
+            <div className="noise-overlay" /><div className="scanlines" />
+            
+            <div className="px-10 pt-10 pb-6 border-b-4 border-[#1a1a1a] relative z-10 bg-black/40">
+              <div className="flex items-center gap-4 mb-8">
+                <span className="material-symbols-outlined text-cyan-400 text-2xl">group_add</span>
+                <h3 className="font-black text-xl text-white uppercase tracking-widest">Gerenciar_Sincronização</h3>
               </div>
-              <div className="flex items-center gap-3 mt-3 bg-zinc-900 p-3 border border-zinc-800">
-                <img src={showGrantModal.imageUrl} alt="" className="w-12 h-12 object-cover border border-zinc-700" />
+              <div className="flex items-center gap-6 bg-black/60 p-5 border-2 border-[#1a1a1a] rounded-xl shadow-inner">
+                <img src={showGrantModal.imageUrl} alt="" className="w-16 h-16 object-cover border-2 border-[#1a1a1a] rounded-sm grayscale" />
                 <div className="flex-1 min-w-0">
-                  <p className="font-headline text-xs font-bold text-zinc-200 truncate">{showGrantModal.title}</p>
-                  <p className="text-[9px] font-label text-cyan-500/70 uppercase tracking-widest">{getCategoryInfo(showGrantModal.category).label}</p>
+                  <p className="font-black text-sm text-white truncate uppercase tracking-wider">{showGrantModal.title}</p>
+                  <p className="text-[10px] font-bold text-cyan-500/50 uppercase tracking-widest mt-1">{getCategoryInfo(showGrantModal.category).label}</p>
                 </div>
-                <span className="text-[10px] font-label text-zinc-500 tracking-wider shrink-0">{grantedUids.size} LIBERADOS</span>
+                <div className="bg-black/80 px-3 py-1.5 border border-white/5 rounded-sm">
+                   <span className="text-[10px] font-black text-cyan-400 tracking-widest">{grantedUids.size} ATIVOS</span>
+                </div>
               </div>
             </div>
-            <div className="px-5 py-3 border-b border-zinc-800 flex gap-2">
-              <input
-                type="text"
-                placeholder="BUSCAR_JOGADOR..."
-                value={playerSearch}
-                onChange={e => setPlayerSearch(e.target.value)}
-                className="flex-1 bg-zinc-900 border border-zinc-800 text-[10px] font-label uppercase tracking-widest focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500 placeholder:text-zinc-700 text-zinc-300 px-3 py-2"
-              />
+
+            <div className="px-10 py-6 border-b-2 border-[#1a1a1a] flex gap-4 relative z-10">
+              <div className="relative flex-1">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 material-symbols-outlined text-zinc-700 text-sm">search</span>
+                <input
+                  type="text"
+                  placeholder="BUSCAR_AGENTES..."
+                  value={playerSearch}
+                  onChange={e => setPlayerSearch(e.target.value)}
+                  className="w-full bg-black/60 border-2 border-[#1a1a1a] text-[11px] font-bold uppercase tracking-widest focus:ring-1 focus:ring-cyan-500 placeholder:text-zinc-900 text-white px-12 py-3.5 rounded-sm transition-all"
+                />
+              </div>
               <button
                 onClick={grantToAll}
                 disabled={grantLoading}
-                className="px-3 py-2 text-[10px] font-label uppercase tracking-widest bg-cyan-900/30 text-cyan-400 border border-cyan-700/30 hover:bg-cyan-800/30 transition-colors disabled:opacity-30 shrink-0"
+                className="px-6 py-3 text-[10px] font-black uppercase tracking-widest bg-cyan-900/20 text-cyan-400 border-2 border-cyan-500/20 hover:bg-cyan-500 hover:text-black transition-all disabled:opacity-20 rounded-sm active:scale-95"
               >
-                LIBERAR_TODOS
+                LIBERAR_GLOBAL
               </button>
             </div>
-            <div className="flex-1 overflow-y-auto min-h-0">
+
+            <div className="flex-1 overflow-y-auto min-h-0 px-10 py-4 relative z-10 custom-scrollbar bg-black/20">
               {grantLoading ? (
-                <div className="p-8 text-center">
-                  <span className="material-symbols-outlined text-xl text-zinc-600 animate-spin block mb-2">sync</span>
-                  <p className="font-label text-xs text-zinc-600 tracking-widest">CARREGANDO...</p>
+                <div className="p-16 text-center">
+                  <span className="material-symbols-outlined text-2xl text-cyan-900 animate-spin block mb-4">sync</span>
+                  <p className="font-black text-[10px] text-zinc-700 tracking-[0.4em]">PROCESSANDO...</p>
                 </div>
               ) : filteredPlayers.length === 0 ? (
-                <div className="p-8 text-center text-zinc-600 font-label text-xs tracking-widest">
-                  NENHUM_JOGADOR_ENCONTRADO
+                <div className="p-16 text-center text-zinc-800 font-black text-[10px] uppercase tracking-[0.4em]">
+                  SEM_AGENTES_LOCALIZADOS
                 </div>
               ) : (
-                filteredPlayers.map(u => {
-                  const isGranted = grantedUids.has(u.uid);
-                  return (
-                    <button
-                      key={u.uid}
-                      onClick={() => toggleGrant(u.uid)}
-                      className={`w-full text-left px-5 py-3 border-b border-zinc-800/40 last:border-b-0 transition-all flex items-center gap-3 ${
-                        isGranted ? 'bg-cyan-500/5' : 'hover:bg-zinc-800/30'
-                      }`}
-                    >
-                      <div className={`w-4 h-4 border flex items-center justify-center shrink-0 transition-colors ${
-                        isGranted ? 'bg-cyan-500 border-cyan-500' : 'border-zinc-600'
-                      }`}>
-                        {isGranted && <span className="material-symbols-outlined text-white text-xs">check</span>}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className={`font-headline text-xs font-bold truncate ${isGranted ? 'text-cyan-300' : 'text-zinc-200'}`}>
-                          {u.displayName || u.username || 'UNKNOWN'}
-                        </p>
-                        <p className="text-[9px] font-label text-zinc-600 truncate">{u.email}</p>
-                      </div>
-                      <span className={`text-[8px] font-label uppercase tracking-wider px-1.5 py-0.5 border shrink-0 ${
-                        isGranted
-                          ? 'border-cyan-500/30 text-cyan-400'
-                          : 'border-zinc-700 text-zinc-600'
-                      }`}>
-                        {isGranted ? 'LIBERADO' : 'BLOQUEADO'}
-                      </span>
-                    </button>
-                  );
-                })
+                <div className="grid grid-cols-1 gap-2">
+                  {filteredPlayers.map(u => {
+                    const isGranted = grantedUids.has(u.uid);
+                    return (
+                      <button
+                        key={u.uid}
+                        onClick={() => toggleGrant(u.uid)}
+                        className={`w-full text-left p-4 transition-all flex items-center gap-4 rounded-xl border-2 group ${
+                          isGranted ? 'bg-cyan-500/5 border-cyan-500/30' : 'bg-transparent border-transparent hover:bg-white/5'
+                        }`}
+                      >
+                        <div className={`w-5 h-5 border-2 flex items-center justify-center shrink-0 transition-all rounded-sm ${
+                          isGranted ? 'bg-cyan-500 border-cyan-500 shadow-[0_0_8px_rgba(6,182,212,0.4)]' : 'border-zinc-800'
+                        }`}>
+                          {isGranted && <span className="material-symbols-outlined text-white text-[14px] font-black">check</span>}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className={`font-black text-xs uppercase truncate transition-colors ${isGranted ? 'text-cyan-400' : 'text-zinc-500 group-hover:text-zinc-300'}`}>
+                            {u.displayName || u.username || 'AGENT_NULL'}
+                          </p>
+                          <p className="text-[9px] font-mono text-zinc-700 font-bold truncate tracking-widest">{u.email}</p>
+                        </div>
+                        <span className={`text-[8px] font-black uppercase tracking-[0.2em] px-2 py-1 border transition-all ${
+                          isGranted
+                            ? 'border-cyan-500/40 text-cyan-500 bg-cyan-500/5 shadow-inner'
+                            : 'border-zinc-900 text-zinc-800'
+                        }`}>
+                          {isGranted ? 'SINC_OK' : 'OFFLINE'}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
               )}
             </div>
-            <div className="px-5 py-4 border-t border-zinc-800 flex justify-end">
+
+            <div className="px-10 py-8 border-t-4 border-[#1a1a1a] flex justify-end relative z-10 bg-black/40">
               <button
                 onClick={() => { setShowGrantModal(null); setGrantedUids(new Set()); }}
-                className="px-4 py-2 text-xs font-label text-zinc-400 hover:text-white border border-zinc-700 hover:border-zinc-500 transition-colors"
+                className="bg-[#333] hover:bg-[#444] text-white px-12 py-3.5 text-[10px] font-black uppercase tracking-widest transition-all rounded-sm active:scale-95"
               >
-                FECHAR
+                CONCLUIR_SINC
               </button>
             </div>
           </div>
         </div>
       )}
-      {}
+
       {previewImage && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md cursor-pointer"
+          className="fixed inset-0 z-[120] flex items-center justify-center bg-black/98 backdrop-blur-2xl cursor-pointer"
           onClick={() => setPreviewImage(null)}
         >
-          <div className="relative max-w-4xl max-h-[90vh] w-full mx-4" onClick={e => e.stopPropagation()}>
-            <img
-              src={previewImage.imageUrl}
-              alt={previewImage.title}
-              className="w-full h-auto max-h-[75vh] object-contain"
-            />
-            <div className="mt-3 px-2">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="material-symbols-outlined text-xs text-cyan-500">{getCategoryInfo(previewImage.category).icon}</span>
-                <span className="text-[9px] font-label uppercase tracking-widest text-cyan-500/70">{getCategoryInfo(previewImage.category).label}</span>
+          <div className="relative max-w-5xl max-h-[90vh] w-full mx-6 flex flex-col items-center" onClick={e => e.stopPropagation()}>
+            <div className="bg-black border-4 border-[#1a1a1a] p-4 rounded-xl shadow-2xl relative">
+               <img src={previewImage.imageUrl} alt={previewImage.title} className="max-w-full max-h-[70vh] object-contain grayscale-0 transition-all" />
+               <div className="absolute top-4 left-4 bg-black/60 backdrop-blur-md px-3 py-1 border border-white/10 rounded-sm flex items-center gap-2">
+                  <span className="material-symbols-outlined text-xs text-cyan-500">{getCategoryInfo(previewImage.category).icon}</span>
+                  <span className="text-[9px] font-black text-cyan-400 uppercase tracking-widest">{getCategoryInfo(previewImage.category).label}</span>
+               </div>
+            </div>
+            <div className="mt-8 text-center max-w-2xl">
+              <div className="flex items-center justify-center gap-3 mb-2">
+                 <div className="h-px w-8 bg-zinc-800" />
+                 <span className="text-[10px] font-black text-cyan-500/50 uppercase tracking-[0.3em]">Nível_de_Criptografia_{previewImage.level || 1}</span>
+                 <div className="h-px w-8 bg-zinc-800" />
               </div>
-              <p className="font-headline text-lg font-bold text-white">{previewImage.title}</p>
+              <h4 className="text-3xl font-black text-white uppercase tracking-tighter mb-4">{previewImage.title}</h4>
               {previewImage.description && (
-                <p className="text-sm text-zinc-400 mt-1">{previewImage.description}</p>
+                <p className="text-sm text-zinc-500 font-bold uppercase tracking-wide leading-relaxed">{previewImage.description}</p>
               )}
             </div>
             <button
               onClick={() => setPreviewImage(null)}
-              className="absolute top-2 right-2 w-8 h-8 bg-black/70 border border-zinc-600 flex items-center justify-center hover:bg-zinc-800 transition-colors"
+              className="absolute -top-12 right-0 w-12 h-12 bg-black/60 border-2 border-white/5 flex items-center justify-center hover:bg-white hover:text-black transition-all rounded-full group shadow-2xl"
             >
-              <span className="material-symbols-outlined text-white text-sm">close</span>
+              <span className="material-symbols-outlined text-xl group-hover:rotate-90 transition-transform">close</span>
             </button>
+          </div>
+        </div>
+      )}
+
+      {editModalImage && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/95 p-4 backdrop-blur-xl">
+          <div className="bg-[#222] border-8 border-[#1a1a1a] w-full max-w-xl rounded-[32px] shadow-2xl flex flex-col max-h-[85vh] relative overflow-hidden">
+            <Screw className="top-4 left-4" /><Screw className="top-4 right-4 -rotate-90" /><Screw className="bottom-4 left-4 -rotate-90" /><Screw className="bottom-4 right-4" />
+            <div className="noise-overlay" /><div className="scanlines" />
+            
+            <div className="px-10 pt-10 pb-6 border-b-4 border-[#1a1a1a] relative z-10 bg-black/40">
+              <div className="flex items-center gap-4">
+                <span className="material-symbols-outlined text-emerald-400 text-2xl">edit</span>
+                <h3 className="font-black text-xl text-white uppercase tracking-widest">Ajustar_Propriedades</h3>
+              </div>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-10 space-y-8 relative z-10 custom-scrollbar">
+              <div className="space-y-4">
+                <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest">Nova_Classificação</label>
+                <div className="grid grid-cols-2 gap-3">
+                  {CATEGORIES.map(cat => (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      onClick={() => setEditCategory(cat.id)}
+                      className={`py-3 text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-3 border-2 rounded-sm ${
+                        editCategory === cat.id
+                          ? 'text-emerald-400 border-emerald-500/40 bg-emerald-500/10 shadow-[0_0_10px_rgba(52,211,153,0.2)]'
+                          : 'text-zinc-700 border-[#1a1a1a] bg-black/40'
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-sm">{cat.icon}</span>
+                      {cat.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest">Nível_de_Acesso</label>
+                <div className="flex gap-2">
+                  {[1, 2, 3, 4].map(lvl => (
+                    <button
+                      key={lvl}
+                      type="button"
+                      onClick={() => setEditLevel(lvl)}
+                      className={`flex-1 py-3 text-[9px] font-black uppercase transition-all flex items-center justify-center border-2 rounded-sm ${
+                        editLevel === lvl
+                          ? 'text-emerald-400 border-emerald-500/40 bg-emerald-500/10'
+                          : 'text-zinc-700 border-[#1a1a1a] bg-black/40'
+                      }`}
+                    >
+                      {lvl === 1 ? 'RESTRITO' : lvl === 2 ? 'CONFIDENCIAL' : lvl === 3 ? 'SIGILOSO' : 'TOP SECRET'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-[10px] font-black text-zinc-600 uppercase tracking-widest mb-2">Título_do_Registro</label>
+                  <input
+                    type="text"
+                    value={editTitle}
+                    onChange={e => setEditTitle(e.target.value)}
+                    className="w-full bg-black/60 border-2 border-[#1a1a1a] text-[11px] font-bold text-white px-5 py-4 focus:border-emerald-500/40 outline-none rounded-sm uppercase tracking-widest"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-zinc-600 uppercase tracking-widest mb-2">Descrição_do_Arquivo</label>
+                  <textarea
+                    value={editDesc}
+                    onChange={e => setEditDesc(e.target.value)}
+                    rows={3}
+                    className="w-full bg-black/60 border-2 border-[#1a1a1a] text-[11px] font-bold text-white px-5 py-4 focus:border-emerald-500/40 outline-none rounded-sm resize-none tracking-wide"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="px-10 py-8 border-t-4 border-[#1a1a1a] flex justify-end gap-6 relative z-10 bg-black/40">
+              <button
+                onClick={() => setEditModalImage(null)}
+                className="px-8 py-3 text-[10px] font-black text-zinc-500 hover:text-white transition-colors uppercase tracking-widest"
+              >
+                CANCELAR
+              </button>
+              <button
+                onClick={saveEdit}
+                disabled={!editTitle.trim() || editSaving}
+                className="bg-emerald-600 hover:bg-emerald-500 text-white px-12 py-3 rounded-sm font-black text-[10px] tracking-widest uppercase transition-all active:scale-95 shadow-[0_0_15px_rgba(16,185,129,0.2)]"
+              >
+                {editSaving ? 'GRAVANDO...' : 'SALVAR_METADADOS'}
+              </button>
+            </div>
           </div>
         </div>
       )}

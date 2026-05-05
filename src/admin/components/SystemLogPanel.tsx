@@ -180,7 +180,7 @@ export default function SystemLogPanel() {
       if (filterType !== 'all' && e.type !== filterType) return false;
       if (filterCategory && e.category !== filterCategory) return false;
       if (filterUser && e.username !== filterUser) return false;
-      if (searchText && !e.message.toLowerCase().includes(searchText.toLowerCase())) return false;
+      if (searchText && !(e.message || '').toLowerCase().includes(searchText.toLowerCase())) return false;
       return true;
     });
   }, [entries, filterSource, filterType, filterCategory, filterUser, searchText]);
@@ -238,29 +238,29 @@ export default function SystemLogPanel() {
     URL.revokeObjectURL(url);
   };
   return (
-    <div className="bg-surface-container border border-zinc-800 machined-edge flex flex-col" style={{ minHeight: '400px', maxHeight: '55vh' }}>
+    <div className="bg-[#1a1a1a] border-4 border-[#1a1a1a] rounded-xl flex flex-col font-chakra overflow-hidden shadow-2xl" style={{ minHeight: '400px', maxHeight: '55vh' }}>
       {modal}
-      {}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800 shrink-0">
-        <div className="flex items-center gap-3">
-          <span className="material-symbols-outlined text-orange-500 text-lg">list_alt</span>
-          <h2 className="font-headline font-bold uppercase tracking-widest text-sm text-on-surface">
-            Logs_do_Sistema
+      
+      <div className="flex items-center justify-between px-6 py-4 bg-black/40 border-b-4 border-[#1a1a1a] shrink-0">
+        <div className="flex items-center gap-4">
+          <div className="w-2 h-2 bg-primary rounded-full animate-pulse shadow-[0_0_8px_rgba(255,140,0,0.4)]" />
+          <h2 className="font-black uppercase tracking-widest text-sm text-primary">
+            Fluxo_de_Dados_do_Nucleo
           </h2>
-          <span className="text-[9px] font-label text-zinc-600 tracking-wider">
-            {filtered.length}/{entries.length}
+          <span className="text-[10px] font-bold text-zinc-600 tracking-wider">
+            {filtered.length}/{entries.length} REGISTROS
           </span>
           {errorCount > 0 && (
-            <span className="text-[8px] font-label font-bold text-red-400 bg-red-500/10 border border-red-500/20 px-1.5 py-0.5 rounded flex items-center gap-1">
-              <span className="material-symbols-outlined text-[10px]">error</span>
-              {errorCount} ERROS
-            </span>
+            <div className="text-[9px] font-black text-red-500 bg-red-500/10 border border-red-500/20 px-2 py-0.5 rounded-sm flex items-center gap-1.5 animate-pulse">
+              <span className="material-symbols-outlined text-[12px]">report</span>
+              {errorCount} ANOMALIAS
+            </div>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           <button
             onClick={handleExportJSON}
-            className="px-3 py-1 text-[9px] font-label font-bold uppercase tracking-widest bg-zinc-900 border border-zinc-700 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-300 transition-colors machined-edge flex items-center gap-1"
+            className="px-4 py-1.5 text-[9px] font-black uppercase tracking-widest bg-zinc-900/50 border border-zinc-700/30 text-zinc-400 hover:bg-zinc-800 hover:text-primary transition-all flex items-center gap-2 rounded-sm"
           >
             <span className="material-symbols-outlined text-xs">download</span>
             EXPORTAR
@@ -268,10 +268,10 @@ export default function SystemLogPanel() {
           <button
             onClick={handleClearLogs}
             disabled={isClearing}
-            className={`px-3 py-1 text-[9px] font-label font-bold uppercase tracking-widest border machined-edge transition-colors flex items-center gap-1 ${
+            className={`px-4 py-1.5 text-[9px] font-black uppercase tracking-widest border transition-all flex items-center gap-2 rounded-sm ${
               isClearing
                 ? 'bg-zinc-800 text-zinc-600 border-zinc-700'
-                : 'bg-red-900/20 text-red-500 border-red-500/20 hover:bg-red-900/40'
+                : 'bg-red-950/20 text-red-500 border-red-500/20 hover:bg-red-900/40 hover:scale-105'
             }`}
           >
             <span className="material-symbols-outlined text-xs">delete_forever</span>
@@ -279,13 +279,13 @@ export default function SystemLogPanel() {
           </button>
         </div>
       </div>
-      {}
-      <div className="flex items-center gap-2 px-4 py-2 border-b border-zinc-800/60 shrink-0 flex-wrap">
-        <span className="text-[8px] font-label text-zinc-600 tracking-widest shrink-0">FILTROS:</span>
+
+      <div className="flex items-center gap-3 px-6 py-3 bg-black/20 border-b border-white/5 shrink-0 flex-wrap">
+        <span className="text-[9px] font-black text-zinc-600 tracking-widest shrink-0 uppercase">Filtros_de_Rede:</span>
         <select
           value={filterSource}
           onChange={(e) => setFilterSource(e.target.value)}
-          className="bg-zinc-900 border border-zinc-800 text-[9px] font-label uppercase tracking-widest text-zinc-300 px-2 py-1 focus:ring-1 focus:ring-orange-500"
+          className="bg-black/60 border border-[#1a1a1a] text-[10px] font-bold uppercase tracking-widest text-primary px-3 py-1 focus:ring-1 focus:ring-primary outline-none rounded-sm transition-all"
         >
           <option value="all">ORIGEM: TUDO</option>
           <option value="player">JOGADOR</option>
@@ -294,7 +294,7 @@ export default function SystemLogPanel() {
         <select
           value={filterType}
           onChange={(e) => setFilterType(e.target.value)}
-          className="bg-zinc-900 border border-zinc-800 text-[9px] font-label uppercase tracking-widest text-zinc-300 px-2 py-1 focus:ring-1 focus:ring-orange-500"
+          className="bg-black/60 border border-[#1a1a1a] text-[10px] font-bold uppercase tracking-widest text-primary px-3 py-1 focus:ring-1 focus:ring-primary outline-none rounded-sm transition-all"
         >
           <option value="all">TIPO: TUDO</option>
           <option value="navigation">NAV</option>
@@ -305,45 +305,24 @@ export default function SystemLogPanel() {
           <option value="admin">ADM</option>
           <option value="trace">TRC</option>
         </select>
-        {uniqueCategories.length > 0 && (
-          <select
-            value={filterCategory}
-            onChange={(e) => setFilterCategory(e.target.value)}
-            className="bg-zinc-900 border border-zinc-800 text-[9px] font-label uppercase tracking-widest text-zinc-300 px-2 py-1 focus:ring-1 focus:ring-orange-500"
-          >
-            <option value="">CATEGORIA: TUDO</option>
-            {uniqueCategories.map((c) => (
-              <option key={c} value={c}>{c.toUpperCase()}</option>
-            ))}
-          </select>
-        )}
-        {uniqueUsers.length > 0 && (
-          <select
-            value={filterUser}
-            onChange={(e) => setFilterUser(e.target.value)}
-            className="bg-zinc-900 border border-zinc-800 text-[9px] font-label uppercase tracking-widest text-zinc-300 px-2 py-1 focus:ring-1 focus:ring-orange-500"
-          >
-            <option value="">USUÁRIO: TUDO</option>
-            {uniqueUsers.map((u) => (
-              <option key={u} value={u}>{u}</option>
-            ))}
-          </select>
-        )}
-        <div className="flex-1" />
-        <input
-          type="text"
-          placeholder="BUSCAR_MENSAGEM..."
-          value={searchText}
-          onChange={(e) => setSearchText(e.target.value)}
-          className="bg-zinc-900 border border-zinc-800 text-[9px] font-label uppercase tracking-widest text-zinc-300 placeholder:text-zinc-700 px-2 py-1 w-44 focus:ring-1 focus:ring-orange-500 focus:border-orange-500"
-        />
+        <div className="flex-1 min-w-[20px]" />
+        <div className="relative">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-zinc-600 text-xs pointer-events-none">search</span>
+          <input
+            type="text"
+            placeholder="BUSCAR_MENSAGEM..."
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+            className="bg-black/60 border border-[#1a1a1a] text-[10px] font-bold uppercase tracking-widest text-white placeholder:text-zinc-700 pl-8 pr-3 py-1.5 w-56 focus:ring-1 focus:ring-primary outline-none rounded-sm transition-all"
+          />
+        </div>
       </div>
-      {}
-      <div className="flex-1 overflow-y-auto min-h-0">
+
+      <div className="flex-1 overflow-y-auto min-h-0 bg-black/40 custom-scrollbar">
         {filtered.length === 0 ? (
-          <div className="flex items-center justify-center h-full text-zinc-700 font-label text-xs tracking-widest">
-            <span className="material-symbols-outlined text-lg mr-2 text-zinc-800">inbox</span>
-            NENHUM_LOG_ENCONTRADO
+          <div className="flex flex-col items-center justify-center h-full text-zinc-700 gap-4">
+            <span className="material-symbols-outlined text-5xl opacity-10">inbox</span>
+            <p className="font-bold text-[10px] uppercase tracking-[0.4em]">Sinal_de_Log_Ausente</p>
           </div>
         ) : (
           filtered.map((entry) => (
@@ -356,20 +335,21 @@ export default function SystemLogPanel() {
           ))
         )}
       </div>
-      {}
-      <div className="flex items-center justify-between px-4 py-2 border-t border-zinc-800 shrink-0">
-        <span className="text-[8px] font-label text-zinc-600 tracking-widest">
-          MOSTRANDO {filtered.length} DE {entries.length} (LIMITE: {maxEntries})
+
+      <div className="flex items-center justify-between px-6 py-3 bg-black/40 border-t border-[#1a1a1a] shrink-0">
+        <span className="text-[10px] font-bold text-zinc-600 tracking-widest uppercase opacity-60">
+          Monitorando {filtered.length} de {entries.length} fluxos
         </span>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-3">
+          <span className="text-[9px] font-black text-zinc-700 uppercase mr-1">Limite:</span>
           {[200, 500, 1000].map((n) => (
             <button
               key={n}
               onClick={() => setMaxEntries(n)}
-              className={`px-2 py-0.5 text-[8px] font-label tracking-wider border transition-colors ${
+              className={`px-3 py-1 text-[10px] font-black tracking-tighter transition-all rounded-sm border ${
                 maxEntries === n
-                  ? 'text-orange-400 border-orange-500/30 bg-orange-500/10'
-                  : 'text-zinc-600 border-zinc-800 hover:text-zinc-400'
+                  ? 'text-primary border-primary bg-primary/10'
+                  : 'text-zinc-600 border-[#1a1a1a] hover:text-zinc-400 hover:bg-white/5'
               }`}
             >
               {n}

@@ -7,6 +7,8 @@ import { userService } from '../../services/UserService';
 import { activityLogger } from '../../services/ActivityLogger';
 import { db } from '../../lib/firebase';
 import { collection, onSnapshot } from 'firebase/firestore';
+import { useModal } from './ConfirmModal';
+import Screw from '../../components/player/Screw';
 
 interface GroupManagerProps {
   isAdmin: boolean;
@@ -18,6 +20,7 @@ export default function GroupManager({ isAdmin }: GroupManagerProps) {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [isCreating, setIsCreating] = useState(false);
   const [editingGroup, setEditingGroup] = useState<Group | null>(null);
+  const { showConfirm, modal } = useModal();
   
   // Form State
   const [groupName, setGroupName] = useState("");
@@ -48,11 +51,6 @@ export default function GroupManager({ isAdmin }: GroupManagerProps) {
 
     try {
       await groupService.createGroup(groupName, selectedPlayers, sessions);
-      // Se tiver campanha selecionada, atualiza depois (ou poderíamos passar no createGroup se refatorado)
-      if (selectedCampaign) {
-        // Encontrar o id do grupo recém criado (um pouco hacky sem mudar a API do service)
-        // O ideal é que o createGroup já aceite campaignId
-      }
       activityLogger.logAdmin('gm.mpg', 'group_created', `Grupo criado: ${groupName}`, { players: selectedPlayers.length });
       resetForm();
     } catch (error) {
@@ -79,7 +77,8 @@ export default function GroupManager({ isAdmin }: GroupManagerProps) {
   };
 
   const handleDeleteGroup = async (id: string) => {
-    if (!window.confirm("Tem certeza que deseja excluir este grupo?")) return;
+    const ok = await showConfirm('Excluir Grupo', "Tem certeza que deseja excluir este esquadrão PERMANENTEMENTE?", 'Excluir');
+    if (!ok) return;
     try {
       await groupService.deleteGroup(id);
       activityLogger.logAdmin('gm.mpg', 'group_deleted', `Grupo excluído: ${id}`);
@@ -124,171 +123,193 @@ export default function GroupManager({ isAdmin }: GroupManagerProps) {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8 font-chakra">
       {/* Cabeçalho de Grupos */}
       <div className="flex items-center justify-between">
-        <h3 className="text-zinc-400 font-label text-[10px] uppercase tracking-widest">Gerenciamento_de_Grupos_de_RPG</h3>
+        <div className="flex items-center gap-3">
+           <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+           <h3 className="text-zinc-600 font-black text-[10px] uppercase tracking-[0.3em]">Gerenciamento_de_Esquadrões_RPG</h3>
+        </div>
         {!isCreating && (
           <button 
             onClick={() => setIsCreating(true)}
-            className="flex items-center gap-1.5 bg-orange-600/20 text-orange-500 px-3 py-1.5 rounded-sm font-label text-[10px] font-bold tracking-widest border border-orange-500/30 hover:bg-orange-600/30 transition-all"
+            className="flex items-center gap-2 bg-primary/10 text-primary px-6 py-2 rounded-sm font-black text-[10px] tracking-widest border border-primary/20 hover:bg-primary/20 transition-all active:scale-95 glow-orange uppercase"
           >
-            <span className="material-symbols-outlined text-xs">group_add</span>
-            NOVO_GRUPO
+            <span className="material-symbols-outlined text-sm">group_add</span>
+            NOVO_ESQUADRÃO
           </button>
         )}
       </div>
 
       {isCreating ? (
-        <div className="bg-zinc-900/50 border border-zinc-800 p-6 machined-edge">
-          <form onSubmit={editingGroup ? handleUpdateGroup : handleCreateGroup} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div className="bg-[#1a1a1a] border-4 border-[#1a1a1a] p-8 rounded-xl shadow-2xl relative overflow-hidden">
+          <div className="noise-overlay" /><div className="scanlines" />
+          <form onSubmit={editingGroup ? handleUpdateGroup : handleCreateGroup} className="space-y-8 relative z-10">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
               {/* Coluna 1: Info Básica */}
-              <div className="space-y-4">
+              <div className="space-y-6">
                 <div>
-                  <label className="block font-label text-[10px] text-zinc-500 mb-2 uppercase tracking-tighter">Nome do Grupo (Mesa)</label>
+                  <label className="block font-black text-[10px] text-zinc-500 mb-3 uppercase tracking-widest">Identificador_do_Grupo (Mesa)</label>
                   <input 
                     type="text" 
                     value={groupName}
                     onChange={(e) => setGroupName(e.target.value)}
-                    placeholder="Ex: A Maldição de Strahd"
-                    className="w-full bg-zinc-950 border border-zinc-800 text-zinc-200 px-3 py-2 text-sm focus:border-orange-500 outline-none"
+                    placeholder="EX: NÉVOA_DE_RAVENLOFT"
+                    className="w-full bg-black/60 border-2 border-[#1a1a1a] text-white px-4 py-3 text-[11px] font-bold focus:border-primary outline-none rounded-sm uppercase transition-all"
                     required
                   />
                 </div>
 
                 <div>
-                  <label className="block font-label text-[10px] text-zinc-500 mb-2 uppercase tracking-tighter">Campanha Vinculada</label>
+                  <label className="block font-black text-[10px] text-zinc-500 mb-3 uppercase tracking-widest">Nó_de_Missão_Vinculado</label>
                   <select 
                     value={selectedCampaign}
                     onChange={(e) => setSelectedCampaign(e.target.value)}
-                    className="w-full bg-zinc-950 border border-zinc-800 text-zinc-200 px-3 py-2 text-xs focus:border-orange-500 outline-none"
+                    className="w-full bg-black/60 border-2 border-[#1a1a1a] text-primary text-[10px] font-black px-4 py-3 outline-none focus:border-primary uppercase rounded-sm transition-all"
                   >
-                    <option value="">Nenhuma</option>
+                    <option value="">-- SEM_VÍNCULO_DIRETO --</option>
                     {campaigns.map(c => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
+                      <option key={c.id} value={c.id}>{c.name.toUpperCase()}</option>
                     ))}
                   </select>
                 </div>
 
-                <div>
-                  <label className="block font-label text-[10px] text-zinc-500 mb-2 uppercase tracking-tighter">Datas das Sessões</label>
-                  <div className="flex gap-2 mb-3">
+                <div className="pt-4 border-t border-white/5">
+                  <label className="block font-black text-[10px] text-zinc-500 mb-3 uppercase tracking-widest">Registros_de_Sessão</label>
+                  <div className="flex gap-2 mb-4">
                     <input 
                       type="date" 
                       value={sessionDate}
                       onChange={(e) => setSessionDate(e.target.value)}
-                      className="flex-1 bg-zinc-950 border border-zinc-800 text-zinc-200 px-3 py-2 text-xs focus:border-orange-500 outline-none"
+                      className="flex-1 bg-black/60 border-2 border-[#1a1a1a] text-white px-4 py-3 text-[10px] font-bold focus:border-primary outline-none rounded-sm"
                     />
                     <button 
                       type="button"
                       onClick={addSession}
-                      className="bg-zinc-800 text-zinc-300 px-4 py-2 text-xs font-bold hover:bg-zinc-700"
+                      className="bg-[#333] hover:bg-[#444] text-white px-6 py-2 text-[10px] font-black uppercase tracking-widest transition-all rounded-sm"
                     >
-                      ADICIONAR
+                      ADD_DATA
                     </button>
                   </div>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-2 min-h-[40px] bg-black/40 p-3 rounded-sm border border-[#1a1a1a]">
                     {sessions.map(date => (
-                      <span key={date} className="bg-zinc-800 text-zinc-300 px-2 py-1 rounded text-[10px] font-mono flex items-center gap-2 border border-zinc-700">
+                      <span key={date} className="bg-black border border-white/10 text-primary px-3 py-1.5 rounded-sm text-[9px] font-mono font-black flex items-center gap-3 shadow-lg">
                         {date}
-                        <button type="button" onClick={() => removeSession(date)} className="text-red-500 hover:text-red-400">×</button>
+                        <button type="button" onClick={() => removeSession(date)} className="text-zinc-600 hover:text-red-500 transition-colors">×</button>
                       </span>
                     ))}
-                    {sessions.length === 0 && <p className="text-zinc-600 text-[10px] italic">Nenhuma sessão registrada</p>}
+                    {sessions.length === 0 && <p className="text-zinc-800 text-[9px] font-black uppercase tracking-widest italic pt-1">Nenhum Registro Temporal</p>}
                   </div>
                 </div>
               </div>
 
               {/* Coluna 2: Seleção de Jogadores */}
               <div>
-                <label className="block font-label text-[10px] text-zinc-500 mb-2 uppercase tracking-tighter">Vincular Jogadores ({selectedPlayers.length})</label>
-                <div className="bg-zinc-950 border border-zinc-800 h-64 overflow-y-auto p-2 space-y-1">
+                <label className="block font-black text-[10px] text-zinc-500 mb-3 uppercase tracking-widest">Vincular_Agentes_ao_Vetor ({selectedPlayers.length})</label>
+                <div className="bg-black/60 border-2 border-[#1a1a1a] h-72 overflow-y-auto p-3 space-y-1 custom-scrollbar rounded-sm">
                   {users.filter(u => u.role !== 'admin').map(user => (
                     <button
                       key={user.uid}
                       type="button"
                       onClick={() => togglePlayer(user.uid)}
-                      className={`w-full flex items-center justify-between p-2 text-left text-xs transition-colors ${
+                      className={`w-full flex items-center justify-between p-3 text-left transition-all border-2 rounded-sm group ${
                         selectedPlayers.includes(user.uid) 
-                          ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30' 
-                          : 'text-zinc-500 hover:bg-zinc-900 border border-transparent'
+                          ? 'bg-primary/5 border-primary/30 text-primary shadow-inner' 
+                          : 'bg-transparent border-transparent text-zinc-700 hover:bg-white/5'
                       }`}
                     >
-                      <span>{user.displayName || user.username}</span>
-                      {selectedPlayers.includes(user.uid) && <span className="material-symbols-outlined text-xs">check_circle</span>}
+                      <div className="min-w-0">
+                         <p className={`font-black text-[11px] uppercase truncate ${selectedPlayers.includes(user.uid) ? 'text-primary' : 'text-zinc-500 group-hover:text-zinc-300'}`}>
+                           {user.displayName || user.username || user.email?.split('@')[0]}
+                         </p>
+                         <p className="text-[8px] font-mono text-zinc-800 font-bold uppercase tracking-tighter mt-0.5">UID: {user.uid.slice(0,12)}</p>
+                      </div>
+                      <div className={`w-4 h-4 border-2 rounded-sm transition-all flex items-center justify-center ${selectedPlayers.includes(user.uid) ? 'bg-primary border-primary shadow-[0_0_8px_rgba(255,140,0,0.4)]' : 'border-zinc-900 group-hover:border-zinc-700'}`}>
+                         {selectedPlayers.includes(user.uid) && <span className="material-symbols-outlined text-black text-[12px] font-black">check</span>}
+                      </div>
                     </button>
                   ))}
                 </div>
               </div>
             </div>
 
-            <div className="flex justify-end gap-3 pt-4 border-t border-zinc-800">
-              <button type="button" onClick={resetForm} className="px-6 py-2 text-[10px] font-label font-bold text-zinc-500 hover:text-white uppercase">Cancelar</button>
+            <div className="flex justify-end gap-6 pt-8 border-t-4 border-[#1a1a1a]">
+              <button type="button" onClick={resetForm} className="px-8 py-3 text-[10px] font-black text-zinc-600 hover:text-white uppercase tracking-widest transition-colors">ABORTAR</button>
               <button 
                 type="submit" 
-                className="bg-orange-600 text-white px-8 py-2 text-[10px] font-label font-bold tracking-widest hover:brightness-110 machined-edge"
+                className="bg-primary hover:bg-primary-container text-black px-12 py-3 rounded-sm font-black text-[10px] tracking-widest uppercase transition-all active:scale-95 glow-orange shadow-lg"
               >
-                {editingGroup ? 'ATUALIZAR_GRUPO' : 'SALVAR_GRUPO'}
+                {editingGroup ? 'SINCRONIZAR_ALTERAÇÕES' : 'CONFIRMAR_REGISTRO'}
               </button>
             </div>
           </form>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {groups.map(group => (
-            <div key={group.id} className="bg-zinc-900/30 border border-zinc-800 p-4 machined-edge group hover:border-orange-500/30 transition-all">
-              <div className="flex justify-between items-start mb-3">
+            <div key={group.id} className="bg-[#1a1a1a] border-4 border-[#1a1a1a] p-6 group hover:border-primary/20 transition-all rounded-xl shadow-xl relative overflow-hidden active:scale-[0.99]">
+              <div className="absolute top-0 right-0 w-12 h-12 bg-primary/5 rotate-45 translate-x-6 -translate-y-6 border-b border-primary/10" />
+              <div className="flex justify-between items-start mb-6">
                 <div>
-                  <h4 className="font-headline font-bold text-zinc-200 text-sm">{group.name}</h4>
-                  <div className="flex items-center gap-2 mt-1">
-                    <p className="text-[10px] font-label text-zinc-600 uppercase tracking-tighter">
-                      {group.playerUids.length} JOGADORES VINCULADOS
-                    </p>
+                  <h4 className="font-black text-white text-base uppercase tracking-tighter group-hover:text-primary transition-colors">{group.name}</h4>
+                  <div className="flex flex-wrap items-center gap-3 mt-2">
+                    <div className="flex items-center gap-1.5 bg-black/40 px-2 py-0.5 rounded-sm border border-white/5 shadow-inner">
+                       <div className="w-1 h-1 bg-primary rounded-full animate-pulse" />
+                       <p className="text-[8px] font-black text-zinc-500 uppercase tracking-widest">
+                         {group.playerUids.length} ATIVOS
+                       </p>
+                    </div>
                     {group.campaignId && (
-                      <span className="text-[8px] font-bold bg-orange-500/10 text-orange-400 border border-orange-500/20 px-1 py-0.5 rounded-sm uppercase tracking-tighter">
+                      <span className="text-[8px] font-black bg-primary/10 text-primary border border-primary/20 px-2 py-0.5 rounded-sm uppercase tracking-widest">
                         {campaigns.find(c => c.id === group.campaignId)?.name || group.campaignId}
                       </span>
                     )}
                   </div>
                 </div>
-                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button onClick={() => startEdit(group)} className="material-symbols-outlined text-xs text-zinc-500 hover:text-orange-400">edit</button>
-                  <button onClick={() => handleDeleteGroup(group.id)} className="material-symbols-outlined text-xs text-zinc-500 hover:text-red-500">delete</button>
+                <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all translate-x-2 group-hover:translate-x-0">
+                  <button onClick={() => startEdit(group)} className="w-8 h-8 flex items-center justify-center bg-black/60 border border-white/10 rounded-sm text-zinc-600 hover:text-emerald-400 transition-all active:scale-90"><span className="material-symbols-outlined text-sm">edit</span></button>
+                  <button onClick={() => handleDeleteGroup(group.id)} className="w-8 h-8 flex items-center justify-center bg-black/60 border border-white/10 rounded-sm text-zinc-600 hover:text-red-500 transition-all active:scale-90"><span className="material-symbols-outlined text-sm">delete</span></button>
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <div className="flex flex-wrap gap-1">
-                  {group.sessions?.slice(0, 3).map(date => (
-                    <span key={date} className="text-[9px] font-mono bg-zinc-800 text-zinc-400 px-1.5 py-0.5 rounded border border-zinc-700/50">
+              <div className="space-y-4">
+                <div className="flex flex-wrap gap-1.5">
+                  {group.sessions?.slice(0, 4).map(date => (
+                    <span key={date} className="text-[8px] font-mono bg-black text-zinc-600 px-2 py-1 rounded-sm border border-white/5 font-bold tracking-widest uppercase shadow-sm">
                       {date}
                     </span>
                   ))}
-                  {group.sessions?.length > 3 && <span className="text-[9px] font-mono text-zinc-600">+{group.sessions.length - 3}</span>}
+                  {group.sessions?.length > 4 && <span className="text-[8px] font-black text-zinc-800 self-center">+{group.sessions.length - 4}</span>}
                 </div>
                 
-                <div className="flex -space-x-2 pt-2">
-                  {group.playerUids.slice(0, 5).map(uid => {
+                <div className="flex -space-x-3 pt-2">
+                  {group.playerUids.slice(0, 6).map(uid => {
                     const player = users.find(u => u.uid === uid);
+                    const label = (player?.displayName || player?.username || 'A').charAt(0).toUpperCase();
                     return (
-                      <div key={uid} className="w-6 h-6 rounded-full bg-zinc-800 border border-zinc-950 flex items-center justify-center text-[8px] font-bold text-zinc-500" title={player?.displayName || 'Jogador'}>
-                        {(player?.displayName || 'J').charAt(0)}
+                      <div key={uid} className="w-8 h-8 rounded-full bg-black border-2 border-[#1a1a1a] flex items-center justify-center text-[10px] font-black text-primary shadow-lg ring-2 ring-black/40" title={player?.displayName || 'Agente'}>
+                        {label}
                       </div>
                     );
                   })}
+                  {group.playerUids.length > 6 && (
+                    <div className="w-8 h-8 rounded-full bg-[#333] border-2 border-[#1a1a1a] flex items-center justify-center text-[9px] font-black text-zinc-500 shadow-lg">
+                       +{group.playerUids.length - 6}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
           ))}
           {groups.length === 0 && (
-            <div className="col-span-full py-12 text-center border-2 border-dashed border-zinc-800 rounded-lg">
-              <span className="material-symbols-outlined text-4xl text-zinc-800 mb-2">group_work</span>
-              <p className="text-zinc-600 font-label text-xs uppercase tracking-widest">NENHUM_GRUPO_CONFIGURADO</p>
+            <div className="col-span-full py-24 text-center border-4 border-dashed border-[#1a1a1a] rounded-2xl opacity-20 flex flex-col items-center justify-center">
+              <span className="material-symbols-outlined text-6xl text-zinc-800 mb-4">groups_2</span>
+              <p className="text-zinc-700 font-black text-sm uppercase tracking-[0.4em]">Nenhum_Esquadrão_Sincronizado</p>
             </div>
           )}
         </div>
       )}
+      {modal}
     </div>
   );
 }

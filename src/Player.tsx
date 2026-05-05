@@ -1,9 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useSwipeable } from 'react-swipeable';
-import LoginScreen from './components/LoginScreen';
-import ProfileScreen from './components/ProfileScreen';
-import CharacterSelectionScreen from './components/CharacterSelectionScreen';
 import ToastNotification from './components/ToastNotification';
 import type { Toast } from './components/ToastNotification';
 import CassetteVisor from './components/player/CassetteVisor';
@@ -11,14 +8,19 @@ import TapeLibrary from './components/player/TapeLibrary';
 import SideControls from './components/player/SideControls';
 import BottomControls from './components/player/BottomControls';
 import Screw from './components/player/Screw';
-import BiosTerminal from './components/BiosTerminal';
-import LimboBoard from './components/LimboBoard';
-import DiskRepairApp from './components/DiskRepairApp';
-import MacOsApp from './components/MacOsApp';
-import Windows95App from './components/Windows95App';
-import EvidenceReader from './components/EvidenceReader';
-import CampaignSelection from './components/CampaignSelection';
-import { AgentDossierOverlay } from './components/campaign/AgentDossierOverlay';
+import RetroLoading from './components/player/RetroLoading';
+
+const LoginScreen = React.lazy(() => import('./components/LoginScreen'));
+const ProfileScreen = React.lazy(() => import('./components/ProfileScreen'));
+const CharacterSelectionScreen = React.lazy(() => import('./components/CharacterSelectionScreen'));
+const BiosTerminal = React.lazy(() => import('./components/BiosTerminal'));
+const LimboBoard = React.lazy(() => import('./components/LimboBoard'));
+const DiskRepairApp = React.lazy(() => import('./components/DiskRepairApp'));
+const MacOsApp = React.lazy(() => import('./components/MacOsApp'));
+const Windows95App = React.lazy(() => import('./components/Windows95App'));
+const EvidenceReader = React.lazy(() => import('./components/EvidenceReader'));
+const CampaignSelection = React.lazy(() => import('./components/CampaignSelection'));
+const AgentDossierOverlay = React.lazy(() => import('./components/campaign/AgentDossierOverlay').then(m => ({ default: m.AgentDossierOverlay })));
 import { audioEngine } from './services/AudioEngine';
 import { analyticsTracker } from './services/AnalyticsTracker';
 import { activityLogger } from './services/ActivityLogger';
@@ -251,7 +253,7 @@ export default function Player() {
     analyticsTracker.stopAll(true);
     playerSyncService.stopAll();
     await logout();
-    setMasterAccount(null);
+    setMasterAccount(undefined);
     setPlayerData(null);
     setCurrentIntel(null);
     setWalkmanStatus('IDLE');
@@ -266,10 +268,7 @@ export default function Player() {
   });
 
   if (masterAccount === null) return (
-    <div className="fixed inset-0 flex items-center justify-center bg-surface">
-      <div className="noise-overlay" /><div className="scanlines" />
-      <motion.div animate={{ opacity: [0.3, 1, 0.3] }} transition={{ repeat: Infinity, duration: 2 }} className="text-orange-500 font-mono text-sm tracking-widest font-black uppercase">SINTONIZANDO...</motion.div>
-    </div>
+    <RetroLoading fullScreen message="AUTENTICANDO..." subMessage="Validando credenciais de acesso" />
   );
 
   return (
@@ -279,27 +278,37 @@ export default function Player() {
       <AnimatePresence mode="wait">
         {screen === 'login' || !masterAccount ? (
           <motion.div key="login" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full h-full flex items-center justify-center">
-            <LoginScreen onLogin={(acc) => { setMasterAccount(acc); setScreen('characterSelection'); }} />
+            <React.Suspense fallback={<RetroLoading message="CARREGANDO LOGIN..." />}>
+              <LoginScreen onLogin={(acc) => { setMasterAccount(acc); setScreen('characterSelection'); }} />
+            </React.Suspense>
           </motion.div>
         ) : (screen === 'characterSelection' && masterAccount) ? (
           <motion.div key="charSelect" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full h-full flex items-center justify-center">
-            <CharacterSelectionScreen account={masterAccount} onSelect={handleCharacterSelect} onLogout={handleLogout} />
+            <React.Suspense fallback={<RetroLoading message="LISTANDO AGENTES..." />}>
+              <CharacterSelectionScreen account={masterAccount} onSelect={handleCharacterSelect} onLogout={handleLogout} />
+            </React.Suspense>
           </motion.div>
         ) : playerData === null ? (
-          <div className="text-orange-500 font-mono">CARREGANDO AGENTE...</div>
+          <RetroLoading message="SINCRONIZANDO..." subMessage="Recuperando dossiê do agente" />
         ) : screen === 'profile' ? (
           <motion.div key="profile" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full h-full flex items-center justify-center">
-            <ProfileScreen profile={{ ...playerData, galleryImages }} onBack={() => setScreen('player')} onLogout={handleLogout} onChangeMission={() => setScreen('campaignSelection')} onChangeCharacter={handleCharacterSwitch} onUpdateSpotify={async (url) => { await firestoreUpdateSpotifyPlaylist(playerData.uid, playerData.activeCharacterId, url); setPlayerData({ ...playerData, character: { ...playerData.character, spotifyPlaylistUrl: url } }); }} />
+            <React.Suspense fallback={<RetroLoading message="ACESSANDO PERFIL..." />}>
+              <ProfileScreen profile={{ ...playerData, galleryImages }} onBack={() => setScreen('player')} onLogout={handleLogout} onChangeMission={() => setScreen('campaignSelection')} onChangeCharacter={handleCharacterSwitch} onUpdateSpotify={async (url) => { await firestoreUpdateSpotifyPlaylist(playerData.uid, playerData.activeCharacterId, url); setPlayerData({ ...playerData, character: { ...playerData.character, spotifyPlaylistUrl: url } }); }} />
+            </React.Suspense>
           </motion.div>
         ) : screen === 'agentDossier' ? (
           <motion.div key="agentDossier" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full h-full flex items-center justify-center p-0 sm:p-4">
-            <div className="bg-cardboard w-full h-full max-w-[520px] rounded-none sm:rounded-[20px] shadow-[0_35px_100px_rgba(0,0,0,0.9)] border-0 sm:border-2 sm:border-cardboard-dark relative flex flex-col mx-auto overflow-hidden text-ink font-chakra">
-              <AgentDossierOverlay onClose={() => setScreen('campaignSelection')} playerData={playerData} campaigns={campaigns} intel={intelCollection} />
+            <div className="w-full h-full max-w-[520px] rounded-none sm:rounded-[20px] shadow-[0_35px_100px_rgba(0,0,0,0.9)] border-0 sm:border-2 border-primary/20 relative flex flex-col mx-auto overflow-hidden bg-surface">
+              <React.Suspense fallback={<RetroLoading message="ABRINDO DOSSIÊ..." />}>
+                <AgentDossierOverlay onClose={() => setScreen('campaignSelection')} playerData={playerData} campaigns={campaigns} intel={intelCollection} />
+              </React.Suspense>
             </div>
           </motion.div>
         ) : screen === 'campaignSelection' ? (
           <motion.div key="campaignSelection" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full h-full flex items-center justify-center p-0 sm:p-4">
-            <CampaignSelection onSelect={async (c) => { await firestoreSetCampaign(playerData.uid, playerData.activeCharacterId, c.id); setPlayerData({ ...playerData, character: { ...playerData.character, campaignId: c.id } }); setScreen(c.visualTheme === 'terminal' ? 'bios' : c.visualTheme === 'macos' ? 'macos' : c.visualTheme === 'windows95' ? 'windows95' : 'player'); }} onLogout={handleLogout} onShowProfile={() => setScreen('agentDossier')} onChangeCharacter={handleCharacterSwitch} playerData={playerData} />
+            <React.Suspense fallback={<RetroLoading message="SELECIONANDO MISSÃO..." />}>
+              <CampaignSelection onSelect={async (c) => { await firestoreSetCampaign(playerData.uid, playerData.activeCharacterId, c.id); setPlayerData({ ...playerData, character: { ...playerData.character, campaignId: c.id } }); setScreen(c.visualTheme === 'terminal' ? 'bios' : c.visualTheme === 'macos' ? 'macos' : c.visualTheme === 'windows95' ? 'windows95' : 'player'); }} onLogout={handleLogout} onShowProfile={() => setScreen('agentDossier')} onChangeCharacter={handleCharacterSwitch} playerData={playerData} />
+            </React.Suspense>
           </motion.div>
         ) : screen === 'player' ? (
           <motion.div key="player" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} className="relative w-full max-w-sm h-full max-h-[750px] bg-surface-container-high rounded-[32px] border-8 border-[#1a1a1a] shadow-2xl flex flex-col p-3 sm:p-4 overflow-hidden z-10">
@@ -311,16 +320,24 @@ export default function Player() {
           </motion.div>
         ) : (
           <motion.div key="apps" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-50">
-            {screen === 'bios' && <BiosTerminal uid={playerData.uid} username={playerData.character.codinome} onIpDetected={() => setScreen('limbo')} onClose={() => setScreen('player')} onAppLaunch={(app) => app === 'diskRepair' && setScreen('diskRepair')} onBootSystem={() => setScreen('windows95')} />}
-            {screen === 'limbo' && <LimboBoard uid={playerData.uid} characterId={playerData.activeCharacterId} onClose={() => setScreen('player')} onBackToTerminal={() => setScreen('bios')} globalSeizedStatus={limboStatus.seized} readThreadIds={limboStatus.readThreadIds || []} />}
-            {screen === 'diskRepair' && <DiskRepairApp uid={playerData.uid} characterId={playerData.activeCharacterId} onClose={() => setScreen('player')} onBackToTerminal={() => setScreen('bios')} />}
-            {screen === 'macos' && <MacOsApp uid={playerData.uid} onClose={() => setScreen('player')} />}
-            {screen === 'windows95' && <Windows95App uid={playerData.uid} onClose={() => setScreen('player')} />}
+            <React.Suspense fallback={<RetroLoading fullScreen message="INICIALIZANDO SISTEMA..." subMessage="Carregando interface de baixo nível" />}>
+              {screen === 'bios' && <BiosTerminal uid={playerData.uid} username={playerData.character.codinome} onIpDetected={() => setScreen('limbo')} onClose={() => setScreen('player')} onAppLaunch={(app) => app === 'diskRepair' && setScreen('diskRepair')} onBootSystem={() => setScreen('windows95')} />}
+              {screen === 'limbo' && <LimboBoard uid={playerData.uid} characterId={playerData.activeCharacterId} onClose={() => setScreen('player')} onBackToTerminal={() => setScreen('bios')} globalSeizedStatus={limboStatus.seized} readThreadIds={limboStatus.readThreadIds || []} />}
+              {screen === 'diskRepair' && <DiskRepairApp uid={playerData.uid} characterId={playerData.activeCharacterId} onClose={() => setScreen('player')} onBackToTerminal={() => setScreen('bios')} />}
+              {screen === 'macos' && <MacOsApp uid={playerData.uid} onClose={() => setScreen('player')} />}
+              {screen === 'windows95' && <Windows95App uid={playerData.uid} onClose={() => setScreen('player')} />}
+            </React.Suspense>
           </motion.div>
         )}
       </AnimatePresence>
 
-      <AnimatePresence>{activeEvidence && <EvidenceReader evidence={activeEvidence} onClose={() => setActiveEvidence(null)} />}</AnimatePresence>
+      <AnimatePresence>
+        {activeEvidence && (
+          <React.Suspense fallback={null}>
+            <EvidenceReader evidence={activeEvidence} onClose={() => setActiveEvidence(null)} />
+          </React.Suspense>
+        )}
+      </AnimatePresence>
       <ToastNotification toasts={toasts} onDismiss={(id) => setToasts(prev => prev.filter(t => t.id !== id))} />
     </div>
   );

@@ -39,7 +39,7 @@ export class UserService {
       (snapshot) => {
         const users: MasterAccount[] = [];
         snapshot.forEach((doc) => {
-          users.push(doc.data() as MasterAccount);
+          users.push({ uid: doc.id, ...doc.data() } as MasterAccount);
         });
         callback(users);
       },
@@ -48,6 +48,7 @@ export class UserService {
   }
 
   public async fetchCharactersForUser(uid: string): Promise<CharacterData[]> {
+    if (!uid) return [];
     const snap = await getDocs(collection(db, "users", uid, "characters"));
     return snap.docs.map(d => ({ id: d.id, ...d.data() } as CharacterData));
   }
@@ -72,12 +73,14 @@ export class UserService {
     tapes: { id: string; unlockedAt: any }[];
     playCounts: PlayCountData[];
     stats: PlayerStats | null;
+    achievements: string[];
   }> {
     try {
-      const [tapesSnap, eventsSnap, statsSnap] = await Promise.all([
+      const [tapesSnap, eventsSnap, statsSnap, achSnap] = await Promise.all([
         getDocs(collection(db, "users", uid, "characters", characterId, "tapes")),
         getDocs(query(collection(db, "playEvents"), where("uid", "==", uid), where("characterId", "==", characterId))),
-        getDoc(doc(db, "users", uid, "characters", characterId, "stats", "main"))
+        getDoc(doc(db, "users", uid, "characters", characterId, "stats", "main")),
+        getDocs(collection(db, "users", uid, "characters", characterId, "achievements"))
       ]);
 
       const tapes = tapesSnap.docs.map(d => ({ 
@@ -99,11 +102,12 @@ export class UserService {
       }));
 
       const stats = statsSnap.exists() ? (statsSnap.data() as PlayerStats) : null;
+      const achievements = achSnap.docs.map(d => d.id);
 
-      return { tapes, playCounts, stats };
+      return { tapes, playCounts, stats, achievements };
     } catch (error) {
       console.error('[UserService] Error loading user details:', error);
-      return { tapes: [], playCounts: [], stats: null };
+      return { tapes: [], playCounts: [], stats: null, achievements: [] };
     }
   }
 
@@ -111,6 +115,14 @@ export class UserService {
     // Delete master account document
     await deleteDoc(doc(db, "users", uid));
     // Note: Recursive delete for sub-collections might be needed via Cloud Function for production
+  }
+
+  public async updateMasterAccount(uid: string, data: Partial<MasterAccount>): Promise<void> {
+    await updateDoc(doc(db, "users", uid), data as any);
+  }
+
+  public async updateCharacter(uid: string, characterId: string, data: Partial<CharacterData>): Promise<void> {
+    await updateDoc(doc(db, "users", uid, "characters", characterId), data as any);
   }
 
   public async deleteCharacter(uid: string, characterId: string): Promise<void> {
@@ -125,13 +137,13 @@ export class UserService {
     await updateDoc(doc(db, "users", uid), { role });
   }
 
-  public async removeUserTape(uid: string, characterId: string, tapeId: string): Promise<void> {
-    await deleteDoc(doc(db, "users", uid, "characters", characterId, "tapes", tapeId));
+  public async removeUserIntel(uid: string, characterId: string, intelId: string): Promise<void> {
+    await deleteDoc(doc(db, "users", uid, "characters", characterId, "tapes", intelId));
   }
 
-  public async addUserTape(uid: string, characterId: string, tapeId: string): Promise<void> {
-    await setDoc(doc(db, "users", uid, "characters", characterId, "tapes", tapeId), {
-      tapeId,
+  public async addUserIntel(uid: string, characterId: string, intelId: string): Promise<void> {
+    await setDoc(doc(db, "users", uid, "characters", characterId, "tapes", intelId), {
+      tapeId: intelId,
       unlockedAt: serverTimestamp(),
     });
   }

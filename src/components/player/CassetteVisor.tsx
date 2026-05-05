@@ -1,11 +1,12 @@
+import React from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { Camera } from 'lucide-react';
-import QrScanner from '../QrScanner';
+const QrScanner = React.lazy(() => import('../QrScanner'));
 import type { IntelItem } from '../../types/intel';
 import type { WalkmanStatus } from '../../types/player';
 import Screw from './Screw';
 
-export default function CassetteVisor({
+export default React.memo(function CassetteVisor({
   currentIntel, 
   status,
   onEject, 
@@ -70,10 +71,17 @@ export default function CassetteVisor({
           <motion.div key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className={isScanning ? 'w-full h-full' : 'w-full h-full flex flex-col items-center justify-center p-4'}>
             {isScanning ? (
-              <QrScanner
-                onDetected={onQrDetected}
-                onCancel={onCancelScan}
-              />
+              <React.Suspense fallback={
+                <div className="w-full h-full flex flex-col items-center justify-center p-4">
+                  <div className="w-6 h-6 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
+                  <p className="text-orange-500 text-[9px] font-bold uppercase tracking-widest animate-pulse mt-2">Iniciando scanner...</p>
+                </div>
+              }>
+                <QrScanner
+                  onDetected={onQrDetected}
+                  onCancel={onCancelScan}
+                />
+              </React.Suspense>
             ) : (
               <div onClick={!isLoading ? onScanClick : undefined}
                 className={`w-[280px] h-[130px] border-2 border-dashed rounded-lg flex flex-col items-center justify-center gap-3 transition-all ${isLoading ? 'border-orange-500/30 cursor-default' : 'border-[#444] hover:bg-white/5 cursor-pointer group'}`}>
@@ -100,4 +108,4 @@ export default function CassetteVisor({
       </AnimatePresence>
     </div>
   );
-}
+});
