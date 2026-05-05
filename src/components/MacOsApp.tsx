@@ -116,7 +116,7 @@ export default function MacOsApp({ uid, onClose }: MacOsAppProps) {
   const insertDisk = useCallback(async () => {
     setRepairStep('reading');
     setRepairProgress(0);
-    await diskRepairService.startAnalysis(uid, setRepairProgress);
+    await diskRepairService.startAnalysis(uid, '', setRepairProgress);
     setScrambleText(diskRepairService.getScrambleText());
     setRepairStep('corrupted');
   }, [uid]);
@@ -124,7 +124,7 @@ export default function MacOsApp({ uid, onClose }: MacOsAppProps) {
   const startRepair = useCallback(async () => {
     setRepairStep('repairing');
     setRepairProgress(0);
-    const success = await diskRepairService.startRepair(uid, setRepairProgress);
+    const success = await diskRepairService.startRepair(uid, '', setRepairProgress);
     setRepairStep(success ? 'restored' : 'corrupted');
   }, [uid]);
 

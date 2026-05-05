@@ -26,6 +26,7 @@ export default function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
       title: "Conteúdo",
       items: [
         { id: 'library', label: 'Biblioteca de Mídia', icon: 'library_music' }, // Jukebox + Galeria + QR
+        { id: 'intel', label: 'Criador de Intel', icon: 'hub' }, // IntelRegistry CRUD
       ]
     },
     {

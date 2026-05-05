@@ -11,10 +11,13 @@ import {
   query,
   where,
 } from 'firebase/firestore';
-import { format } from 'date-fns';
 import { useModal } from './ConfirmModal';
-import { EVIDENCE_TAPES_FOR_ADMIN, type EvidenceTapeAdmin } from '../../data/tapes';
+import { intelRegistry } from '../../data/intel_registry';
 import { activityLogger } from '../../services/ActivityLogger';
+import { userService } from '../../services/UserService';
+import type { CharacterData } from '../../types/player';
+import type { IntelItem } from '../../types/intel';
+
 interface UserData {
   uid: string;
   displayName: string;
@@ -22,6 +25,7 @@ interface UserData {
   email: string;
   role: string;
 }
+
 interface AudioData {
   id: string;
   originalName: string;
@@ -29,32 +33,39 @@ interface AudioData {
   artist?: string;
   chapter?: string;
   duration?: number;
+  isSecret?: boolean;
 }
+
 interface InventoryItem {
-  tapeId: string;
+  id: string;
   unlockedAt?: any;
-  type: 'audio' | 'evidence';
+  type: 'audio' | 'text' | 'visual' | 'meta';
   label: string;
   sublabel?: string;
   icon: string;
 }
+
 type AddTabType = 'audio' | 'evidence';
+
 export default function InventoryManager() {
   const { showAlert, modal } = useModal();
   const [users, setUsers] = useState<UserData[]>([]);
   const [selectedUser, setSelectedUser] = useState<UserData | null>(null);
+  const [characters, setCharacters] = useState<CharacterData[]>([]);
+  const [selectedChar, setSelectedChar] = useState<CharacterData | null>(null);
+  
   const [playerSearch, setPlayerSearch] = useState('');
   const [allAudios, setAllAudios] = useState<AudioData[]>([]);
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [inventoryLoading, setInventoryLoading] = useState(false);
   const [playCounts, setPlayCounts] = useState<Record<string, number>>({});
-  const [confirmRemove, setConfirmRemove] = useState<InventoryItem | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [addTab, setAddTab] = useState<AddTabType>('audio');
   const [addSearch, setAddSearch] = useState('');
   const [selectedToAdd, setSelectedToAdd] = useState<Set<string>>(new Set());
   const [addLoading, setAddLoading] = useState(false);
   const [addFeedback, setAddFeedback] = useState<string | null>(null);
+
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'users'), (snap) => {
       const list: UserData[] = [];
@@ -63,6 +74,7 @@ export default function InventoryManager() {
     });
     return () => unsub();
   }, []);
+
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'audios'), (snap) => {
       const list: AudioData[] = [];
@@ -75,15 +87,20 @@ export default function InventoryManager() {
           artist: data.artist,
           chapter: data.chapter,
           duration: data.duration,
+          isSecret: data.isSecret,
         });
       });
       setAllAudios(list);
     });
     return () => unsub();
   }, []);
+
   useEffect(() => {
-    if (!selectedUser) return;
-    const q = query(collection(db, 'playEvents'), where('uid', '==', selectedUser.uid));
+    if (!selectedUser || !selectedChar) return;
+    const q = query(collection(db, 'playEvents'), 
+      where('uid', '==', selectedUser.uid),
+      where('characterId', '==', selectedChar.id)
+    );
     getDocs(q).then((snap) => {
       const counts: Record<string, number> = {};
       snap.forEach((d) => {
@@ -92,39 +109,60 @@ export default function InventoryManager() {
       });
       setPlayCounts(counts);
     });
-  }, [selectedUser]);
-  const loadInventory = useCallback(async (uid: string) => {
+  }, [selectedUser, selectedChar]);
+
+  const loadInventory = useCallback(async (uid: string, charId: string) => {
     setInventoryLoading(true);
     try {
-      const snap = await getDocs(collection(db, 'users', uid, 'tapes'));
+      // For now, still reading from 'tapes' collection for backward compatibility
+      const snap = await getDocs(collection(db, 'users', uid, 'characters', charId, 'tapes'));
       const items: InventoryItem[] = [];
+      
       snap.forEach((d) => {
-        const tapeId = d.id;
+        const intelId = d.id;
         const data = d.data();
-        const evidenceTape = EVIDENCE_TAPES_FOR_ADMIN.find((e) => e.id === tapeId);
-        if (evidenceTape) {
+        
+        // 1. Check Intel Registry (Local or already resolved)
+        const intel = intelRegistry.get(intelId);
+        if (intel) {
           items.push({
-            tapeId,
+            id: intelId,
             unlockedAt: data.unlockedAt,
-            type: 'evidence',
-            label: evidenceTape.title,
-            sublabel: evidenceTape.chapter,
-            icon: evidenceTape.type === 'disk' ? 'save' : 'description',
+            type: intel.type.toLowerCase() as any,
+            label: intel.title,
+            sublabel: intel.metadata?.chapter || intel.metadata?.artist,
+            icon: intel.type === 'AUDIO' ? 'album' : intel.type === 'TEXT' ? 'save' : 'description',
           });
           return;
         }
-        const audio = allAudios.find((a) => a.id === tapeId);
+
+        // 2. Check Remote Audios
+        const audio = allAudios.find((a) => a.id === intelId);
+        if (audio) {
+          items.push({
+            id: intelId,
+            unlockedAt: data.unlockedAt,
+            type: 'audio',
+            label: audio.title || audio.originalName || intelId,
+            sublabel: audio.artist || '',
+            icon: 'album',
+          });
+          return;
+        }
+
+        // 3. Unknown Fallback
         items.push({
-          tapeId,
+          id: intelId,
           unlockedAt: data.unlockedAt,
           type: 'audio',
-          label: audio?.title || audio?.originalName || tapeId,
-          sublabel: audio?.artist || '',
-          icon: 'album',
+          label: intelId,
+          sublabel: 'Desconhecido',
+          icon: 'help',
         });
       });
+
       items.sort((a, b) => {
-        if (a.type !== b.type) return a.type === 'evidence' ? -1 : 1;
+        if (a.type !== b.type) return a.type === 'text' ? -1 : 1;
         return a.label.localeCompare(b.label);
       });
       setInventory(items);
@@ -134,490 +172,184 @@ export default function InventoryManager() {
       setInventoryLoading(false);
     }
   }, [allAudios]);
-  const handleSelectUser = (user: UserData) => {
+
+  const handleSelectUser = async (user: UserData) => {
     setSelectedUser(user);
+    setSelectedChar(null);
     setInventory([]);
     setPlayCounts({});
-    loadInventory(user.uid);
+    const chars = await userService.fetchCharactersForUser(user.uid);
+    setCharacters(chars);
+    if (chars.length === 1) {
+      handleSelectChar(user.uid, chars[0]);
+    }
   };
-  useEffect(() => {
-    if (selectedUser) loadInventory(selectedUser.uid);
-  }, [allAudios]); 
+
+  const handleSelectChar = (uid: string, char: CharacterData) => {
+    setSelectedChar(char);
+    loadInventory(uid, char.id);
+  };
+
   const executeRemove = async (item: InventoryItem) => {
-    if (!selectedUser) return;
-    setConfirmRemove(null);
-    activityLogger.logTrace('gm.mpg', 'inventory_remove_step', `Iniciando remoção do item ${item.tapeId} para o usuário ${selectedUser.uid}...`);
+    if (!selectedUser || !selectedChar) return;
     try {
-      await deleteDoc(doc(db, 'users', selectedUser.uid, 'tapes', item.tapeId));
-      setInventory((prev) => prev.filter((i) => i.tapeId !== item.tapeId));
-      activityLogger.logAdmin('gm.mpg', 'inventory_remove', `Removeu ${item.label} de ${selectedUser.displayName || selectedUser.username}`, { uid: selectedUser.uid, tapeId: item.tapeId, itemLabel: item.label });
+      await deleteDoc(doc(db, 'users', selectedUser.uid, 'characters', selectedChar.id, 'tapes', item.id));
+      setInventory((prev) => prev.filter((i) => i.id !== item.id));
+      activityLogger.logAdmin('gm.mpg', 'inventory_remove', `Removeu ${item.label} de ${selectedChar.codinome} (${selectedUser.email})`, { uid: selectedUser.uid, charId: selectedChar.id, intelId: item.id });
     } catch (err) {
       console.error('Error removing item:', err);
       showAlert('Erro', 'Falha ao remover item do inventário.');
     }
   };
-  const openAddModal = () => {
-    setShowAddModal(true);
-    setAddTab('audio');
-    setAddSearch('');
-    setSelectedToAdd(new Set());
-    setAddFeedback(null);
-  };
-  const toggleAddSelection = (id: string) => {
-    setSelectedToAdd((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
+
   const executeAddItems = async () => {
-    if (!selectedUser || selectedToAdd.size === 0) return;
-    const uid = selectedUser.uid; 
+    if (!selectedUser || !selectedChar || selectedToAdd.size === 0) return;
     setAddLoading(true);
-    setAddFeedback(null);
-    activityLogger.logTrace('gm.mpg', 'inventory_add_step', `Iniciando injeção de ${selectedToAdd.size} item(s) no inventário de ${uid}...`);
     try {
       await Promise.all(
         [...selectedToAdd].map((id) =>
-          setDoc(doc(db, 'users', uid, 'tapes', id), {
-            tapeId: id,
+          setDoc(doc(db, 'users', selectedUser.uid, 'characters', selectedChar.id, 'tapes', id), {
+            intelId: id,
             unlockedAt: serverTimestamp(),
           })
         )
       );
-      setAddFeedback(`✓ ${selectedToAdd.size} item(s) adicionado(s) com sucesso.`);
-      activityLogger.logAdmin('gm.mpg', 'inventory_add', `Adicionou ${selectedToAdd.size} item(s) para ${selectedUser.displayName || selectedUser.username}`, { uid, items: [...selectedToAdd] });
+      setAddFeedback(`✓ ${selectedToAdd.size} item(s) adicionado(s).`);
+      activityLogger.logAdmin('gm.mpg', 'inventory_add', `Adicionou ${selectedToAdd.size} itens para ${selectedChar.codinome}`, { uid: selectedUser.uid, charId: selectedChar.id, items: [...selectedToAdd] });
       setSelectedToAdd(new Set());
-      await loadInventory(uid);
+      await loadInventory(selectedUser.uid, selectedChar.id);
     } catch (err) {
-      console.error('Error adding items:', err);
-      setAddFeedback('ERRO: Falha ao adicionar itens.');
+      setAddFeedback('ERRO: Falha ao adicionar.');
     } finally {
       setAddLoading(false);
     }
   };
-  const inventoryIds = useMemo(() => new Set(inventory.map((i) => i.tapeId)), [inventory]);
+
+  const inventoryIds = useMemo(() => new Set(inventory.map((i) => i.id)), [inventory]);
+  const filteredAudiosForAdd = useMemo(() => allAudios.filter(a => (a.title || a.originalName || '').toLowerCase().includes(addSearch.toLowerCase())), [allAudios, addSearch]);
   
-  const filteredAudiosForAdd = useMemo(() => allAudios.filter((a) => {
-    const q = addSearch.toLowerCase();
-    return (
-      (a.title || a.originalName || '').toLowerCase().includes(q) ||
-      (a.artist || '').toLowerCase().includes(q)
-    );
-  }), [allAudios, addSearch]);
+  const allRegistryIntel = useMemo(() => intelRegistry.getAll(), []);
+  const filteredEvidenceForAdd = useMemo(() => allRegistryIntel.filter(i => 
+    i.title.toLowerCase().includes(addSearch.toLowerCase()) || 
+    i.id.toLowerCase().includes(addSearch.toLowerCase())
+  ), [allRegistryIntel, addSearch]);
 
-  const filteredEvidenceForAdd = useMemo(() => EVIDENCE_TAPES_FOR_ADMIN.filter((e) => {
-    const q = addSearch.toLowerCase();
-    return e.title.toLowerCase().includes(q) || e.chapter.toLowerCase().includes(q);
-  }), [addSearch]);
+  const filteredPlayers = useMemo(() => users.filter(u => (u.displayName || u.email || '').toLowerCase().includes(playerSearch.toLowerCase())), [users, playerSearch]);
 
-  const filteredPlayers = useMemo(() => users.filter((u) => {
-    const q = playerSearch.toLowerCase();
-    return (
-      (u.displayName || '').toLowerCase().includes(q) ||
-      (u.username || '').toLowerCase().includes(q) ||
-      (u.email || '').toLowerCase().includes(q)
-    );
-  }), [users, playerSearch]);
-
-  const audioItems = useMemo(() => inventory.filter((i) => i.type === 'audio'), [inventory]);
-  const evidenceItems = useMemo(() => inventory.filter((i) => i.type === 'evidence'), [inventory]);
-  const formatDuration = (secs: number) => {
-    const m = Math.floor(secs / 60);
-    const s = secs % 60;
-    return `${m}:${s.toString().padStart(2, '0')}`;
-  };
   return (
-    <section className="space-y-0">
+    <section className="space-y-6">
       {modal}
-      {}
-      <div className="flex items-center gap-4 mb-6">
+      <div className="flex items-center gap-4">
         <div className="w-2 h-6 bg-purple-500" />
-        <h2 className="font-headline font-bold uppercase tracking-widest text-lg">
-          Gerenciador_de_Inventário
-        </h2>
-        <span className="text-[10px] font-label text-zinc-500 tracking-wider">
-          {users.length} JOGADORES • {allAudios.length} ÁUDIOS • {EVIDENCE_TAPES_FOR_ADMIN.length} ITENS_DE_EVIDÊNCIA
-        </span>
+        <h2 className="font-headline font-bold uppercase tracking-widest text-lg">Gerenciador_de_Inventário</h2>
       </div>
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6" style={{ minHeight: '70vh' }}>
-        {}
-        <div className="lg:col-span-1 bg-surface-container-lowest border border-zinc-800 machined-edge flex flex-col">
+
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        {/* User Search */}
+        <div className="lg:col-span-1 bg-surface-container-lowest border border-zinc-800 flex flex-col h-[600px] machined-edge">
           <div className="p-4 border-b border-zinc-800">
-            <p className="text-[9px] font-label uppercase tracking-widest text-zinc-500 mb-2">
-              Selecionar_Jogador
-            </p>
-            <input
-              type="text"
-              placeholder="BUSCAR_JOGADOR..."
-              value={playerSearch}
-              onChange={(e) => setPlayerSearch(e.target.value)}
-              className="w-full bg-zinc-900 border border-zinc-800 text-[10px] font-label uppercase tracking-widest focus:ring-1 focus:ring-purple-500 focus:border-purple-500 placeholder:text-zinc-700 text-zinc-300 px-3 py-2"
-            />
+            <input type="text" placeholder="BUSCAR_JOGADOR..." value={playerSearch} onChange={e => setPlayerSearch(e.target.value)} className="w-full bg-zinc-900 border border-zinc-800 text-[10px] font-label uppercase px-3 py-2 text-zinc-300" />
           </div>
           <div className="flex-1 overflow-y-auto">
-            {filteredPlayers.length === 0 ? (
-              <div className="p-6 text-center text-zinc-600 font-label text-xs tracking-widest">
-                NENHUM_JOGADOR_ENCONTRADO
-              </div>
-            ) : (
-              filteredPlayers.map((u) => {
-                const isSelected = selectedUser?.uid === u.uid;
-                return (
-                  <button
-                    key={u.uid}
-                    onClick={() => handleSelectUser(u)}
-                    className={`w-full text-left px-4 py-3 border-b border-zinc-800/50 transition-all flex items-center gap-3 ${
-                      isSelected
-                        ? 'bg-purple-500/10 border-l-4 border-l-purple-500'
-                        : 'hover:bg-zinc-800/40 border-l-4 border-l-transparent'
-                    }`}
-                  >
-                    <div className="flex-1 min-w-0">
-                      <p className={`font-headline text-xs font-bold truncate ${isSelected ? 'text-purple-300' : 'text-zinc-200'}`}>
-                        {u.displayName || u.username || 'UNKNOWN'}
-                      </p>
-                      <p className="text-[9px] font-label text-zinc-600 truncate mt-0.5">{u.email}</p>
-                    </div>
-                    <span className={`text-[8px] font-label uppercase tracking-wider px-1.5 py-0.5 border shrink-0 ${
-                      u.role === 'admin'
-                        ? 'border-red-500/30 text-red-400/80'
-                        : u.role === 'premium'
-                          ? 'border-orange-500/30 text-orange-400/80'
-                          : 'border-zinc-700 text-zinc-500'
-                    }`}>
-                      {u.role}
-                    </span>
-                  </button>
-                );
-              })
-            )}
+            {filteredPlayers.map(u => (
+              <button key={u.uid} onClick={() => handleSelectUser(u)} className={`w-full text-left px-4 py-3 border-b border-zinc-800/50 ${selectedUser?.uid === u.uid ? 'bg-purple-500/10 border-l-4 border-l-purple-500' : ''}`}>
+                <p className="font-headline text-xs font-bold text-zinc-200 truncate">{u.displayName || u.email}</p>
+                <p className="text-[9px] font-label text-zinc-600 truncate">{u.email}</p>
+              </button>
+            ))}
           </div>
         </div>
-        {}
-        <div className="lg:col-span-2 flex flex-col gap-4">
-          {!selectedUser ? (
-            <div className="flex-1 bg-surface-container-lowest border border-zinc-800 machined-edge flex items-center justify-center" style={{ minHeight: '400px' }}>
-              <div className="text-center">
-                <span className="material-symbols-outlined text-4xl text-zinc-700 block mb-3">inventory_2</span>
-                <p className="font-label text-xs uppercase tracking-widest text-zinc-600">
-                  Selecione_um_jogador_para_gerenciar_o_inventário
-                </p>
-              </div>
+
+        {/* Character Selection */}
+        <div className="lg:col-span-1 bg-surface-container-lowest border border-zinc-800 flex flex-col h-[600px] machined-edge">
+           <div className="p-4 border-b border-zinc-800 bg-zinc-900/30">
+             <p className="text-[10px] font-label uppercase text-zinc-500">Agentes_do_Usuário</p>
+           </div>
+           <div className="flex-1 overflow-y-auto">
+             {!selectedUser ? (
+               <p className="p-6 text-center text-[10px] text-zinc-700 uppercase">Selecione um usuário</p>
+             ) : characters.map(c => (
+               <button key={c.id} onClick={() => handleSelectChar(selectedUser.uid, c)} className={`w-full text-left px-4 py-4 border-b border-zinc-800/50 ${selectedChar?.id === c.id ? 'bg-orange-500/10 border-l-4 border-l-orange-500' : ''}`}>
+                 <p className="font-headline text-xs font-bold text-zinc-200">{c.codinome}</p>
+                 <p className="text-[8px] font-mono text-zinc-600 uppercase">Status: {c.agentStatus} // NVL: {c.dangerLevel}</p>
+               </button>
+             ))}
+           </div>
+        </div>
+
+        {/* Inventory View */}
+        <div className="lg:col-span-2 flex flex-col h-[600px] gap-4">
+          {!selectedChar ? (
+            <div className="flex-1 bg-surface-container-lowest border border-zinc-800 machined-edge flex items-center justify-center">
+              <p className="font-label text-xs uppercase text-zinc-600">Selecione um agente para gerenciar</p>
             </div>
           ) : (
-            <>
-              {}
-              <div className="bg-surface-container-lowest border border-zinc-800 machined-edge p-4 flex items-center justify-between">
+            <div className="flex-1 bg-surface-container-lowest border border-zinc-800 machined-edge flex flex-col overflow-hidden">
+              <div className="p-4 border-b border-zinc-800 flex justify-between items-center bg-zinc-900/20">
                 <div>
-                  <p className="font-headline font-bold text-base text-zinc-100">
-                    {selectedUser.displayName || selectedUser.username}
-                  </p>
-                  <p className="text-[9px] font-label text-zinc-500 mt-0.5">
-                    {selectedUser.email} · {inventory.length} ITEM(NS)
-                  </p>
+                  <h3 className="font-headline font-bold text-zinc-100">{selectedChar.codinome}</h3>
+                  <p className="text-[9px] font-label text-zinc-500 uppercase">Inventário Ativo // {inventory.length} Itens</p>
                 </div>
-                <button
-                  onClick={openAddModal}
-                  className="flex items-center gap-2 bg-purple-900/40 text-purple-300 px-4 py-2 font-label text-[10px] font-bold tracking-widest hover:bg-purple-800/40 transition-all machined-edge border border-purple-700/30"
-                >
-                  <span className="material-symbols-outlined text-sm">add</span>
-                  ADD_ITEM
-                </button>
+                <button onClick={() => setShowAddModal(true)} className="bg-purple-900/40 text-purple-300 px-4 py-2 text-[10px] font-bold border border-purple-700/30 uppercase hover:bg-purple-800/40">Add Item</button>
               </div>
-              {inventoryLoading ? (
-                <div className="bg-surface-container-lowest border border-zinc-800 machined-edge p-12 text-center">
-                  <span className="material-symbols-outlined text-2xl text-zinc-600 animate-spin block mb-2">sync</span>
-                  <p className="font-label text-xs text-zinc-600 tracking-widest">CARREGANDO_INVENTÁRIO...</p>
-                </div>
-              ) : (
-                <>
-                  {}
-                  <div className="bg-surface-container-lowest border border-zinc-800 machined-edge">
-                    <div className="flex items-center gap-2 px-4 py-3 border-b border-zinc-800">
-                      <span className="material-symbols-outlined text-yellow-500 text-sm">save</span>
-                      <h3 className="font-label text-[10px] uppercase tracking-widest text-zinc-400">
-                        Itens_de_Evidência ({evidenceItems.length})
-                      </h3>
+              <div className="flex-1 overflow-y-auto divide-y divide-zinc-800/50">
+                {inventory.map(item => (
+                  <div key={item.id} className="flex items-center gap-3 px-4 py-3 group hover:bg-zinc-800/20">
+                    <span className="material-symbols-outlined text-zinc-600 text-sm">{item.icon}</span>
+                    <div className="flex-1">
+                      <p className="text-xs font-bold text-zinc-300">{item.label}</p>
+                      <p className="text-[8px] text-zinc-600 uppercase">{item.sublabel}</p>
                     </div>
-                    {evidenceItems.length === 0 ? (
-                      <div className="p-6 text-center text-zinc-700 font-label text-xs tracking-widest">
-                        NENHUMA_EVIDÊNCIA_NO_INVENTÁRIO
-                      </div>
-                    ) : (
-                      <div className="divide-y divide-zinc-800/50">
-                        {evidenceItems.map((item) => (
-                          <div key={item.tapeId} className="flex items-center gap-3 px-4 py-3 hover:bg-zinc-800/20 transition-colors group">
-                            <div className="w-8 h-8 bg-yellow-500/10 border border-yellow-500/20 flex items-center justify-center shrink-0">
-                              <span className="material-symbols-outlined text-yellow-500 text-sm">{item.icon}</span>
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="font-headline text-xs font-bold text-zinc-200 truncate">{item.label}</p>
-                              <div className="flex items-center gap-3 mt-0.5">
-                                {item.sublabel && (
-                                  <span className="text-[9px] font-label text-zinc-500">{item.sublabel}</span>
-                                )}
-                                {item.unlockedAt && (
-                                  <span className="text-[8px] font-label text-zinc-700">
-                                    {item.unlockedAt?.toDate
-                                      ? format(item.unlockedAt.toDate(), 'dd/MM/yy HH:mm')
-                                      : ''}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                            <span className="text-[8px] font-label text-zinc-700 truncate max-w-[100px] hidden sm:block">
-                              {item.tapeId}
-                            </span>
-                            <button
-                              onClick={() => executeRemove(item)}
-                              className="material-symbols-outlined text-sm text-zinc-700 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
-                              title="Remover do inventário"
-                            >
-                              remove_circle
-                            </button>
-                          </div>
-                        ))}
-                      </div>
+                    {playCounts[item.id] > 0 && (
+                      <span className="text-[8px] font-mono bg-zinc-800 text-zinc-500 px-1.5 py-0.5 rounded">Plays: {playCounts[item.id]}</span>
                     )}
+                    <button onClick={() => executeRemove(item)} className="material-symbols-outlined text-sm text-zinc-700 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">delete</button>
                   </div>
-                  {}
-                  <div className="bg-surface-container-lowest border border-zinc-800 machined-edge">
-                    <div className="flex items-center gap-2 px-4 py-3 border-b border-zinc-800">
-                      <span className="material-symbols-outlined text-orange-500 text-sm">album</span>
-                      <h3 className="font-label text-[10px] uppercase tracking-widest text-zinc-400">
-                        Fitas_de_Áudio ({audioItems.length})
-                      </h3>
-                    </div>
-                    {audioItems.length === 0 ? (
-                      <div className="p-6 text-center text-zinc-700 font-label text-xs tracking-widest">
-                        NENHUMA_FITA_DE_ÁUDIO_NO_INVENTÁRIO
-                      </div>
-                    ) : (
-                      <div className="divide-y divide-zinc-800/50">
-                        {audioItems.map((item) => {
-                          const playCount = playCounts[item.tapeId] || 0;
-                          const audioInfo = allAudios.find((a) => a.id === item.tapeId);
-                          return (
-                            <div key={item.tapeId} className="flex items-center gap-3 px-4 py-3 hover:bg-zinc-800/20 transition-colors group">
-                              <div className="w-8 h-8 bg-orange-500/10 border border-orange-500/20 flex items-center justify-center shrink-0">
-                                <span className="material-symbols-outlined text-orange-500 text-sm">album</span>
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="font-headline text-xs font-bold text-zinc-200 truncate">{item.label}</p>
-                                <div className="flex items-center gap-3 mt-0.5">
-                                  {item.sublabel && (
-                                    <span className="text-[9px] font-label text-zinc-500">{item.sublabel}</span>
-                                  )}
-                                  {audioInfo?.duration ? (
-                                    <span className="text-[9px] font-label text-zinc-600">
-                                      {formatDuration(audioInfo.duration)}
-                                    </span>
-                                  ) : null}
-                                  {item.unlockedAt && (
-                                    <span className="text-[8px] font-label text-zinc-700">
-                                      {item.unlockedAt?.toDate
-                                        ? format(item.unlockedAt.toDate(), 'dd/MM/yy HH:mm')
-                                        : ''}
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                              {playCount > 0 && (
-                                <div className="flex items-center gap-1 shrink-0">
-                                  <span className="material-symbols-outlined text-[10px] text-tertiary">play_circle</span>
-                                  <span className="text-[9px] font-label text-tertiary">{playCount}</span>
-                                </div>
-                              )}
-                              <button
-                                onClick={() => executeRemove(item)}
-                                className="material-symbols-outlined text-sm text-zinc-700 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
-                                title="Remover do inventário"
-                              >
-                                remove_circle
-                              </button>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                </>
-              )}
-            </>
+                ))}
+              </div>
+            </div>
           )}
         </div>
       </div>
-      {}
-      {}
-      {showAddModal && selectedUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
-          <div className="bg-surface-container-low border border-purple-500/30 w-full max-w-xl machined-edge flex flex-col max-h-[85vh]">
-            {}
-            <div className="px-6 pt-5 pb-4 border-b border-zinc-800">
-              <div className="flex items-center gap-3 mb-1">
-                <span className="material-symbols-outlined text-purple-400 text-xl">add_circle</span>
-                <h3 className="font-headline text-lg text-zinc-200">ADD_ITEM</h3>
-              </div>
-              <p className="font-body text-xs text-zinc-500">
-                Player:{' '}
-                <span className="text-purple-300 font-bold">
-                  {selectedUser.displayName || selectedUser.username}
-                </span>
-              </p>
+
+      {/* Add Modal */}
+      {showAddModal && selectedChar && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-surface-container-low border border-purple-500/30 w-full max-w-xl machined-edge flex flex-col max-h-[80vh]">
+            <div className="p-6 border-b border-zinc-800">
+              <h3 className="font-headline text-lg text-zinc-200 uppercase">Vincular Recurso: {selectedChar.codinome}</h3>
             </div>
-            {}
             <div className="flex border-b border-zinc-800">
-              {(['audio', 'evidence'] as AddTabType[]).map((tab) => (
-                <button
-                  key={tab}
-                  onClick={() => { setAddTab(tab); setAddSearch(''); setSelectedToAdd(new Set()); }}
-                  className={`flex-1 py-3 text-[10px] font-label uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${
-                    addTab === tab
-                      ? 'text-purple-400 border-b-2 border-purple-500 bg-purple-500/5'
-                      : 'text-zinc-500 hover:text-zinc-300'
-                  }`}
-                >
-                  <span className="material-symbols-outlined text-sm">
-                    {tab === 'audio' ? 'album' : 'save'}
-                  </span>
-                  {tab === 'audio' ? 'Audio_Tapes' : 'Evidence_Items'}
-                </button>
-              ))}
+              <button onClick={() => setAddTab('audio')} className={`flex-1 py-3 text-[10px] font-label uppercase ${addTab === 'audio' ? 'text-purple-400 border-b-2 border-purple-500' : 'text-zinc-600'}`}>Arquivos de Áudio</button>
+              <button onClick={() => setAddTab('evidence')} className={`flex-1 py-3 text-[10px] font-label uppercase ${addTab === 'evidence' ? 'text-purple-400 border-b-2 border-purple-500' : 'text-zinc-600'}`}>Arquivos Intel</button>
             </div>
-            {}
-            <div className="px-5 py-3 border-b border-zinc-800">
-              <input
-                type="text"
-                placeholder="BUSCAR..."
-                value={addSearch}
-                onChange={(e) => setAddSearch(e.target.value)}
-                className="w-full bg-zinc-900 border border-zinc-800 text-[10px] font-label uppercase tracking-widest focus:ring-1 focus:ring-purple-500 focus:border-purple-500 placeholder:text-zinc-700 text-zinc-300 px-3 py-2"
-              />
+            <div className="p-4 border-b border-zinc-800">
+              <input type="text" placeholder="BUSCAR..." value={addSearch} onChange={e => setAddSearch(e.target.value)} className="w-full bg-zinc-900 border border-zinc-800 text-[10px] font-label uppercase px-3 py-2 text-zinc-300" />
             </div>
-            {}
-            <div className="flex-1 overflow-y-auto min-h-0">
-              {addTab === 'audio' ? (
-                filteredAudiosForAdd.length === 0 ? (
-                  <div className="p-8 text-center text-zinc-600 font-label text-xs tracking-widest">NENHUM_ÁUDIO_ENCONTRADO</div>
-                ) : (
-                  filteredAudiosForAdd.map((a) => {
-                    const alreadyHas = inventoryIds.has(a.id);
-                    const isSelected = selectedToAdd.has(a.id);
-                    return (
-                      <div
-                        key={a.id}
-                        onClick={() => !alreadyHas && toggleAddSelection(a.id)}
-                        className={`flex items-center gap-3 px-5 py-3 border-b border-zinc-800/40 last:border-b-0 transition-all ${
-                          alreadyHas
-                            ? 'opacity-40 cursor-not-allowed'
-                            : isSelected
-                              ? 'bg-purple-500/10 cursor-pointer'
-                              : 'hover:bg-zinc-800/30 cursor-pointer'
-                        }`}
-                      >
-                        <div className={`w-4 h-4 border flex items-center justify-center shrink-0 transition-colors ${
-                          alreadyHas ? 'border-zinc-700 bg-zinc-800' : isSelected ? 'bg-purple-500 border-purple-500' : 'border-zinc-600'
-                        }`}>
-                          {alreadyHas ? (
-                            <span className="material-symbols-outlined text-zinc-500 text-xs">check</span>
-                          ) : isSelected ? (
-                            <span className="material-symbols-outlined text-white text-xs">check</span>
-                          ) : null}
-                        </div>
-                        <span className="material-symbols-outlined text-orange-500 text-sm">album</span>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-headline text-xs font-bold text-zinc-200 truncate">
-                            {a.title || a.originalName}
-                          </p>
-                          <p className="text-[9px] font-label text-zinc-500 truncate">{a.artist || ''}</p>
-                        </div>
-                        {alreadyHas && (
-                          <span className="text-[8px] font-label text-emerald-500 border border-emerald-500/30 px-1.5 py-0.5 shrink-0">
-                            NO_INV
-                          </span>
-                        )}
-                      </div>
-                    );
-                  })
-                )
-              ) : (
-                filteredEvidenceForAdd.length === 0 ? (
-                  <div className="p-8 text-center text-zinc-600 font-label text-xs tracking-widest">NENHUMA_EVIDÊNCIA_ENCONTRADA</div>
-                ) : (
-                  filteredEvidenceForAdd.map((e) => {
-                    const alreadyHas = inventoryIds.has(e.id);
-                    const isSelected = selectedToAdd.has(e.id);
-                    return (
-                      <div
-                        key={e.id}
-                        onClick={() => !alreadyHas && toggleAddSelection(e.id)}
-                        className={`flex items-center gap-3 px-5 py-3 border-b border-zinc-800/40 last:border-b-0 transition-all ${
-                          alreadyHas
-                            ? 'opacity-40 cursor-not-allowed'
-                            : isSelected
-                              ? 'bg-purple-500/10 cursor-pointer'
-                              : 'hover:bg-zinc-800/30 cursor-pointer'
-                        }`}
-                      >
-                        <div className={`w-4 h-4 border flex items-center justify-center shrink-0 transition-colors ${
-                          alreadyHas ? 'border-zinc-700 bg-zinc-800' : isSelected ? 'bg-purple-500 border-purple-500' : 'border-zinc-600'
-                        }`}>
-                          {alreadyHas ? (
-                            <span className="material-symbols-outlined text-zinc-500 text-xs">check</span>
-                          ) : isSelected ? (
-                            <span className="material-symbols-outlined text-white text-xs">check</span>
-                          ) : null}
-                        </div>
-                        <span className="material-symbols-outlined text-yellow-500 text-sm">
-                          {e.type === 'disk' ? 'save' : 'description'}
-                        </span>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-headline text-xs font-bold text-zinc-200 truncate">{e.title}</p>
-                          <p className="text-[9px] font-label text-zinc-500 truncate">{e.chapter}</p>
-                        </div>
-                        {alreadyHas && (
-                          <span className="text-[8px] font-label text-emerald-500 border border-emerald-500/30 px-1.5 py-0.5 shrink-0">
-                            NO_INV
-                          </span>
-                        )}
-                      </div>
-                    );
-                  })
-                )
-              )}
+            <div className="flex-1 overflow-y-auto p-2">
+              {(addTab === 'audio' ? filteredAudiosForAdd : filteredEvidenceForAdd).map((item: any) => {
+                const id = item.id;
+                const alreadyHas = inventoryIds.has(id);
+                const isSelected = selectedToAdd.has(id);
+                return (
+                  <div key={id} onClick={() => !alreadyHas && setSelectedToAdd(prev => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; })} className={`flex items-center gap-3 px-4 py-2 border-b border-zinc-800/30 cursor-pointer ${alreadyHas ? 'opacity-30' : isSelected ? 'bg-purple-500/10' : ''}`}>
+                    <div className={`w-3 h-3 border ${isSelected ? 'bg-purple-500 border-purple-500' : 'border-zinc-700'}`} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[11px] text-zinc-300 truncate">{item.title || item.originalName}</p>
+                      <p className="text-[8px] text-zinc-600 uppercase font-mono">{id}</p>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-            {}
-            <div className="px-5 py-4 border-t border-zinc-800">
-              {addFeedback && (
-                <p className={`text-[10px] font-label tracking-wider mb-3 text-center ${
-                  addFeedback.startsWith('ERRO') ? 'text-red-400' : 'text-emerald-400'
-                }`}>
-                  {addFeedback}
-                </p>
-              )}
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-label text-zinc-500 tracking-wider">
-                  {selectedToAdd.size} SELECIONADO(S)
-                </span>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => { setShowAddModal(false); setAddFeedback(null); }}
-                    className="px-4 py-2 text-xs font-label text-zinc-400 hover:text-white border border-zinc-700 hover:border-zinc-500 transition-colors"
-                  >
-                    FECHAR
-                  </button>
-                  <button
-                    onClick={executeAddItems}
-                    disabled={selectedToAdd.size === 0 || addLoading}
-                    className="px-5 py-2 text-xs font-label bg-purple-900/60 text-purple-300 font-bold tracking-wider hover:bg-purple-800/60 transition-all disabled:opacity-30 disabled:cursor-not-allowed border border-purple-700/30"
-                  >
-                    {addLoading ? 'ADICIONANDO...' : 'ADICIONAR'}
-                  </button>
-                </div>
+            <div className="p-4 border-t border-zinc-800 flex justify-between items-center">
+              <span className="text-[10px] text-zinc-600 uppercase">{selectedToAdd.size} Selecionados</span>
+              <div className="flex gap-2">
+                <button onClick={() => setShowAddModal(false)} className="px-4 py-2 text-[10px] font-label text-zinc-500 uppercase">Fechar</button>
+                <button onClick={executeAddItems} disabled={selectedToAdd.size === 0 || addLoading} className="bg-purple-700 text-white px-6 py-2 text-[10px] font-label uppercase">Adicionar</button>
               </div>
             </div>
+            {addFeedback && <p className="p-4 text-center text-[10px] font-mono text-emerald-500 uppercase">{addFeedback}</p>}
           </div>
         </div>
       )}

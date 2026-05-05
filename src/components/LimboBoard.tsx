@@ -3,6 +3,7 @@ import { motion } from 'motion/react';
 import { firestoreMarkThreadReadGlobal, firestoreGrantAchievements } from '../store/firestore';
 interface LimboBoardProps {
   uid: string;
+  characterId?: string;
   onClose: () => void;
   globalSeizedStatus: boolean;
   readThreadIds: string[];
@@ -125,7 +126,7 @@ const THREADS: Thread[] = [
     ]
   },
 ];
-export default function LimboBoard({ uid, onClose, globalSeizedStatus, readThreadIds, onBackToTerminal }: LimboBoardProps) {
+export default function LimboBoard({ uid, characterId = '', onClose, globalSeizedStatus, readThreadIds, onBackToTerminal }: LimboBoardProps) {
   const [view, setView] = useState<'intro' | 'forum' | 'thread' | 'military'>(globalSeizedStatus ? 'military' : 'intro');
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
   const [onlineUsers, setOnlineUsers] = useState(84);
@@ -153,7 +154,7 @@ export default function LimboBoard({ uid, onClose, globalSeizedStatus, readThrea
     const timer = setTimeout(() => {
       clearInterval(interval);
       setView('forum');
-      firestoreGrantAchievements(uid, ['ACH-LIMBO-FOUND']).catch(console.error);
+      firestoreGrantAchievements(uid, characterId, ['ACH-LIMBO-FOUND']).catch(console.error);
     }, 2800);
     return () => { clearInterval(interval); clearTimeout(timer); };
   }, [view, globalSeizedStatus, uid, rawData]);

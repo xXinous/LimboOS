@@ -1,12 +1,43 @@
 import { Timestamp } from 'firebase/firestore';
 
 // --- UI & App State Types ---
-export type AppScreen = 'login' | 'player' | 'profile' | 'bios' | 'limbo' | 'diskRepair' | 'macos' | 'windows95' | 'campaignSelection' | 'agentDossier';
+export type AppScreen = 'login' | 'characterSelection' | 'player' | 'profile' | 'bios' | 'limbo' | 'diskRepair' | 'macos' | 'windows95' | 'campaignSelection' | 'agentDossier';
 export type TapeState = 'empty' | 'loaded' | 'scanning';
 export type WalkmanStatus = 'IDLE' | 'LOADING' | 'LOADED' | 'PLAYING' | 'REWINDING' | 'SCANNING';
 export type DisplayMode = 'default' | 'title' | 'chapter' | 'type';
 
-// --- Database Models ---
+// --- Database Models: Master Account ---
+
+export interface MasterAccount {
+  uid: string;
+  email: string;
+  role: 'player' | 'admin';
+  createdAt: Timestamp | null;
+  lastLogin?: Timestamp | null;
+  
+  // Account-level flags
+  hasTerminalAccess?: boolean;
+  hasMacAccess?: boolean;
+}
+
+// --- Database Models: Character (Agent) ---
+
+export interface CharacterData {
+  id: string;
+  codinome: string;
+  agentStatus: 'vivo' | 'morto' | 'desaparecido';
+  dangerLevel: number; // 1-5
+  profilePhotoUrl?: string;
+  campaignId?: string;
+  createdAt: Timestamp;
+  
+  // Character-specific game flags
+  achievementsRevealed?: boolean;
+  forceTerminalOpen?: boolean;
+  forceMacOpen?: boolean;
+  spotifyPlaylistUrl?: string;
+  agentId?: string; // Generated RM-XXXX ID
+}
 
 export interface PlayerStats {
   totalListenTime: number;
@@ -17,42 +48,12 @@ export interface PlayerStats {
   zeroVolumeTime: number;
 }
 
-export interface UserData {
-  uid: string;
-  username: string;
-  displayName?: string;
-  email: string;
-  role: 'player' | 'admin';
-  createdAt: Timestamp | null;
-  lastLogin?: Timestamp | null;
-  campaignId?: string;
-  
-  // Game Flags
-  achievementsRevealed?: boolean;
-  forceTerminalOpen?: boolean;
-  hasTerminalAccess?: boolean;
-  forceMacOpen?: boolean;
-  hasMacAccess?: boolean;
-  spotifyPlaylistUrl?: string;
-
-  // Agent Dossier
-  agentId?: string;
-  agentStatus?: 'vivo' | 'morto' | 'desaparecido';
-  dangerLevel?: number; // 1-5, defined by admin
-  profilePhotoUrl?: string;
-}
-
-export interface TapeData {
-  tapeId: string;
-  unlockedAt: Timestamp;
-}
-
-export interface AchievementData {
-  achievementId: string;
-  unlockedAt: Timestamp;
-}
-
-export interface PlayerData extends UserData {
+/**
+ * PlayerData represents the active session: Account + Active Character + Progress.
+ */
+export interface PlayerData extends MasterAccount {
+  activeCharacterId: string;
+  character: CharacterData;
   unlockedTapeIds: string[];
   achievementIds: string[];
   unlockedGalleryIds: string[];
@@ -102,4 +103,11 @@ export interface QrRedirect {
   targetId: string;
   reason: string;
   updatedAt?: Timestamp;
+}
+
+// --- Admin legacy user document shape ---
+export interface UserData extends MasterAccount {
+  displayName?: string;
+  username?: string;
+  campaignId?: string;
 }

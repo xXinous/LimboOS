@@ -7,7 +7,6 @@ import {
   setDoc,
   deleteDoc,
   serverTimestamp,
-  getDoc,
   updateDoc,
   writeBatch
 } from 'firebase/firestore';
@@ -15,7 +14,7 @@ import { Campaign, campaigns as initialCampaigns } from '../../data/campaigns';
 import { Group, UserData } from '../../types/player';
 import { activityLogger } from '../../services/ActivityLogger';
 import { useModal } from './ConfirmModal';
-import { EVIDENCE_TAPES_FOR_ADMIN } from '../../data/tapes';
+import { intelRegistry } from '../../data/intel_registry';
 
 export default function CampaignsPanel() {
   const { showAlert, modal } = useModal();
@@ -152,6 +151,8 @@ export default function CampaignsPanel() {
   };
 
   if (loading) return <div className="p-8 text-center animate-pulse">CARREGANDO_MISSOES...</div>;
+
+  const allRegistryIntel = intelRegistry.getAll();
 
   return (
     <div className="space-y-8">
@@ -453,9 +454,9 @@ export default function CampaignsPanel() {
 
             <div className="flex-1 overflow-y-auto min-h-0 p-2">
               <div className="grid grid-cols-1 gap-1">
-                {EVIDENCE_TAPES_FOR_ADMIN.filter(i => 
+                {allRegistryIntel.filter(i => 
                   i.title.toLowerCase().includes(itemSearch.toLowerCase()) || 
-                  i.chapter.toLowerCase().includes(itemSearch.toLowerCase())
+                  (i.metadata?.chapter || '').toLowerCase().includes(itemSearch.toLowerCase())
                 ).map(item => (
                   <button
                     key={item.id}
@@ -468,11 +469,11 @@ export default function CampaignsPanel() {
                   >
                     <div className="flex items-center gap-3">
                       <span className="material-symbols-outlined text-sm">
-                        {item.type === 'disk' ? 'save' : 'description'}
+                        {item.type === 'AUDIO' ? 'album' : item.type === 'TEXT' ? 'save' : 'description'}
                       </span>
                       <div>
                         <p className="text-xs font-bold">{item.title}</p>
-                        <p className="text-[9px] opacity-60 uppercase">{item.chapter}</p>
+                        <p className="text-[9px] opacity-60 uppercase">{item.metadata?.chapter}</p>
                       </div>
                     </div>
                     {persistentItems.includes(item.id) && <span className="material-symbols-outlined text-sm">keep</span>}

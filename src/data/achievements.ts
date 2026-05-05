@@ -1,5 +1,5 @@
-import type { Tape } from './tapes';
-import type { PlayerStats } from '../store/firestore';
+import type { PlayerStats } from '../types/player';
+import type { IntelItem } from '../types/intel';
 import {
   Achievement,
   TapeCountRule,
@@ -12,6 +12,7 @@ import {
   achievementManager,
   EvaluationContext
 } from '../services/AchievementManager';
+
 const registerAchievements = () => {
   achievementManager.register(new Achievement('ACH-FIRST', 'Primeiro Contato', 'Deu o primeiro passo neste abismo.', '📼', '???', new TapeCountRule(1), 'Encontrar e escanear 1 fita pela primeira vez.'));
   achievementManager.register(new Achievement('ACH-THREE', 'Colecionador', 'Uma pequena amostra do que está por vir.', '🗂️', '???', new TapeCountRule(3), 'Encontrar e escanear um total de 3 fitas diferentes.'));
@@ -36,17 +37,21 @@ const registerAchievements = () => {
   achievementManager.register(new Achievement('ACH-REPAIR-FAIL', 'Setor Defeituoso', 'A agulha não consegue ler o caos de primeira.', '🛑', '???', new ManualRule(), 'Inserir o disquete corrompido no computador para diagnóstico.'));
   achievementManager.register(new Achievement('ACH-REPAIR-SUCCESS', 'A Verdade no Zero', 'O conteúdo da fenda foi restaurado.', '💾', '???', new ManualRule(), 'Reparar com sucesso o disquete magnético e descobrir a mensagem oculta.'));
 };
+
 registerAchievements();
+
 export interface AchievableProfile {
   unlockedTapeIds: string[];
   achievementIds: string[];
   stats: PlayerStats;
 }
+
 export const ALL_ACHIEVEMENTS = achievementManager.getAll();
-export function checkNewAchievements(profile: AchievableProfile, unlockedTapes: Tape[], rapidScanCount: number = 0) {
+
+export function checkNewAchievements(profile: AchievableProfile, unlockedIntel: IntelItem[], rapidScanCount: number = 0) {
   const context: EvaluationContext = {
     profile,
-    unlockedTapes,
+    unlockedIntel,
     rapidScanCount
   };
   return achievementManager.evaluateNewAchievements(context);

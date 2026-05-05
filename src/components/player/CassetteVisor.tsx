@@ -1,19 +1,19 @@
 import { AnimatePresence, motion } from 'motion/react';
 import { Camera } from 'lucide-react';
 import QrScanner from '../QrScanner';
-import type { Tape } from '../../data/tapes';
+import type { IntelItem } from '../../types/intel';
 import type { WalkmanStatus } from '../../types/player';
 import Screw from './Screw';
 
 export default function CassetteVisor({
-  currentTape, 
+  currentIntel, 
   status,
   onEject, 
   onScanClick, 
   onCancelScan, 
   onQrDetected
 }: {
-  currentTape: Tape | null; 
+  currentIntel: IntelItem | null; 
   status: WalkmanStatus;
   onEject: () => void; 
   onScanClick: () => void;
@@ -24,7 +24,7 @@ export default function CassetteVisor({
   const isRewinding = status === 'REWINDING';
   const isLoading = status === 'LOADING';
   const isScanning = status === 'SCANNING';
-  const hasTape = !!currentTape && (status === 'LOADED' || status === 'PLAYING' || status === 'REWINDING');
+  const hasTape = !!currentIntel && (status === 'LOADED' || status === 'PLAYING' || status === 'REWINDING');
 
   return (
     <div className="mt-4 mx-auto w-[310px] h-[190px] bg-[#222] rounded-xl border-4 border-[#1a1a1a] shadow-[inset_0_4px_10px_rgba(0,0,0,0.6)] flex flex-col items-center relative overflow-hidden shrink-0">
@@ -34,17 +34,17 @@ export default function CassetteVisor({
       ))}
 
       <AnimatePresence mode="wait">
-        {hasTape && currentTape ? (
+        {hasTape && currentIntel ? (
           <motion.div key="cassette" initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 20, opacity: 0 }}
             onClick={onEject} className="w-full h-full flex flex-col items-center cursor-pointer group">
       
             <div className="mt-4 w-[280px] h-[130px] bg-[#f4f1ea] rounded-md shadow-sm relative flex flex-col p-3 border-t-12 border-orange-600 transition-transform group-hover:scale-[1.01]">
               <div className="text-[8px] font-bold flex justify-center gap-4 text-gray-500 mb-2 border-b border-gray-300/50 pb-1">
-                <span>{currentTape.chapter}</span><span>{currentTape.npc}</span>
+                <span>{currentIntel.metadata?.chapter}</span><span>{currentIntel.metadata?.npc || currentIntel.metadata?.artist}</span>
               </div>
               <div className="flex-1 flex flex-col text-center px-2">
-                <div className="text-[13px] font-black uppercase tracking-tight text-gray-800 truncate leading-tight">{currentTape.title}</div>
-                <div className="text-[10px] font-bold text-gray-600 truncate mt-0.5">{currentTape.artist}</div>
+                <div className="text-[13px] font-black uppercase tracking-tight text-gray-800 truncate leading-tight">{currentIntel.title}</div>
+                <div className="text-[10px] font-bold text-gray-600 truncate mt-0.5">{currentIntel.metadata?.artist}</div>
               </div>
               <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 w-[180px] h-[50px] bg-[#222] rounded-t-lg border-t-2 border-l-2 border-r-2 border-[#111]" />
               <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 text-white text-[10px] font-bold px-3 py-1 rounded-full backdrop-blur-sm">CLIQUE PARA EJETAR</div>
@@ -80,7 +80,7 @@ export default function CassetteVisor({
                 {isLoading ? (
                   <div className="flex flex-col items-center gap-2">
                     <div className="w-6 h-6 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
-                    <p className="text-orange-500 text-[9px] font-bold uppercase tracking-widest animate-pulse">Carregando fita...</p>
+                    <p className="text-orange-500 text-[9px] font-bold uppercase tracking-widest animate-pulse">Carregando prova...</p>
                   </div>
                 ) : (
                   <>
@@ -89,7 +89,7 @@ export default function CassetteVisor({
                     </div>
                     <div className="text-center">
                       <p className="text-gray-400 text-[11px] font-bold uppercase tracking-widest">Compartimento Vazio</p>
-                      <p className="text-orange-500 text-[9px] font-bold uppercase tracking-tighter mt-1">Escaneie QR para Inserir Fita</p>
+                      <p className="text-orange-500 text-[9px] font-bold uppercase tracking-tighter mt-1">Escaneie QR para Inserir Prova</p>
                     </div>
                   </>
                 )}

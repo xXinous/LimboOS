@@ -1,49 +1,50 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft, LogOut, Trophy, Music, Pencil, Check, X, ExternalLink, Image, Map } from 'lucide-react';
+import { ArrowLeft, LogOut, Trophy, Music, Pencil, Check, X, ExternalLink, Image, Map, User } from 'lucide-react';
 import { ALL_ACHIEVEMENTS } from '../data/achievements';
 import PlayerGallery from './PlayerGallery';
-import type { GalleryImage } from '../store/firestore';
-interface ProfileData {
-  id: string;
-  username: string;
-  unlockedTapeIds: string[];
-  achievementIds: string[];
-  achievementsRevealed?: boolean;
-  spotifyPlaylistUrl?: string;
-  galleryImages?: GalleryImage[];
-}
+import type { GalleryImage, PlayerData } from '../types/player';
+
 interface ProfileScreenProps {
-  profile: ProfileData;
+  profile: PlayerData & { galleryImages?: GalleryImage[] };
   onBack: () => void;
   onLogout: () => void;
   onUpdateSpotify?: (url: string) => void;
   onChangeMission?: () => void;
+  onChangeCharacter?: () => void;
 }
+
 function extractSpotifyEmbedUrl(url: string): string | null {
   if (!url) return null;
   if (url.includes('open.spotify.com/embed')) return url;
   const match = url.match(/open\.spotify\.com\/(playlist|album|track|episode|show)\/([a-zA-Z0-9]+)/);
-  if (match) {
-    return `https://open.spotify.com/embed/${match[1]}/${match[2]}?utm_source=generator&theme=0`;
-  }
+  if (match) return `https://open.spotify.com/embed/${match[1]}/${match[2]}?utm_source=generator&theme=0`;
   const uriMatch = url.match(/spotify:(playlist|album|track|episode|show):([a-zA-Z0-9]+)/);
-  if (uriMatch) {
-    return `https://open.spotify.com/embed/${uriMatch[1]}/${uriMatch[2]}?utm_source=generator&theme=0`;
-  }
+  if (uriMatch) return `https://open.spotify.com/embed/${uriMatch[1]}/${uriMatch[2]}?utm_source=generator&theme=0`;
   return null;
 }
-export default function ProfileScreen({ profile, onBack, onLogout, onUpdateSpotify, onChangeMission }: ProfileScreenProps) {
+
+export default function ProfileScreen({ 
+  profile, 
+  onBack, 
+  onLogout, 
+  onUpdateSpotify, 
+  onChangeMission, 
+  onChangeCharacter 
+}: ProfileScreenProps) {
   const earnedIds = new Set(profile.achievementIds);
   const [isEditingSpotify, setIsEditingSpotify] = useState(false);
-  const [spotifyInput, setSpotifyInput] = useState(profile.spotifyPlaylistUrl || '');
+  const [spotifyInput, setSpotifyInput] = useState(profile.character.spotifyPlaylistUrl || '');
   const [spotifyError, setSpotifyError] = useState('');
-  const initials = profile.username
+  
+  const initials = profile.character.codinome
     .split(/[\s\-_]+/)
     .slice(0, 2)
     .map((w) => w[0]?.toUpperCase() ?? '')
     .join('');
-  const embedUrl = extractSpotifyEmbedUrl(profile.spotifyPlaylistUrl || '');
+
+  const embedUrl = extractSpotifyEmbedUrl(profile.character.spotifyPlaylistUrl || '');
+
   const handleSaveSpotify = () => {
     const trimmed = spotifyInput.trim();
     if (trimmed && !extractSpotifyEmbedUrl(trimmed)) {
@@ -54,11 +55,13 @@ export default function ProfileScreen({ profile, onBack, onLogout, onUpdateSpoti
     onUpdateSpotify?.(trimmed);
     setIsEditingSpotify(false);
   };
+
   const handleCancelEdit = () => {
-    setSpotifyInput(profile.spotifyPlaylistUrl || '');
+    setSpotifyInput(profile.character.spotifyPlaylistUrl || '');
     setSpotifyError('');
     setIsEditingSpotify(false);
   };
+
   return (
     <motion.div
       initial={{ x: '100%', opacity: 0 }}
@@ -67,7 +70,7 @@ export default function ProfileScreen({ profile, onBack, onLogout, onUpdateSpoti
       transition={{ type: 'spring', damping: 24, stiffness: 200 }}
       className="relative w-full max-w-sm h-full max-h-[750px] bg-[#1e1e1e] rounded-[32px] border-8 border-[#1a1a1a] flex flex-col overflow-hidden z-50"
     >
-      {}
+      {/* Header */}
       <div className="flex items-center justify-between px-4 pt-5 pb-3 border-b border-[#333] shrink-0">
         <button
           onClick={onBack}
@@ -79,7 +82,7 @@ export default function ProfileScreen({ profile, onBack, onLogout, onUpdateSpoti
           <div className="w-12 h-12 rounded-full bg-orange-600 flex items-center justify-center shadow-lg glow-orange">
             <span className="text-black font-display font-bold text-sm tracking-tight">{initials || '?'}</span>
           </div>
-          <span className="text-white font-bold text-sm tracking-tight uppercase">{profile.username}</span>
+          <span className="text-white font-bold text-sm tracking-tight uppercase">{profile.character.codinome}</span>
         </div>
         <button
           onClick={onLogout}
@@ -88,7 +91,8 @@ export default function ProfileScreen({ profile, onBack, onLogout, onUpdateSpoti
           <LogOut size={15} className="text-red-500" />
         </button>
       </div>
-      {}
+
+      {/* Stats Bar */}
       <div className="flex divide-x divide-[#333] bg-[#1a1a1a] shrink-0">
         <div className="flex-1 flex flex-col items-center py-3">
           <span className="text-orange-500 font-bold text-xl">{profile.unlockedTapeIds.length}</span>
@@ -99,10 +103,10 @@ export default function ProfileScreen({ profile, onBack, onLogout, onUpdateSpoti
           <span className="text-[9px] text-gray-500 uppercase tracking-wider mt-0.5">Conquistas</span>
         </div>
       </div>
-      {}
+
       <div className="flex-1 overflow-y-auto">
-        {}
-        <div className="px-4 py-4 border-b border-[#333]">
+        {/* Switching Actions */}
+        <div className="px-4 py-4 border-b border-[#333] space-y-3">
           <button 
             onClick={onChangeMission}
             className="w-full flex items-center justify-between p-4 bg-orange-600/10 hover:bg-orange-600/20 active:scale-[0.98] rounded-xl border border-orange-500/20 transition-all group"
@@ -118,8 +122,25 @@ export default function ProfileScreen({ profile, onBack, onLogout, onUpdateSpoti
             </div>
             <ArrowLeft size={16} className="text-orange-500 rotate-180 opacity-40 group-hover:opacity-100 transition-opacity" />
           </button>
+
+          <button 
+            onClick={onChangeCharacter}
+            className="w-full flex items-center justify-between p-4 bg-primary/10 hover:bg-primary/20 active:scale-[0.98] rounded-xl border border-primary/20 transition-all group"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center text-black shadow-lg">
+                <User size={20} />
+              </div>
+              <div className="text-left">
+                <div className="text-xs font-bold text-white uppercase tracking-wider">Trocar Agente</div>
+                <div className="text-[9px] text-primary/60 font-bold uppercase mt-0.5 tracking-tighter">Assumir Nova Identidade</div>
+              </div>
+            </div>
+            <ArrowLeft size={16} className="text-primary rotate-180 opacity-40 group-hover:opacity-100 transition-opacity" />
+          </button>
         </div>
-        {}
+
+        {/* Spotify Section */}
         <div className="px-4 pt-4 pb-2">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
@@ -128,7 +149,7 @@ export default function ProfileScreen({ profile, onBack, onLogout, onUpdateSpoti
             </div>
             {onUpdateSpotify && !isEditingSpotify && (
               <button
-                onClick={() => { setIsEditingSpotify(true); setSpotifyInput(profile.spotifyPlaylistUrl || ''); }}
+                onClick={() => { setIsEditingSpotify(true); setSpotifyInput(profile.character.spotifyPlaylistUrl || ''); }}
                 className="flex items-center gap-1 text-[10px] text-gray-500 hover:text-[#1DB954] transition-colors"
               >
                 <Pencil size={10} />
@@ -225,7 +246,8 @@ export default function ProfileScreen({ profile, onBack, onLogout, onUpdateSpoti
             )}
           </AnimatePresence>
         </div>
-        {}
+
+        {/* Gallery Section */}
         <div className="px-4 pt-4 pb-2">
           <div className="flex items-center gap-2 mb-3">
             <Image size={14} className="text-cyan-400" />
@@ -233,7 +255,8 @@ export default function ProfileScreen({ profile, onBack, onLogout, onUpdateSpoti
           </div>
           <PlayerGallery images={profile.galleryImages || []} />
         </div>
-        {}
+
+        {/* Achievements Section */}
         <div className="px-4 pt-4 pb-6">
           <div className="flex items-center gap-2 mb-3">
             <Trophy size={14} className="text-orange-500" />
@@ -242,7 +265,7 @@ export default function ProfileScreen({ profile, onBack, onLogout, onUpdateSpoti
           <div className="grid grid-cols-2 gap-2">
             {ALL_ACHIEVEMENTS.map((ach) => {
               const earned = earnedIds.has(ach.id);
-              const isRevealed = profile.achievementsRevealed;
+              const isRevealed = profile.character.achievementsRevealed;
               const title = earned || isRevealed ? ach.title : 'Conquista Bloqueada';
               const description = earned 
                 ? (isRevealed ? `${ach.description} (${ach.unlockCondition})` : ach.description)
@@ -272,4 +295,3 @@ export default function ProfileScreen({ profile, onBack, onLogout, onUpdateSpoti
     </motion.div>
   );
 }
-

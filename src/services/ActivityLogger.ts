@@ -5,6 +5,7 @@ export type ActivityType = 'navigation' | 'action' | 'system' | 'error' | 'admin
 
 export interface ActivityEvent {
   uid: string;
+  characterId?: string;
   username: string;
   type: ActivityType;
   category: string;
@@ -21,6 +22,7 @@ class ActivityLogger {
   
   // Internal User State
   private currentUid: string | null = null;
+  private currentCharacterId: string | null = null;
   private currentUsername: string | null = null;
 
   private constructor() {}
@@ -32,14 +34,16 @@ class ActivityLogger {
     return ActivityLogger.instance;
   }
 
-  public setUser(uid: string, username: string): void {
+  public setUser(uid: string, username: string, characterId?: string): void {
     this.currentUid = uid;
     this.currentUsername = username;
+    this.currentCharacterId = characterId || null;
   }
 
   public clearUser(): void {
     this.currentUid = null;
     this.currentUsername = null;
+    this.currentCharacterId = null;
   }
 
   private sanitizeData(obj: unknown): unknown {
@@ -104,6 +108,7 @@ class ActivityLogger {
    */
   private normalizeArgs(args: any[]): { 
     uid: string; 
+    characterId?: string;
     username: string; 
     category: string; 
     message: string; 
@@ -111,7 +116,19 @@ class ActivityLogger {
   } {
     // Signature A: (category, message, metadata?) -> uses internal setUser state
     // Signature B: (uid, username, category, message, metadata?)
+    // Signature C: (uid, username, characterId, category, message, metadata?)
     
+    if (args.length >= 5 && typeof args[0] === 'string' && typeof args[1] === 'string' && typeof args[2] === 'string' && typeof args[3] === 'string') {
+      return {
+        uid: args[0],
+        username: args[1],
+        characterId: args[2],
+        category: args[3],
+        message: args[4],
+        metadata: args[5] || {}
+      };
+    }
+
     if (args.length >= 4 && typeof args[0] === 'string' && typeof args[1] === 'string' && typeof args[2] === 'string') {
       return {
         uid: args[0],
@@ -124,6 +141,7 @@ class ActivityLogger {
 
     return {
       uid: this.currentUid || 'unknown',
+      characterId: this.currentCharacterId || undefined,
       username: this.currentUsername || 'System',
       category: args[0] || 'general',
       message: args[1] || '',
@@ -132,7 +150,7 @@ class ActivityLogger {
   }
 
   private async write(type: ActivityType, source: 'player' | 'admin', args: any[]): Promise<void> {
-    const { uid, username, category, message, metadata } = this.normalizeArgs(args);
+    const { uid, characterId, username, category, message, metadata } = this.normalizeArgs(args);
 
     try {
       const humanizedMessage = this.humanize(message, type);
@@ -142,6 +160,7 @@ class ActivityLogger {
         type,
         category,
         uid,
+        characterId,
         username,
         message: humanizedMessage,
         metadata: finalMetadata,

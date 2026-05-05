@@ -4,6 +4,7 @@ import { diskRepairService, DISK_REPAIR_REPAIRED_TEXT } from '../services/DiskRe
 
 interface DiskRepairAppProps {
   uid: string;
+  characterId?: string;
   onClose?: () => void;
   onBackToTerminal?: () => void;
   isWindowed?: boolean;
@@ -11,7 +12,7 @@ interface DiskRepairAppProps {
 
 export { DISK_REPAIR_CORRUPTED_TEXT, DISK_REPAIR_REPAIRED_TEXT } from '../services/DiskRepairService';
 
-export default function DiskRepairApp({ uid, onClose, onBackToTerminal, isWindowed }: DiskRepairAppProps) {
+export default function DiskRepairApp({ uid, characterId = '', onClose, onBackToTerminal, isWindowed }: DiskRepairAppProps) {
   const [phase, setPhase] = useState<'intro' | 'loading' | 'viewer' | 'repairing' | 'result'>('intro');
   const [resultStatus, setResultStatus] = useState<'success' | 'fail' | null>(null);
   const [progress, setProgress] = useState(0);
@@ -24,7 +25,7 @@ export default function DiskRepairApp({ uid, onClose, onBackToTerminal, isWindow
   const handleInsertDisk = async () => {
     setPhase('loading');
     setProgress(0);
-    await diskRepairService.startAnalysis(uid, setProgress);
+    await diskRepairService.startAnalysis(uid, characterId, setProgress);
     setScrambleText(diskRepairService.getScrambleText());
     setPhase('viewer');
   };
@@ -32,7 +33,7 @@ export default function DiskRepairApp({ uid, onClose, onBackToTerminal, isWindow
   const handleRepair = async () => {
     setPhase('repairing');
     setProgress(0);
-    const success = await diskRepairService.startRepair(uid, setProgress);
+    const success = await diskRepairService.startRepair(uid, characterId, setProgress);
     setResultStatus(success ? 'success' : 'fail');
     setPhase('result');
   };

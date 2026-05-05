@@ -4,6 +4,7 @@ import { generateAgentId } from '../../store/firestore';
 
 interface AgentDossier {
   uid: string;
+  characterId: string;
   username: string;
   agentId?: string;
   agentStatus?: 'vivo' | 'morto' | 'desaparecido';
@@ -33,7 +34,7 @@ export const MetadataOverlay = ({ onClose, agent }: MetadataOverlayProps) => {
   useEffect(() => {
     if (agent?.uid && !agent.agentId) {
       setLoading(true);
-      generateAgentId(agent.uid)
+      generateAgentId(agent.uid, agent.characterId)
         .then((id) => { setAgentCode(id); setLoading(false); })
         .catch(() => setLoading(false));
     } else if (agent?.agentId) {
@@ -81,7 +82,7 @@ export const MetadataOverlay = ({ onClose, agent }: MetadataOverlayProps) => {
       initial={{ opacity: 0 }} 
       animate={{ opacity: 1 }} 
       exit={{ opacity: 0 }} 
-      className="absolute inset-0 z-[60] bg-black/75 backdrop-blur-md flex items-center justify-center p-6"
+      className="absolute inset-0 z-60 bg-black/75 backdrop-blur-md flex items-center justify-center p-6"
     >
       <motion.div 
         initial={{ scale: 0.8, y: 20 }} 

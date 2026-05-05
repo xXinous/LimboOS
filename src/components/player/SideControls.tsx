@@ -1,19 +1,22 @@
-import { useEffect, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { motion, useMotionValue, useTransform, animate } from 'motion/react';
 import { User } from 'lucide-react';
 import { analyticsTracker } from '../../services/AnalyticsTracker';
 import { activityLogger } from '../../services/ActivityLogger';
-export default function SideControls({ volume, setVolume, onModeChange, onProfileOpen }: {
+export default function SideControls({ volume, setVolume, onModeChange, onProfileOpen, onCharacterSwitch }: {
   volume: number; setVolume: (v: number) => void;
   onModeChange: (dir: 'up' | 'down') => void; onProfileOpen: () => void;
+  onCharacterSwitch?: () => void;
 }) {
   const dragY = useMotionValue(0);
   const firedRef = useRef(false);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const upArrowColor = useTransform(dragY, (v: number) => v < -5 ? '#ea580c' : '#6b7280');
   const downArrowColor = useTransform(dragY, (v: number) => v > 5 ? '#ea580c' : '#6b7280');
   
   const lastLoggedVolume = useRef(volume);
-  const volumeTimer = useRef<NodeJS.Timeout | null>(null);
+  const volumeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (volume === lastLoggedVolume.current) return;
@@ -24,9 +27,42 @@ export default function SideControls({ volume, setVolume, onModeChange, onProfil
     }, 1500);
     return () => { if (volumeTimer.current) clearTimeout(volumeTimer.current); };
   }, [volume]);
+
+  const handleProfilePointerDown = (e: React.PointerEvent) => {
+    longPressTimer.current = setTimeout(() => {
+      if (onCharacterSwitch) {
+        if (typeof window !== 'undefined' && window.navigator?.vibrate) {
+          try { window.navigator.vibrate([50, 30, 50]); } catch(e) {}
+        }
+        activityLogger.logAction('player', 'Troca rápida de agente acionada via long-press');
+        onCharacterSwitch();
+      }
+      longPressTimer.current = null;
+    }, 1000);
+  };
+
+  const handleProfilePointerUp = () => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+      onProfileOpen();
+    }
+  };
+
   return (
     <div className="absolute right-2 top-[240px] bottom-20 flex flex-col items-center justify-center gap-6 w-16">
-      <button onClick={onProfileOpen} className="w-10 h-10 rounded-full bg-[#333] border-2 border-[#1a1a1a] flex items-center justify-center hover:bg-orange-900/30 transition-colors shrink-0">
+      <button 
+        onPointerDown={handleProfilePointerDown}
+        onPointerUp={handleProfilePointerUp}
+        onPointerLeave={() => {
+          if (longPressTimer.current) {
+            clearTimeout(longPressTimer.current);
+            longPressTimer.current = null;
+          }
+        }}
+        className="w-10 h-10 rounded-full bg-[#333] border-2 border-[#1a1a1a] flex items-center justify-center hover:bg-orange-900/30 transition-colors shrink-0 active:scale-90"
+        title="Clique para perfil, segure para trocar agente"
+      >
         <User size={16} className="text-orange-500" />
       </button>
       {}

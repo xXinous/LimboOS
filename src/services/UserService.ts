@@ -16,7 +16,7 @@ import {
 import { initializeApp, deleteApp } from "firebase/app";
 import { getAuth, createUserWithEmailAndPassword } from "firebase/auth";
 import { httpsCallable } from "firebase/functions";
-import { UserData, PlayerStats, TapeData } from "../types/player";
+import { MasterAccount, CharacterData, PlayerStats } from "../types/player";
 
 export interface PlayCountData {
   tapeId: string;
@@ -34,17 +34,22 @@ export class UserService {
     return UserService.instance;
   }
 
-  public subscribeToUsers(callback: (users: UserData[]) => void): () => void {
+  public subscribeToUsers(callback: (users: MasterAccount[]) => void): () => void {
     return onSnapshot(collection(db, "users"), 
       (snapshot) => {
-        const users: UserData[] = [];
+        const users: MasterAccount[] = [];
         snapshot.forEach((doc) => {
-          users.push(doc.data() as UserData);
+          users.push(doc.data() as MasterAccount);
         });
         callback(users);
       },
       (err) => console.warn('[UserService] users listener error:', err)
     );
+  }
+
+  public async fetchCharactersForUser(uid: string): Promise<CharacterData[]> {
+    const snap = await getDocs(collection(db, "users", uid, "characters"));
+    return snap.docs.map(d => ({ id: d.id, ...d.data() } as CharacterData));
   }
 
   public subscribeToUserTotalPlays(callback: (counts: Record<string, number>) => void): () => void {
@@ -63,59 +68,75 @@ export class UserService {
     );
   }
 
-  public async loadUserDetails(uid: string): Promise<{
-    tapes: TapeData[];
+  public async loadUserDetails(uid: string, characterId: string): Promise<{
+    tapes: { id: string; unlockedAt: any }[];
     playCounts: PlayCountData[];
     stats: PlayerStats | null;
   }> {
-    const tapesSnap = await getDocs(collection(db, "users", uid, "tapes"));
-    const tapes: TapeData[] = [];
-    tapesSnap.forEach((d) => tapes.push({ tapeId: d.id, unlockedAt: d.data().unlockedAt } as TapeData));
+    try {
+      const [tapesSnap, eventsSnap, statsSnap] = await Promise.all([
+        getDocs(collection(db, "users", uid, "characters", characterId, "tapes")),
+        getDocs(query(collection(db, "playEvents"), where("uid", "==", uid), where("characterId", "==", characterId))),
+        getDoc(doc(db, "users", uid, "characters", characterId, "stats", "main"))
+      ]);
 
-    const eventsSnap = await getDocs(query(collection(db, "playEvents"), where("uid", "==", uid)));
-    const tapeCounts: Record<string, number> = {};
-    eventsSnap.forEach((d) => {
-      const data = d.data();
-      if (data.tapeId) {
-        tapeCounts[data.tapeId] = (tapeCounts[data.tapeId] || 0) + 1;
-      }
-    });
+      const tapes = tapesSnap.docs.map(d => ({ 
+        id: d.id, 
+        unlockedAt: d.data().unlockedAt 
+      }));
 
-    const playCounts: PlayCountData[] = Object.entries(tapeCounts).map(([tapeId, count]) => ({
-      tapeId,
-      count,
-    }));
+      const tapeCounts: Record<string, number> = {};
+      eventsSnap.forEach((d) => {
+        const data = d.data();
+        if (data.tapeId) {
+          tapeCounts[data.tapeId] = (tapeCounts[data.tapeId] || 0) + 1;
+        }
+      });
 
-    const statsSnap = await getDoc(doc(db, "users", uid, "stats", "main"));
-    const stats = statsSnap.exists() ? (statsSnap.data() as PlayerStats) : null;
+      const playCounts: PlayCountData[] = Object.entries(tapeCounts).map(([tapeId, count]) => ({
+        tapeId,
+        count,
+      }));
 
-    return { tapes, playCounts, stats };
+      const stats = statsSnap.exists() ? (statsSnap.data() as PlayerStats) : null;
+
+      return { tapes, playCounts, stats };
+    } catch (error) {
+      console.error('[UserService] Error loading user details:', error);
+      return { tapes: [], playCounts: [], stats: null };
+    }
   }
 
   public async deleteUser(uid: string): Promise<void> {
-    const tapesSnap = await getDocs(collection(db, "users", uid, "tapes"));
-    await Promise.all(tapesSnap.docs.map((d) => deleteDoc(d.ref)));
-    const achSnap = await getDocs(collection(db, "users", uid, "achievements"));
-    await Promise.all(achSnap.docs.map((d) => deleteDoc(d.ref)));
+    // Delete master account document
     await deleteDoc(doc(db, "users", uid));
+    // Note: Recursive delete for sub-collections might be needed via Cloud Function for production
   }
 
-  public async updateUserRole(uid: string, data: Partial<UserData>): Promise<void> {
-    await updateDoc(doc(db, "users", uid), data);
+  public async deleteCharacter(uid: string, characterId: string): Promise<void> {
+    const tapesSnap = await getDocs(collection(db, "users", uid, "characters", characterId, "tapes"));
+    await Promise.all(tapesSnap.docs.map((d) => deleteDoc(d.ref)));
+    const achSnap = await getDocs(collection(db, "users", uid, "characters", characterId, "achievements"));
+    await Promise.all(achSnap.docs.map((d) => deleteDoc(d.ref)));
+    await deleteDoc(doc(db, "users", uid, "characters", characterId));
   }
 
-  public async removeUserTape(uid: string, tapeId: string): Promise<void> {
-    await deleteDoc(doc(db, "users", uid, "tapes", tapeId));
+  public async updateUserRole(uid: string, role: 'player' | 'admin'): Promise<void> {
+    await updateDoc(doc(db, "users", uid), { role });
   }
 
-  public async addUserTape(uid: string, tapeId: string): Promise<void> {
-    await setDoc(doc(db, "users", uid, "tapes", tapeId), {
+  public async removeUserTape(uid: string, characterId: string, tapeId: string): Promise<void> {
+    await deleteDoc(doc(db, "users", uid, "characters", characterId, "tapes", tapeId));
+  }
+
+  public async addUserTape(uid: string, characterId: string, tapeId: string): Promise<void> {
+    await setDoc(doc(db, "users", uid, "characters", characterId, "tapes", tapeId), {
       tapeId,
       unlockedAt: serverTimestamp(),
     });
   }
 
-  public async createSyntheticUser(codinome: string, rawPassword: string, role: 'player' | 'admin'): Promise<string> {
+  public async createSyntheticUser(masterId: string, rawPassword: string, role: 'player' | 'admin'): Promise<{ uid: string; characterId: string }> {
     const secondaryApp = initializeApp(
       {
         apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -129,83 +150,62 @@ export class UserService {
     );
 
     const secondaryAuth = getAuth(secondaryApp);
-    const slug = codinome.trim().toLowerCase().replace(/[^a-z0-9._-]/g, "_");
+    const slug = masterId.trim().toLowerCase().replace(/[^a-z0-9._-]/g, "_");
     const email = `${slug}@runningman.local`;
 
     const { user: newUser } = await createUserWithEmailAndPassword(secondaryAuth, email, rawPassword);
     
+    // Create Master Account
     await setDoc(doc(db, "users", newUser.uid), {
       uid: newUser.uid,
-      displayName: codinome.trim(),
-      username: codinome.trim(),
       email: email,
       role: role,
+      createdAt: serverTimestamp(),
+      lastLogin: serverTimestamp(),
+    });
+
+    // Create Initial Character
+    const charId = `initial_${Date.now()}`;
+    await setDoc(doc(db, "users", newUser.uid, "characters", charId), {
+      codinome: masterId.trim(),
+      agentStatus: 'vivo',
+      dangerLevel: 1,
       createdAt: serverTimestamp(),
     });
 
     await secondaryAuth.signOut();
     await deleteApp(secondaryApp);
-    return newUser.uid;
-  }
-
-  public async transferData(sourceUid: string, targetUid: string): Promise<{ tapes: number; achievements: number; events: number }> {
-    const tapesSnap = await getDocs(collection(db, "users", sourceUid, "tapes"));
-    for (const tapeDoc of tapesSnap.docs) {
-      await setDoc(doc(db, "users", targetUid, "tapes", tapeDoc.id), tapeDoc.data());
-      await deleteDoc(tapeDoc.ref);
-    }
-
-    const achSnap = await getDocs(collection(db, "users", sourceUid, "achievements"));
-    for (const achDoc of achSnap.docs) {
-      await setDoc(doc(db, "users", targetUid, "achievements", achDoc.id), achDoc.data());
-      await deleteDoc(achDoc.ref);
-    }
-
-    const statsSnap = await getDoc(doc(db, "users", sourceUid, "stats", "main"));
-    if (statsSnap.exists()) {
-      await setDoc(doc(db, "users", targetUid, "stats", "main"), statsSnap.data(), { merge: true });
-      await deleteDoc(doc(db, "users", sourceUid, "stats", "main"));
-    }
-
-    const eventsSnap = await getDocs(query(collection(db, "playEvents"), where("uid", "==", sourceUid)));
-    const batch = writeBatch(db);
-    eventsSnap.docs.forEach((eventDoc) => {
-      batch.update(eventDoc.ref, { uid: targetUid });
-    });
-    await batch.commit();
-
-    return { tapes: tapesSnap.size, achievements: achSnap.size, events: eventsSnap.size };
+    return { uid: newUser.uid, characterId: charId };
   }
 
   public async resetUserPassword(targetUid: string, newPassword: string): Promise<void> {
     const fn = httpsCallable(functions, 'adminResetPassword');
     const result = await fn({ targetUid, newPassword });
     const data = result.data as { success?: boolean };
-    if (!data.success) {
-      throw new Error('Falha ao alterar senha.');
-    }
+    if (!data.success) throw new Error('Falha ao alterar senha.');
   }
 
-  public async generateUserBackup(user: UserData): Promise<string> {
-    const tapesSnap = await getDocs(collection(db, "users", user.uid, "tapes"));
-    const tapes = tapesSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  public async generateUserBackup(account: MasterAccount, character: CharacterData): Promise<string> {
+    const details = await this.loadUserDetails(account.uid, character.id);
     
-    const achSnap = await getDocs(collection(db, "users", user.uid, "achievements"));
+    const achSnap = await getDocs(collection(db, "users", account.uid, "characters", character.id, "achievements"));
     const achievements = achSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
-
-    const eventsSnap = await getDocs(query(collection(db, "playEvents"), where("uid", "==", user.uid)));
-    const playEvents = eventsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
 
     const backup = {
       exportedAt: new Date().toISOString(),
-      user: {
-        ...user,
-        lastLogin: user.lastLogin?.toDate?.()?.toISOString?.() || null,
-        createdAt: user.createdAt?.toDate?.()?.toISOString?.() || null,
+      account: {
+        ...account,
+        lastLogin: account.lastLogin?.toDate?.()?.toISOString?.() || null,
+        createdAt: account.createdAt?.toDate?.()?.toISOString?.() || null,
       },
-      tapes,
+      character: {
+        ...character,
+        createdAt: character.createdAt?.toDate?.()?.toISOString?.() || null,
+      },
+      tapes: details.tapes,
       achievements,
-      playEvents,
+      playEvents: details.playCounts,
+      stats: details.stats
     };
 
     return JSON.stringify(backup, null, 2);

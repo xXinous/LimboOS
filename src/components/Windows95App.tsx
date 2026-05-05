@@ -203,7 +203,7 @@ function StartOption({ icon, label, onClick, subMenu }: { icon: string, label: s
   );
 }
 
-function Window({ type, isFocused, onFocus, onClose, uid }: { type: WindowType, isFocused: boolean, onFocus: () => void, onClose: () => void, uid: string }) {
+const Window: React.FC<{ type: WindowType, isFocused: boolean, onFocus: () => void, onClose: () => void, uid: string }> = ({ type, isFocused, onFocus, onClose, uid }) => {
   return (
     <motion.div 
       initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
@@ -256,7 +256,8 @@ function Window({ type, isFocused, onFocus, onClose, uid }: { type: WindowType, 
       </div>
     </motion.div>
   );
-}
+};
+
 
 function getWindowLabel(type: WindowType): string {
   switch (type) {

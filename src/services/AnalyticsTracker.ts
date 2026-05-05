@@ -1,8 +1,8 @@
-import type { PlayerData, PlayerStats } from '../store/firestore';
-import type { Tape } from '../data/tapes';
+import type { PlayerData, PlayerStats } from '../types/player';
+import type { IntelItem } from '../types/intel';
 import { recordPlayEvent, markPlayEventCompleted, firestoreUpdateStats, firestoreGrantAchievements } from '../store/firestore';
 import { checkNewAchievements } from '../data/achievements';
-import { resolveTapes } from '../data/tapes';
+import { intelRegistry } from '../data/intel_registry';
 import type { Toast } from '../components/ToastNotification';
 import { activityLogger } from './ActivityLogger';
 
@@ -39,8 +39,8 @@ export class AnalyticsTracker {
     this.onStatsSync = onStatsSync;
     this.onToast = onToast;
     
-    // Auto-initialize activity logger context too
-    activityLogger.setUser(playerData.uid, playerData.username);
+    // Auto-initialize activity logger context
+    activityLogger.setUser(playerData.uid, playerData.character.codinome, playerData.activeCharacterId);
     
     this.startBackgroundSync();
   }
@@ -51,8 +51,8 @@ export class AnalyticsTracker {
 
   public updatePlayerData(data: PlayerData) {
     this.playerData = data;
-    if (data.uid && data.username) {
-        activityLogger.setUser(data.uid, data.username);
+    if (data.uid && data.character?.codinome) {
+        activityLogger.setUser(data.uid, data.character.codinome, data.activeCharacterId);
     }
   }
 
@@ -67,13 +67,13 @@ export class AnalyticsTracker {
     }
   }
 
-  public startPlayback(tape: Tape) {
+  public startPlayback(intel: IntelItem) {
     if (!this.playerData) return;
-    recordPlayEvent(this.playerData.uid, tape.id)
+    recordPlayEvent(this.playerData.uid, this.playerData.activeCharacterId, intel.id)
       .then(id => this.activePlayEventId = id)
       .catch(console.error);
     
-    activityLogger.logAction('tape_play', `Iniciou reprodução: ${tape.title}`, { tapeId: tape.id });
+    activityLogger.logAction('tape_play', `Iniciou reprodução: ${intel.title}`, { intelId: intel.id });
     
     if (this.listenTimer) clearInterval(this.listenTimer);
     this.listenTimer = window.setInterval(() => this.tick(), 5000);
@@ -109,7 +109,7 @@ export class AnalyticsTracker {
 
   public forceSyncToServer() {
     if (this.playerData && this.localStats) {
-      firestoreUpdateStats(this.playerData.uid, this.localStats).catch(console.error);
+      firestoreUpdateStats(this.playerData.uid, this.playerData.activeCharacterId, this.localStats).catch(console.error);
     }
   }
 
@@ -118,21 +118,31 @@ export class AnalyticsTracker {
     this.syncTimer = window.setInterval(() => this.forceSyncToServer(), 60000);
   }
 
-  public stopAll() {
+  public stopAll(skipSync = false) {
     this.pausePlayback();
     if (this.syncTimer) clearInterval(this.syncTimer);
-    this.forceSyncToServer();
+    if (!skipSync) this.forceSyncToServer();
+    this.playerData = null;
+    this.localStats = null;
+    this.onStatsSync = null;
+    this.onToast = null;
     activityLogger.clearUser();
+  }
+
+  private resolveOwnedIntelForAchievements(): IntelItem[] {
+    if (!this.playerData) return [];
+    const ids = this.playerData.unlockedTapeIds;
+    return intelRegistry.resolve(ids);
   }
 
   public checkAchievements(scanTimes: number[] = []) {
     if (!this.playerData || !this.localStats) return;
     const profile = { ...this.playerData, stats: this.localStats };
-    const tapes = resolveTapes(this.playerData.unlockedTapeIds);
-    const newAchievements = checkNewAchievements(profile, tapes, scanTimes.length);
+    const intelItems = this.resolveOwnedIntelForAchievements();
+    const newAchievements = checkNewAchievements(profile, intelItems, scanTimes.length);
     
     if (newAchievements.length > 0) {
-      firestoreGrantAchievements(this.playerData.uid, newAchievements.map(a => a.id))
+      firestoreGrantAchievements(this.playerData.uid, this.playerData.activeCharacterId, newAchievements.map(a => a.id))
         .catch(err => console.warn('[AnalyticsTracker] Failed to grant achievements:', err));
       
       this.forceSyncToServer();
@@ -148,7 +158,7 @@ export class AnalyticsTracker {
     if (!this.playerData || !this.localStats) return;
     if (this.playerData.achievementIds.includes(id)) return;
     
-    firestoreGrantAchievements(this.playerData.uid, [id])
+    firestoreGrantAchievements(this.playerData.uid, this.playerData.activeCharacterId, [id])
       .catch(err => console.warn('[AnalyticsTracker] Failed to grant achievement:', err));
     
     this.playerData.achievementIds = [...this.playerData.achievementIds, id];
