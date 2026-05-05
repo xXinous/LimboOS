@@ -175,7 +175,7 @@ export default function ProfileScreen({
                     value={spotifyInput}
                     onChange={(e) => { setSpotifyInput(e.target.value); setSpotifyError(''); }}
                     placeholder="https://open.spotify.com/playlist/..."
-                    className="w-full bg-[#1a1a1a] border border-[#444] rounded-md px-3 py-2 text-xs text-white placeholder:text-gray-700 focus:border-[#1DB954] focus:outline-none transition-colors"
+                    className="w-full bg-[#1a1a1a] border border-[#444] rounded-md px-3 py-2 text-base text-white placeholder:text-gray-700 focus:border-[#1DB954] focus:outline-none transition-colors"
                     autoFocus
                   />
                   {spotifyError && (

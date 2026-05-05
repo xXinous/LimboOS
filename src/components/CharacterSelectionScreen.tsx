@@ -183,7 +183,7 @@ export default function CharacterSelectionScreen({ account, onSelect, onLogout }
                     </div>
                     <input type="text" autoFocus required value={newCodinome} onChange={e => setNewCodinome(e.target.value)}
                       placeholder="EX: PHANTOM-84"
-                      className="w-full bg-surface-container-lowest border-none py-4 pl-12 pr-4 text-white font-sans text-sm tracking-wide focus:ring-0 placeholder:text-industrial-silver/20 outline-none uppercase" />
+                      className="w-full bg-surface-container-lowest border-none py-4 pl-12 pr-4 text-white font-sans text-base tracking-wide focus:ring-0 placeholder:text-industrial-silver/20 outline-none uppercase" />
                     <div className="absolute bottom-0 left-0 h-0.5 w-0 bg-primary transition-all duration-300 group-focus-within:w-full" />
                   </div>
                 </div>
@@ -235,7 +235,7 @@ export default function CharacterSelectionScreen({ account, onSelect, onLogout }
                     </div>
                     <input type="text" autoFocus required value={newMasterName} onChange={e => setNewMasterName(e.target.value)}
                       placeholder="Ex: João Silva ou Mestre123"
-                      className="w-full bg-surface-container-lowest border-none py-4 pl-12 pr-4 text-white font-sans text-sm tracking-wide focus:ring-0 placeholder:text-industrial-silver/20 outline-none" />
+                      className="w-full bg-surface-container-lowest border-none py-4 pl-12 pr-4 text-white font-sans text-base tracking-wide focus:ring-0 placeholder:text-industrial-silver/20 outline-none" />
                     <div className="absolute bottom-0 left-0 h-0.5 w-0 bg-primary transition-all duration-300 group-focus-within:w-full" />
                   </div>
                 </div>
