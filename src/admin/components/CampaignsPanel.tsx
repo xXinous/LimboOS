@@ -200,7 +200,7 @@ export default function CampaignsPanel() {
                   <span className="material-symbols-outlined text-6xl">map</span>
                 </div>
               )}
-              <div className="absolute inset-0 bg-gradient-to-t from-[#1a1a1a] via-transparent to-transparent" />
+              <div className="absolute inset-0 bg-linear-to-t from-[#1a1a1a] via-transparent to-transparent" />
               <div className="absolute bottom-6 left-6">
                 <h3 className="font-black text-2xl text-white uppercase tracking-tighter group-hover:text-primary transition-colors">{campaign.name}</h3>
                 <div className="flex items-center gap-3 mt-1">
@@ -292,7 +292,7 @@ export default function CampaignsPanel() {
 
       {/* Modal de Edição de Campanha */}
       {isEditing && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/95 p-4 backdrop-blur-xl">
+        <div className="fixed inset-0 z-110 flex items-center justify-center bg-black/95 p-4 backdrop-blur-xl">
           <div className="bg-[#222] border-8 border-[#1a1a1a] w-full max-w-2xl rounded-[32px] shadow-2xl overflow-hidden relative">
             <Screw className="top-4 left-4" /><Screw className="top-4 right-4 -rotate-90" /><Screw className="bottom-4 left-4 -rotate-90" /><Screw className="bottom-4 right-4" />
             <div className="noise-overlay" /><div className="scanlines" />
@@ -427,7 +427,7 @@ export default function CampaignsPanel() {
 
       {/* Modal de Itens Persistentes */}
       {showItemsModal && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/95 p-4 backdrop-blur-xl">
+        <div className="fixed inset-0 z-110 flex items-center justify-center bg-black/95 p-4 backdrop-blur-xl">
           <div className="bg-[#222] border-8 border-[#1a1a1a] w-full max-w-xl rounded-[32px] shadow-2xl flex flex-col max-h-[85vh] relative overflow-hidden">
             <Screw className="top-4 left-4" /><Screw className="top-4 right-4 -rotate-90" /><Screw className="bottom-4 left-4 -rotate-90" /><Screw className="bottom-4 right-4" />
             <div className="noise-overlay" /><div className="scanlines" />
@@ -492,7 +492,7 @@ export default function CampaignsPanel() {
             <div className="p-8 border-t-4 border-[#1a1a1a] flex justify-end relative z-10 bg-black/40">
               <button 
                 onClick={() => setShowItemsModal(false)}
-                className="bg-[#333] hover:bg-[#444] text-white px-12 py-4 text-[10px] font-black tracking-widest hover:bg-zinc-700 transition-all rounded-sm uppercase active:scale-95 shadow-lg"
+                className="bg-[#333] text-white px-12 py-4 text-[10px] font-black tracking-widest hover:bg-zinc-700 transition-all rounded-sm uppercase active:scale-95 shadow-lg"
               >
                 Concluir_Operação
               </button>

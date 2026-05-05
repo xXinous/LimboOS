@@ -80,7 +80,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
                         </div>
                         <input type="text" required value={masterId} onChange={e => setMasterId(e.target.value)}
                           placeholder="EX: RM-USER-01"
-                          className="w-full bg-surface-container-lowest border-none py-4 pl-12 pr-4 text-white font-sans text-sm tracking-wide focus:ring-0 placeholder:text-industrial-silver/20 outline-none" />
+                          className="w-full bg-surface-container-lowest border-none py-4 pl-12 pr-4 text-white font-sans text-base tracking-wide focus:ring-0 placeholder:text-industrial-silver/20 outline-none" />
                         <div className="absolute bottom-0 left-0 h-0.5 w-0 bg-primary transition-all duration-300 group-focus-within:w-full" />
                       </div>
                     </div>
@@ -95,7 +95,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
                         </div>
                         <input type="password" required value={password} onChange={e => setPassword(e.target.value)}
                           placeholder="••••••••"
-                          className="w-full bg-surface-container-lowest border-none py-4 pl-12 pr-4 text-white font-sans text-sm tracking-wide focus:ring-0 placeholder:text-industrial-silver/20 outline-none" />
+                          className="w-full bg-surface-container-lowest border-none py-4 pl-12 pr-4 text-white font-sans text-base tracking-wide focus:ring-0 placeholder:text-industrial-silver/20 outline-none" />
                         <div className="absolute bottom-0 left-0 h-0.5 w-0 bg-primary transition-all duration-300 group-focus-within:w-full" />
                       </div>
                     </div>

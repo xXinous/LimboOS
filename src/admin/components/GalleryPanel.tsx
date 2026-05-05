@@ -350,7 +350,7 @@ export default function GalleryPanel() {
       </div>
 
       {showUpload && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/95 p-4 backdrop-blur-xl">
+        <div className="fixed inset-0 z-110 flex items-center justify-center bg-black/95 p-4 backdrop-blur-xl">
           <div className="bg-[#222] border-8 border-[#1a1a1a] w-full max-w-xl rounded-[32px] shadow-2xl flex flex-col max-h-[85vh] relative overflow-hidden">
             <Screw className="top-4 left-4" /><Screw className="top-4 right-4 -rotate-90" /><Screw className="bottom-4 left-4 -rotate-90" /><Screw className="bottom-4 right-4" />
             <div className="noise-overlay" /><div className="scanlines" />
@@ -477,7 +477,7 @@ export default function GalleryPanel() {
       )}
 
       {showGrantModal && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/95 p-4 backdrop-blur-xl">
+        <div className="fixed inset-0 z-110 flex items-center justify-center bg-black/95 p-4 backdrop-blur-xl">
           <div className="bg-[#222] border-8 border-[#1a1a1a] w-full max-w-xl rounded-[32px] shadow-2xl flex flex-col max-h-[85vh] relative overflow-hidden">
             <Screw className="top-4 left-4" /><Screw className="top-4 right-4 -rotate-90" /><Screw className="bottom-4 left-4 -rotate-90" /><Screw className="bottom-4 right-4" />
             <div className="noise-overlay" /><div className="scanlines" />
@@ -580,7 +580,7 @@ export default function GalleryPanel() {
 
       {previewImage && (
         <div
-          className="fixed inset-0 z-[120] flex items-center justify-center bg-black/98 backdrop-blur-2xl cursor-pointer"
+          className="fixed inset-0 z-120 flex items-center justify-center bg-black/98 backdrop-blur-2xl cursor-pointer"
           onClick={() => setPreviewImage(null)}
         >
           <div className="relative max-w-5xl max-h-[90vh] w-full mx-6 flex flex-col items-center" onClick={e => e.stopPropagation()}>
@@ -613,7 +613,7 @@ export default function GalleryPanel() {
       )}
 
       {editModalImage && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/95 p-4 backdrop-blur-xl">
+        <div className="fixed inset-0 z-110 flex items-center justify-center bg-black/95 p-4 backdrop-blur-xl">
           <div className="bg-[#222] border-8 border-[#1a1a1a] w-full max-w-xl rounded-[32px] shadow-2xl flex flex-col max-h-[85vh] relative overflow-hidden">
             <Screw className="top-4 left-4" /><Screw className="top-4 right-4 -rotate-90" /><Screw className="bottom-4 left-4 -rotate-90" /><Screw className="bottom-4 right-4" />
             <div className="noise-overlay" /><div className="scanlines" />

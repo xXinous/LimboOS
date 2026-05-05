@@ -418,7 +418,7 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
       </div>
 
       {qrCodeModal && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/95 p-4 backdrop-blur-xl">
+        <div className="fixed inset-0 z-110 flex items-center justify-center bg-black/95 p-4 backdrop-blur-xl">
           <div className="bg-[#222] border-8 border-[#1a1a1a] p-10 w-full max-w-sm rounded-[32px] shadow-2xl flex flex-col items-center relative overflow-hidden">
             <Screw className="top-4 left-4" /><Screw className="top-4 right-4 -rotate-90" /><Screw className="bottom-4 left-4 -rotate-90" /><Screw className="bottom-4 right-4" />
             <div className="noise-overlay" /><div className="scanlines" />
@@ -459,7 +459,7 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
       )}
 
       {editAudio && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/95 p-4 backdrop-blur-xl">
+        <div className="fixed inset-0 z-110 flex items-center justify-center bg-black/95 p-4 backdrop-blur-xl">
           <div className="bg-[#222] border-8 border-[#1a1a1a] p-10 w-full max-w-xl rounded-[32px] shadow-2xl flex flex-col relative overflow-hidden">
             <Screw className="top-4 left-4" /><Screw className="top-4 right-4 -rotate-90" /><Screw className="bottom-4 left-4 -rotate-90" /><Screw className="bottom-4 right-4" />
             <div className="noise-overlay" /><div className="scanlines" />
