@@ -5,6 +5,7 @@ const QrScanner = React.lazy(() => import('../QrScanner'));
 import type { IntelItem } from '../../types/intel';
 import type { WalkmanStatus } from '../../types/player';
 import Screw from './Screw';
+import RetroSpinner from './RetroSpinner';
 
 export default React.memo(function CassetteVisor({
   currentIntel, 
@@ -73,7 +74,7 @@ export default React.memo(function CassetteVisor({
             {isScanning ? (
               <React.Suspense fallback={
                 <div className="w-full h-full flex flex-col items-center justify-center p-4">
-                  <div className="w-6 h-6 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
+                  <RetroSpinner size="sm" className="mb-2" />
                   <p className="text-orange-500 text-[9px] font-bold uppercase tracking-widest animate-pulse mt-2">Iniciando scanner...</p>
                 </div>
               }>
@@ -87,7 +88,7 @@ export default React.memo(function CassetteVisor({
                 className={`w-[280px] h-[130px] border-2 border-dashed rounded-lg flex flex-col items-center justify-center gap-3 transition-all ${isLoading ? 'border-orange-500/30 cursor-default' : 'border-[#444] hover:bg-white/5 cursor-pointer group'}`}>
                 {isLoading ? (
                   <div className="flex flex-col items-center gap-2">
-                    <div className="w-6 h-6 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
+                    <RetroSpinner size="sm" />
                     <p className="text-orange-500 text-[9px] font-bold uppercase tracking-widest animate-pulse">Carregando prova...</p>
                   </div>
                 ) : (

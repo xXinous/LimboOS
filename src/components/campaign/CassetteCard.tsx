@@ -1,7 +1,8 @@
-import React, { memo, useState } from 'react';
+import React, { memo, useState, useMemo } from 'react';
 import { motion, useTransform, MotionValue } from 'motion/react';
-import { Zap, Loader2, ChevronRight } from 'lucide-react';
+import { Zap, ChevronRight } from 'lucide-react';
 import { Campaign } from '../../data/campaigns';
+import RetroSpinner from '../player/RetroSpinner';
 
 interface CassetteCardProps {
   campaign: Campaign;
@@ -20,31 +21,32 @@ export const CassetteCard = memo(({ campaign, onSelect, index, dragX, cardWidth,
   const [imageLoaded, setImageLoaded] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
 
-  const range = [-(index + 1) * step, -index * step, -(index - 1) * step];
-  const scale = useTransform(dragX, range, [0.9, 1, 0.9]);
-  const opacity = useTransform(dragX, range, [0.4, 1, 0.4]);
-  const rotateY = useTransform(dragX, range, [-5, 0, 5]);
-  const y = useTransform(dragX, range, [10, 0, 10]);
+  const cardX = useMemo(() => index * step, [index, step]);
+  const distance = useTransform(dragX, (val) => Math.abs(val + cardX));
+  
+  const scale = useTransform(distance, [0, step], [1, 0.85], { clamp: true });
+  const opacity = useTransform(distance, [0, step], [1, 0.4], { clamp: true });
+  const rotateY = useTransform(distance, [0, step], [0, 15], { clamp: true });
+  const zIndex = useTransform(distance, [0, step], [10, 0]);
+  const y = useTransform(distance, [0, step], [0, 10], { clamp: true });
   
   return (
     <motion.div
-      style={{ scale, opacity, rotateY, y, width: cardWidth, height: cardHeight }}
+      style={{ scale, opacity, rotateY, zIndex, y, width: cardWidth, height: cardHeight }}
       className="relative shrink-0 select-none origin-center will-change-transform"
+      onClick={() => {
+        if (!isActive) {
+          onSnapToSelf();
+        } else if (!isLocked) {
+          setIsExpanded(!isExpanded);
+        }
+      }}
     >
       <div className="absolute inset-0 bg-primary/5 border-2 border-primary/20 rounded-sm -m-2 opacity-0 group-hover:opacity-100 transition-opacity" />
       <div className="bg-surface-container-low border-2 border-industrial-silver/10 w-full h-full flex flex-col p-6 shadow-2xl relative overflow-hidden group">
         <div className="absolute top-0 right-0 w-16 h-16 bg-primary/5 rotate-45 translate-x-8 -translate-y-8 border-b-2 border-primary/10" />
         
-        <div 
-          onClick={() => {
-            if (!isActive) {
-              onSnapToSelf();
-            } else if (!isLocked) {
-              setIsExpanded(!isExpanded);
-            }
-          }}
-          className={`w-full flex-1 flex flex-col min-h-0 transition-all ${(!isLocked || !isActive) ? 'cursor-pointer' : ''}`}
-        >
+        <div className={`w-full flex-1 flex flex-col min-h-0 transition-all ${(!isLocked || !isActive) ? 'cursor-pointer' : ''}`}>
           <div className="flex items-start justify-between mb-4 shrink-0">
             <div className="space-y-1">
               <span className="text-[8px] font-display font-bold text-primary tracking-[0.3em] uppercase opacity-60">Identificador de Missão</span>
@@ -56,7 +58,7 @@ export const CassetteCard = memo(({ campaign, onSelect, index, dragX, cardWidth,
           </div>
           
           <div className="w-full flex-1 min-h-0 border border-primary/10 overflow-hidden bg-black/40 mb-4 relative shadow-inner group-hover:border-primary/30 transition-colors">
-            {!imageLoaded && <div className="absolute inset-0 flex items-center justify-center bg-zinc-950/50"><Loader2 className="w-6 h-6 text-primary animate-spin opacity-20" /></div>}
+            {!imageLoaded && <div className="absolute inset-0 flex items-center justify-center bg-zinc-950/50"><RetroSpinner size="sm" className="opacity-20" /></div>}
             {campaign.imageUrl ? (
               <img 
                 src={campaign.imageUrl} alt={campaign.name} 

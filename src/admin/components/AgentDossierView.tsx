@@ -2,6 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { userService } from '../../services/UserService';
 import { intelRegistry } from '../../data/intel_registry';
+import { db } from '../../lib/firebase';
+import RetroSpinner from '../../components/player/RetroSpinner';
+import { activityLogger } from '../../services/ActivityLogger';
 import { CharacterData, PlayerStats } from '../../types/player';
 import GrantIntelModal from './GrantIntelModal';
 import { useModal } from './ConfirmModal';
@@ -78,11 +81,8 @@ export default function AgentDossierView({ uid, character, onClose, onUpdate }: 
   };
 
   if (loading) return (
-    <div className="fixed inset-0 z-100 flex items-center justify-center bg-black/80 backdrop-blur-md">
-      <div className="flex flex-col items-center gap-4">
-        <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-        <p className="font-chakra font-black text-primary text-xs uppercase tracking-[0.4em]">Sincronizando_Dossiê...</p>
-      </div>
+    <div className="flex items-center justify-center h-64">
+      <RetroSpinner />
     </div>
   );
 

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Lock, User, Power, Cpu, ShieldCheck, AlertTriangle, ChevronRight } from 'lucide-react';
+import RetroSpinner from '../components/player/RetroSpinner';
 export default function App() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -131,7 +132,7 @@ export default function App() {
                     >
                       {isLoggingIn ? (
                         <>
-                          <div className="w-4 h-4 border-2 border-black/20 border-t-black rounded-full animate-spin" />
+                          <RetroSpinner size="sm" />
                           Processando...
                         </>
                       ) : (

@@ -1,5 +1,4 @@
-import React from 'react';
-import { motion } from 'motion/react';
+import RetroSpinner from './RetroSpinner';
 
 interface RetroLoadingProps {
   message?: string;
@@ -17,17 +16,7 @@ export default function RetroLoading({
       <div className="noise-overlay" />
       <div className="scanlines" />
       
-      <div className="relative">
-        {/* Retro circular loader */}
-        <div className="w-16 h-16 rounded-full border-4 border-surface-bright flex items-center justify-center">
-          <motion.div 
-            animate={{ rotate: 360 }}
-            transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
-            className="absolute inset-0 border-t-4 border-retro-orange rounded-full"
-          />
-          <div className="w-2 h-2 bg-retro-orange rounded-full animate-pulse" />
-        </div>
-      </div>
+      <RetroSpinner size="lg" />
 
       <div className="mt-6 flex flex-col items-center gap-2">
         <motion.div 

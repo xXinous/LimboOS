@@ -8,6 +8,8 @@ interface LoginScreenProps {
   onLogin: (account: MasterAccount) => void;
 }
 
+import RetroSpinner from './player/RetroSpinner';
+
 export default function LoginScreen({ onLogin }: LoginScreenProps) {
   const [masterId, setMasterId] = useState('');
   const [password, setPassword] = useState('');
@@ -118,7 +120,10 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
                     <button type="submit" disabled={isLoggingIn}
                       className="shrink-0 bg-primary hover:bg-primary-container text-black font-display font-bold text-xs uppercase tracking-[0.2em] py-4 px-8 transition-all flex items-center justify-center gap-3 group disabled:opacity-50 disabled:cursor-not-allowed glow-orange active:scale-95">
                       {isLoggingIn ? (
-                        <><div className="w-4 h-4 border-2 border-black/20 border-t-black rounded-full animate-spin" />Sincronizando...</>
+                        <>
+                          <RetroSpinner size="sm" />
+                          Sincronizando...
+                        </>
                       ) : (
                         <>Entrar no Sistema<ChevronRight size={16} className="transition-transform group-hover:translate-x-1" /></>
                       )}

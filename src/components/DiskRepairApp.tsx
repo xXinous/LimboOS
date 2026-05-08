@@ -12,6 +12,8 @@ interface DiskRepairAppProps {
 
 export { DISK_REPAIR_CORRUPTED_TEXT, DISK_REPAIR_REPAIRED_TEXT } from '../services/DiskRepairService';
 
+import RetroLoading from './player/RetroLoading';
+
 export default function DiskRepairApp({ uid, characterId = '', onClose, onBackToTerminal, isWindowed }: DiskRepairAppProps) {
   const [phase, setPhase] = useState<'intro' | 'loading' | 'viewer' | 'repairing' | 'result'>('intro');
   const [resultStatus, setResultStatus] = useState<'success' | 'fail' | null>(null);
@@ -60,15 +62,12 @@ export default function DiskRepairApp({ uid, characterId = '', onClose, onBackTo
         )}
 
         {(phase === 'loading' || phase === 'repairing') && (
-          <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col gap-4 py-8 px-4">
-            <div className="flex items-center gap-4">
-               <div className="w-8 h-8 animate-spin border-4 border-[#000080] border-t-transparent rounded-full" />
-               <p className="font-bold">{phase === 'loading' ? 'Lendo setores do disco...' : 'Desmagnetizando MFT...'}</p>
-            </div>
-            <div className="h-6 w-full bg-white border border-[#808080] shadow-[inset_1px_1px_#0a0a0a,inset_-1px_-1px_#fff] p-0.5 mt-4">
-               <div className="h-full bg-[#000080]" style={{ width: `${Math.min(progress, 100)}%` }} />
-            </div>
-          </motion.div>
+          <div className="min-h-[200px]">
+            <RetroLoading 
+              message={phase === 'loading' ? 'Lendo setores do disco...' : 'Desmagnetizando MFT...'} 
+              subMessage={`Progresso: ${Math.round(progress)}% - Analisando trilhas magnéticas`}
+            />
+          </div>
         )}
 
         {phase === 'viewer' && (
