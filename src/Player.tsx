@@ -112,11 +112,7 @@ export default function Player() {
       activityLogger.setUser(masterAccount.uid, data.character.codinome, data.activeCharacterId);
       activityLogger.logAction('character_select', `Agente ${data.character.codinome} ativado`);
 
-      if (!data.character.campaignId) {
-        setScreen('campaignSelection');
-      } else {
-        setScreen('player');
-      }
+      setScreen('campaignSelection');
     } catch (err) {
       console.error('[CharacterSelect] Error:', err);
     }
@@ -307,7 +303,7 @@ export default function Player() {
         ) : screen === 'campaignSelection' ? (
           <motion.div key="campaignSelection" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full h-full flex items-center justify-center p-0 sm:p-4">
             <React.Suspense fallback={<RetroLoading message="SELECIONANDO MISSÃO..." />}>
-              <CampaignSelection onSelect={async (c) => { await firestoreSetCampaign(playerData.uid, playerData.activeCharacterId, c.id); setPlayerData({ ...playerData, character: { ...playerData.character, campaignId: c.id } }); setScreen(c.visualTheme === 'terminal' ? 'bios' : c.visualTheme === 'macos' ? 'macos' : c.visualTheme === 'windows95' ? 'windows95' : 'player'); }} onLogout={handleLogout} onShowProfile={() => setScreen('agentDossier')} onChangeCharacter={handleCharacterSwitch} playerData={playerData} />
+              <CampaignSelection onSelect={async (c) => { await firestoreSetCampaign(playerData.uid, playerData.activeCharacterId, c.id); setPlayerData({ ...playerData, character: { ...playerData.character, campaignId: c.id } }); setScreen('player'); }} onLogout={handleLogout} onShowProfile={() => setScreen('agentDossier')} onChangeCharacter={handleCharacterSwitch} playerData={playerData} />
             </React.Suspense>
           </motion.div>
         ) : screen === 'player' ? (

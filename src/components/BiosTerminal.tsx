@@ -23,10 +23,7 @@ export default function BiosTerminal({ onIpDetected, uid, username, onClose, onA
       onIpDetected();
       return; 
     }
-    if (cleanCmd === 'diskrepair') {
-      if (onAppLaunch) onAppLaunch('diskRepair');
-      return;
-    }
+
     switch (cleanCmd) {
       case 'dir':
         response = (
@@ -37,8 +34,7 @@ export default function BiosTerminal({ onIpDetected, uid, username, onClose, onA
             CONFIG   SYS       256 01-01-94<br/>
             AUTOEXEC BAT       128 01-01-94<br/>
             LIMBO    EXE    88.000 12-31-99<br/>
-            DISKREPAIR EXE  24.512 11-12-95<br/>
-            5 arquivo(s)    167.541 bytes
+            4 arquivo(s)    143.029 bytes
           </div>
         );
         break;

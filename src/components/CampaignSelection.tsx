@@ -31,17 +31,17 @@ export default function CampaignSelection({
   const [loading, setLoading] = useState(true);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [overlays, setOverlays] = useState({ menu: false, metadata: false });
-  const [containerWidth, setContainerWidth] = useState(460);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerSize, setContainerSize] = useState({ width: 460, height: 0 });
+  const mainRef = useRef<HTMLElement>(null);
 
-  const metrics = useMemo(() => getMetrics(containerWidth), [containerWidth]);
+  const metrics = useMemo(() => getMetrics(containerSize.width, containerSize.height), [containerSize]);
   const x = useMotionValue(0);
   const springX = useSpring(x, SNAP_SPRING);
 
   useEffect(() => {
-    const el = containerRef.current;
+    const el = mainRef.current;
     if (!el) return;
-    const update = () => el.clientWidth > 0 && setContainerWidth(el.clientWidth);
+    const update = () => el.clientWidth > 0 && setContainerSize({ width: el.clientWidth, height: el.clientHeight });
     update();
     const ro = new ResizeObserver(update);
     ro.observe(el);
@@ -83,34 +83,34 @@ export default function CampaignSelection({
   );
 
   return (
-    <div ref={containerRef} className="w-full h-full flex flex-col relative overflow-hidden bg-surface">
+    <div className="w-full h-full flex flex-col relative overflow-hidden bg-surface">
       <div className="noise-overlay" />
       <div className="scanlines" />
 
-      <header className="flex justify-between items-center h-16 sm:h-20 px-8 relative z-30 border-b border-primary/20 bg-surface-container-low/50 backdrop-blur-md">
-        <div className="flex items-center gap-6">
+      <header className="flex justify-between items-center min-h-16 sm:min-h-20 pt-[max(0.5rem,env(safe-area-inset-top))] pb-2 sm:py-0 px-4 sm:px-8 relative z-30 border-b border-primary/20 bg-surface-container-low/50 backdrop-blur-md">
+        <div className="flex items-center gap-3 sm:gap-6 min-w-0">
           <button onClick={() => setOverlays(v => ({ ...v, menu: true }))} 
-            className="p-2.5 hover:bg-primary/10 rounded-sm text-primary transition-all group border border-primary/20">
+            className="p-2 sm:p-2.5 hover:bg-primary/10 rounded-sm text-primary transition-all group border border-primary/20 shrink-0">
             <Menu size={24} className="group-hover:scale-110" />
           </button>
-          <div>
-            <h1 className="font-display text-2xl font-bold text-white uppercase tracking-tighter leading-none">
+          <div className="min-w-0">
+            <h1 className="font-display text-lg sm:text-2xl font-bold text-white uppercase tracking-tighter leading-none truncate">
               Campanhas <span className="text-primary">Ativas</span>
             </h1>
-            <p className="text-[9px] font-display uppercase tracking-[0.2em] text-industrial-silver/40 mt-1">
+            <p className="text-[7px] sm:text-[9px] font-display uppercase tracking-[0.2em] text-industrial-silver/40 mt-1 truncate">
               Registro de Operações // Terminal RM-84
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 shrink-0 ml-2">
           <div className="text-[10px] font-display font-bold text-industrial-silver/30 uppercase tracking-[0.2em] hidden sm:block">
             Nó_Central: Link_Ativo
           </div>
-          <Barcode onClick={() => setOverlays(v => ({ ...v, metadata: true }))} className="text-primary opacity-50 hover:opacity-100 transition-opacity cursor-pointer" />
+          <Barcode onClick={() => setOverlays(v => ({ ...v, metadata: true }))} className="text-primary opacity-50 hover:opacity-100 transition-opacity cursor-pointer shrink-0" />
         </div>
       </header>
 
-      <main className="flex-1 relative flex flex-col min-h-0 overflow-hidden">
+      <main ref={mainRef} className="flex-1 relative flex flex-col min-h-0 overflow-hidden">
         <div className="flex-1 relative cursor-grab active:cursor-grabbing select-none touch-none overflow-hidden">
           <motion.div 
             drag="x" 
@@ -124,7 +124,7 @@ export default function CampaignSelection({
             className="flex flex-row items-center h-full w-fit will-change-transform py-4"
           >
             {campaigns.map((c, i) => (
-              <CassetteCard key={c.id} campaign={c} onSelect={onSelect} index={i} dragX={x} cardWidth={metrics.cardWidth} cardHeight={metrics.cardHeight} step={metrics.step} />
+              <CassetteCard key={c.id} campaign={c} onSelect={onSelect} index={i} dragX={x} cardWidth={metrics.cardWidth} cardHeight={metrics.cardHeight} step={metrics.step} isActive={currentIndex === i} onSnapToSelf={() => snapTo(i)} />
             ))}
           </motion.div>
         </div>
@@ -147,12 +147,12 @@ export default function CampaignSelection({
         </div>
       </main>
 
-      <footer className="px-8 py-4 flex justify-between items-center bg-surface-container-low/80 border-t border-primary/10 relative z-30">
-        <div className="flex items-center gap-3 text-[10px] font-display font-bold tracking-[0.2em] uppercase text-industrial-silver/50">
-          <div className="w-2 h-2 bg-primary rounded-full animate-pulse glow-orange" /> 
+      <footer className="px-4 sm:px-8 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] flex justify-between items-center bg-surface-container-low/80 border-t border-primary/10 relative z-30">
+        <div className="flex items-center gap-2 sm:gap-3 text-[8px] sm:text-[10px] font-display font-bold tracking-[0.2em] uppercase text-industrial-silver/50 truncate">
+          <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-primary rounded-full animate-pulse glow-orange shrink-0" /> 
           Sinal de Rede: Estabilizado
         </div>
-        <div className="font-display text-[10px] text-industrial-silver/20 tracking-widest uppercase">
+        <div className="font-display text-[7px] sm:text-[10px] text-industrial-silver/20 tracking-widest uppercase shrink-0 ml-2">
           RM-SYS-093 // GRID_PROTECTED
         </div>
       </footer>
