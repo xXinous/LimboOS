@@ -4,10 +4,14 @@ import { logout } from '../store/profile';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import Dashboard from './components/Dashboard';
+import RetroLoading from '../components/player/RetroLoading';
+
 const ADMIN_CODENAME = 'gm.mpg';
+
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+
   useEffect(() => {
     testConnection();
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -32,20 +36,15 @@ export default function App() {
     });
     return () => unsubscribe();
   }, []);
+
   if (loading) {
-    return (
-      <div className="min-h-screen bg-surface flex items-center justify-center font-chakra overflow-hidden relative">
-        <div className="noise-overlay" /><div className="scanlines" />
-        <div className="relative z-10 flex flex-col items-center gap-4">
-          <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-          <div className="animate-pulse text-primary text-xl font-black tracking-[0.3em] uppercase">Inicializando_Protocolos...</div>
-        </div>
-      </div>
-    );
+    return <RetroLoading fullScreen message="Inicializando_Protocolos..." subMessage="Acessando Terminal Administrativo RM-84" />;
   }
+
   if (!user) {
     window.location.href = '/';
     return null;
   }
+
   return <Dashboard user={user} onLogout={logout} />;
 }

@@ -85,13 +85,13 @@ export const AgentDossierOverlay = ({ onClose, playerData, campaigns, intel }: A
           <button onClick={() => fileInputRef.current?.click()} className="relative w-16 h-16 rounded-sm overflow-hidden bg-black border-2 border-primary/30 flex items-center justify-center text-primary font-display font-bold text-xl shadow-lg group">
             {currentPhotoUrl ? <img src={currentPhotoUrl} alt="Perfil" className="w-full h-full object-cover" /> : <span>{stats.initials || '?'}</span>}
             <div className="absolute inset-0 bg-primary/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-black"><Camera size={20} /></div>
-            {uploading && <div className="absolute inset-0 bg-black/60 flex items-center justify-center"><Loader2 size={20} className="animate-spin text-primary" /></div>}
+            {uploading && <div className="absolute inset-0 bg-black/60 flex items-center justify-center"><RetroSpinner size="sm" /></div>}
           </button>
           <div className="flex-1 min-w-0">
             {isEditingName ? (
               <div className="flex items-center gap-2">
                 <input value={editName} onChange={e => setEditName(e.target.value)} className="font-display text-xl font-bold uppercase tracking-tight text-white bg-transparent border-b-2 border-primary outline-none w-full" autoFocus onKeyDown={e => e.key === 'Enter' && handleSaveName()} />
-                <button onClick={handleSaveName} disabled={savingName} className="p-1.5 text-green-500 hover:bg-green-500/10 rounded transition-colors">{savingName ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}</button>
+                <button onClick={handleSaveName} disabled={savingName} className="p-1.5 text-green-500 hover:bg-green-500/10 rounded transition-colors">{savingName ? <RetroSpinner size="sm" /> : <Check size={16} />}</button>
                 <button onClick={() => { setIsEditingName(false); setEditName(currentUsername); }} className="p-1.5 text-red-500 hover:bg-red-500/10 rounded transition-colors"><X size={16} /></button>
               </div>
             ) : (

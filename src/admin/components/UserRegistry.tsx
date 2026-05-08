@@ -4,6 +4,7 @@ import { useModal } from './ConfirmModal';
 import { userService } from "../../services/UserService";
 import { MasterAccount, CharacterData } from "../../types/player";
 import { activityLogger } from "../../services/ActivityLogger";
+import RetroSpinner from '../../components/player/RetroSpinner';
 import GroupManager from "./GroupManager";
 import AgentDossierView from "./AgentDossierView";
 
@@ -359,7 +360,7 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
               <div className="pt-10 flex justify-end gap-6 items-center">
                 <button type="button" onClick={() => setShowCreateUser(false)} className="text-[10px] font-display font-bold text-industrial-silver/30 hover:text-white uppercase tracking-widest transition-colors">Abortar</button>
                 <button type="submit" disabled={createUserLoading} className="bg-emerald-600 text-black px-12 py-4 rounded-sm font-display font-bold text-[11px] tracking-widest uppercase hover:bg-emerald-500 transition-all active:scale-95 shadow-lg flex items-center gap-3">
-                  {createUserLoading ? <div className="w-4 h-4 border-2 border-black/20 border-t-black rounded-full animate-spin" /> : 'REGISTRAR'}
+                  {createUserLoading ? <RetroSpinner /> : 'REGISTRAR'}
                 </button>
               </div>
             </form>

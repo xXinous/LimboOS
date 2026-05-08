@@ -7,6 +7,7 @@ import { parseBlob } from 'music-metadata';
 import { useModal } from './ConfirmModal';
 import QRCode from 'react-qr-code';
 import Screw from '../../components/player/Screw';
+import RetroSpinner from '../../components/player/RetroSpinner';
 
 interface AudioData {
   id: string;
@@ -307,6 +308,13 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
   return (
     <section className="space-y-6 font-sans">
       {modal}
+      
+      {isUploading && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-20 flex flex-col items-center justify-center gap-4">
+          <RetroSpinner />
+          <div className="text-primary font-display font-bold uppercase tracking-[0.3em] animate-pulse">Sincronizando_Buffers...</div>
+        </div>
+      )}
       
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-4">

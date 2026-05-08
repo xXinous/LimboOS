@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { UserPlus, Shield, User, Loader2, ChevronRight, AlertCircle, Skull, Search, LogOut } from 'lucide-react';
+import { UserPlus, Shield, User, ChevronRight, AlertCircle, Skull, Search, LogOut } from 'lucide-react';
 import { fetchCharacters, createCharacter } from '../store/firestore';
 import { userService } from '../services/UserService';
 import type { CharacterData, MasterAccount } from '../types/player';
+import RetroLoading from './player/RetroLoading';
+import RetroSpinner from './player/RetroSpinner';
 
 interface CharacterSelectionScreenProps {
   account: MasterAccount;
@@ -70,12 +72,7 @@ export default function CharacterSelectionScreen({ account, onSelect, onLogout }
   };
 
   if (loading) {
-    return (
-      <div className="w-full h-full flex flex-col items-center justify-center bg-surface font-mono">
-        <Loader2 className="w-12 h-12 text-primary animate-spin mb-4" />
-        <span className="text-primary tracking-[0.3em] uppercase animate-pulse">Acessando Banco de Dados...</span>
-      </div>
-    );
+    return <RetroLoading message="Acessando Banco de Dados..." subMessage="Recuperando registros de agentes da conta mestra" />;
   }
 
   return (
@@ -200,7 +197,7 @@ export default function CharacterSelectionScreen({ account, onSelect, onLogout }
                     Cancelar
                   </button>
                   <button type="submit" disabled={creating} className="flex-2 bg-primary hover:bg-primary-container text-black font-display font-bold text-xs uppercase tracking-[0.2em] py-4 px-8 transition-all flex items-center justify-center gap-3 disabled:opacity-50 glow-orange">
-                    {creating ? <Loader2 size={16} className="animate-spin" /> : 'Confirmar Registro'}
+                    {creating ? <RetroSpinner size="sm" /> : 'Confirmar Registro'}
                   </button>
                 </div>
               </form>
@@ -241,7 +238,7 @@ export default function CharacterSelectionScreen({ account, onSelect, onLogout }
                 </div>
 
                 <button type="submit" disabled={savingMasterName} className="w-full bg-primary hover:bg-primary-container text-black font-display font-bold text-xs uppercase tracking-[0.2em] py-4 transition-all flex items-center justify-center gap-3 disabled:opacity-50 glow-orange">
-                  {savingMasterName ? <Loader2 size={16} className="animate-spin" /> : 'Confirmar Identificação'}
+                  {savingMasterName ? <RetroSpinner size="sm" /> : 'Confirmar Identificação'}
                 </button>
               </form>
             </motion.div>

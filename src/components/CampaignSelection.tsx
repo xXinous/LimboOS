@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { AnimatePresence, motion, useMotionValue, useSpring, animate } from 'motion/react';
-import { Menu, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Menu, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Campaign } from '../data/campaigns';
 import { campaignService } from '../services/CampaignService';
 import type { PlayerData } from '../types/player';
@@ -11,6 +11,7 @@ const SecurityMenu = React.lazy(() => import('./campaign/SecurityMenu').then(m =
 const MetadataOverlay = React.lazy(() => import('./campaign/MetadataOverlay').then(m => ({ default: m.MetadataOverlay })));
 import { TapeProgress } from './campaign/TapeProgress';
 import { getMetrics, SNAP_SPRING } from './campaign/constants';
+import RetroLoading from './player/RetroLoading';
 
 interface CampaignSelectionProps {
   onSelect: (campaign: Campaign) => void;
@@ -73,14 +74,7 @@ export default function CampaignSelection({
     return () => window.removeEventListener('keydown', handleKey);
   }, [currentIndex, campaigns, overlays, snapTo, onSelect]);
 
-  if (loading) return (
-    <div className="w-full h-full flex flex-col items-center justify-center p-8 text-center bg-surface relative overflow-hidden">
-      <div className="noise-overlay" />
-      <div className="scanlines" />
-      <Loader2 className="w-12 h-12 text-primary animate-spin mb-4" />
-      <span className="font-display text-primary tracking-[0.3em] uppercase animate-pulse">Sincronizando Banco de Dados...</span>
-    </div>
-  );
+  if (loading) return <RetroLoading message="Sincronizando Banco de Dados..." subMessage="Acessando registros de operações do Terminal RM-84" />;
 
   return (
     <div className="w-full h-full flex flex-col relative overflow-hidden bg-surface">
