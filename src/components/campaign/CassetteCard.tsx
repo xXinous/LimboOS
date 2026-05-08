@@ -11,9 +11,11 @@ interface CassetteCardProps {
   cardWidth: number;
   cardHeight: number;
   step: number;
+  isActive: boolean;
+  onSnapToSelf: () => void;
 }
 
-export const CassetteCard = memo(({ campaign, onSelect, index, dragX, cardWidth, cardHeight, step }: CassetteCardProps) => {
+export const CassetteCard = memo(({ campaign, onSelect, index, dragX, cardWidth, cardHeight, step, isActive, onSnapToSelf }: CassetteCardProps) => {
   const isLocked = campaign.status === 'Bloqueada';
   const [imageLoaded, setImageLoaded] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -34,8 +36,14 @@ export const CassetteCard = memo(({ campaign, onSelect, index, dragX, cardWidth,
         <div className="absolute top-0 right-0 w-16 h-16 bg-primary/5 rotate-45 translate-x-8 -translate-y-8 border-b-2 border-primary/10" />
         
         <div 
-          onClick={() => !isLocked && setIsExpanded(!isExpanded)}
-          className={`w-full flex-1 flex flex-col min-h-0 transition-all ${!isLocked ? 'cursor-pointer' : ''}`}
+          onClick={() => {
+            if (!isActive) {
+              onSnapToSelf();
+            } else if (!isLocked) {
+              setIsExpanded(!isExpanded);
+            }
+          }}
+          className={`w-full flex-1 flex flex-col min-h-0 transition-all ${(!isLocked || !isActive) ? 'cursor-pointer' : ''}`}
         >
           <div className="flex items-start justify-between mb-4 shrink-0">
             <div className="space-y-1">
@@ -95,11 +103,22 @@ export const CassetteCard = memo(({ campaign, onSelect, index, dragX, cardWidth,
         <div className="mt-6 w-full z-20 shrink-0">
           {!isLocked ? (
             <button 
-              onClick={(e) => { e.stopPropagation(); onSelect(campaign); }} 
-              className="w-full bg-primary hover:bg-primary-container text-black font-display font-bold text-xs uppercase tracking-[0.3em] py-4 transition-all flex items-center justify-center gap-2 group/btn glow-orange active:scale-95"
+              onClick={(e) => { 
+                e.stopPropagation(); 
+                if (!isActive) {
+                  onSnapToSelf();
+                } else {
+                  onSelect(campaign); 
+                }
+              }} 
+              className={`w-full font-display font-bold text-xs uppercase tracking-[0.3em] py-4 transition-all flex items-center justify-center gap-2 group/btn active:scale-95 ${
+                isActive 
+                  ? 'bg-primary hover:bg-primary-container text-black glow-orange' 
+                  : 'bg-surface-container-highest/80 text-industrial-silver/50 hover:bg-primary/10 hover:text-primary border border-primary/20'
+              }`}
             >
-              Iniciar Missão
-              <ChevronRight size={14} className="group-hover/btn:translate-x-1 transition-transform" />
+              {isActive ? 'Iniciar Missão' : 'Selecionar'}
+              {isActive && <ChevronRight size={14} className="group-hover/btn:translate-x-1 transition-transform" />}
             </button>
           ) : (
             <button className="w-full bg-surface-container-highest/50 text-industrial-silver/20 font-display font-bold text-xs uppercase tracking-[0.3em] py-4 cursor-not-allowed border border-white/5">

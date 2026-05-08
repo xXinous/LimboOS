@@ -305,36 +305,40 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
   const totalSize = audios.reduce((acc, a) => acc + a.size, 0);
 
   return (
-    <section className="space-y-6 font-chakra">
+    <section className="space-y-6 font-sans">
       {modal}
       
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
-          <div className="w-2 h-8 bg-primary rounded-full animate-pulse shadow-[0_0_10px_rgba(255,140,0,0.4)]" />
-          <h2 className="font-black uppercase tracking-widest text-lg text-white">Buffer_de_Stream_de_Áudio</h2>
-          <span className="text-[10px] font-bold text-zinc-600 tracking-[0.2em] uppercase">{audios.length} ARQUIVOS SINC // {formatSize(totalSize)}</span>
+          <div className="w-1.5 h-8 bg-primary shadow-[0_0_10px_rgba(255,140,0,0.4)]" />
+          <div>
+            <h2 className="font-display font-bold uppercase tracking-widest text-lg text-white">Buffer de Áudio</h2>
+            <p className="text-[10px] font-display font-bold text-industrial-silver/40 tracking-[0.2em] uppercase">
+              {audios.length} Arquivos // {formatSize(totalSize)} Total
+            </p>
+          </div>
         </div>
-        <div className="flex items-center gap-4">
-          <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-zinc-600 text-xs">search</span>
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="relative group">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-industrial-silver/30 text-base group-focus-within:text-primary transition-colors">search</span>
             <input
               type="text"
               placeholder="BUSCAR_ÁUDIO..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="bg-black/40 border border-[#1a1a1a] text-[10px] font-bold uppercase tracking-widest focus:ring-1 focus:ring-primary w-56 placeholder:text-zinc-800 text-white px-10 py-2.5 outline-none rounded-sm"
+              className="bg-surface-container-lowest border border-primary/10 text-[11px] font-display font-bold uppercase tracking-[0.2em] focus:border-primary/50 w-full sm:w-64 placeholder:text-industrial-silver/20 text-white pl-10 pr-4 py-3 outline-none rounded-sm transition-all"
             />
           </div>
           <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="audio/*" multiple className="hidden" />
           <button 
             onClick={handleUploadClick}
             disabled={isUploading}
-            className="flex items-center gap-2 bg-primary/10 text-primary px-6 py-2.5 rounded-sm font-black text-[10px] tracking-widest hover:bg-primary/20 transition-all border border-primary/20 uppercase group active:scale-95 glow-orange"
+            className="flex items-center gap-3 bg-primary hover:bg-primary-container text-black px-6 py-3 rounded-sm font-display font-bold text-[11px] tracking-widest transition-all group active:scale-95 glow-orange shadow-lg"
           >
-            <span className="material-symbols-outlined text-xs group-hover:rotate-90 transition-transform">
-              {isUploading ? 'sync' : 'add'}
+            <span className="material-symbols-outlined text-base group-hover:rotate-90 transition-transform">
+              {isUploading ? 'sync' : 'upload_file'}
             </span>
-            {isUploading ? 'ENVIANDO...' : 'NOVO_ÁUDIO'}
+            {isUploading ? 'ENVIANDO...' : 'UPLOAD ÁUDIO'}
           </button>
         </div>
       </div>
@@ -343,175 +347,186 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
         onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
         onDragLeave={() => setIsDragOver(false)}
         onDrop={handleDrop}
-        className={`border-4 border-dashed rounded-xl p-10 text-center transition-all group ${
+        className={`border-2 border-dashed rounded-sm p-12 text-center transition-all group ${
           isDragOver 
             ? 'border-primary bg-primary/5' 
-            : 'border-[#1a1a1a] bg-black/20 hover:border-primary/20 hover:bg-black/40'
+            : 'border-primary/10 bg-black/20 hover:border-primary/30 hover:bg-black/40'
         }`}
       >
-        <span className="material-symbols-outlined text-5xl text-zinc-800 mb-4 block group-hover:text-primary/40 transition-colors">
-          {isDragOver ? 'downloading' : 'album'}
-        </span>
-        <p className="text-zinc-500 text-[11px] font-black uppercase tracking-[0.4em] group-hover:text-zinc-400">
-          {isDragOver ? 'SOLTAR_ARQUIVOS_AGORA' : 'ARRASTAR_E_SOLTAR_ÁUDIO_AQUI'}
+        <div className="relative inline-block mb-4">
+          <span className={`material-symbols-outlined text-5xl transition-all duration-300 ${isDragOver ? 'text-primary scale-110' : 'text-industrial-silver/20 group-hover:text-primary/40'}`}>
+            {isDragOver ? 'downloading' : 'cloud_upload'}
+          </span>
+          {isDragOver && <div className="absolute -inset-2 border border-primary/30 rounded-full animate-ping" />}
+        </div>
+        <p className="text-industrial-silver/60 text-[12px] font-display font-bold uppercase tracking-[0.3em] group-hover:text-industrial-silver/80">
+          {isDragOver ? 'SOLTAR ARQUIVOS AGORA' : 'ARRASTAR E SOLTAR ÁUDIO PARA UPLOAD'}
         </p>
-        <p className="text-zinc-800 text-[9px] font-bold mt-2 tracking-widest">LIMITE_MÁX: 50MB POR UNIDADE</p>
+        <p className="text-industrial-silver/20 text-[9px] font-display font-bold mt-2 tracking-[0.2em] uppercase">LIMITE MÁXIMO: 50MB POR UNIDADE</p>
       </div>
 
-      <div className="grid grid-cols-1 gap-4">
+      <div className="grid grid-cols-1 gap-3">
         {filteredAudios.map((audio, index) => (
-          <div key={audio.id} className="bg-[#1a1a1a] border-4 border-[#1a1a1a] p-5 flex items-center justify-between rounded-xl shadow-lg group hover:border-primary/20 transition-all active:scale-[0.995]">
+          <div key={audio.id} className="bg-surface-container-low border border-primary/10 p-4 sm:p-5 flex items-center justify-between group hover:border-primary/30 transition-all">
             <div className="flex items-center gap-6">
               <button 
                 onClick={() => {
                   const a = new Audio(audio.url);
                   a.play();
                 }}
-                className={`w-12 h-12 rounded-sm flex items-center justify-center border-2 transition-all active:scale-90 ${
-                  index % 2 === 0 
-                    ? 'bg-primary text-black border-primary' 
-                    : 'bg-black text-primary border-white/5 group-hover:border-primary/40'
-                }`}
+                className="w-12 h-12 rounded-sm flex items-center justify-center bg-surface-container-high border border-primary/20 text-primary group-hover:bg-primary group-hover:text-black transition-all active:scale-90"
               >
                 <span className="material-symbols-outlined text-2xl fill" style={{ fontVariationSettings: "'FILL' 1" }}>play_arrow</span>
               </button>
               <div>
-                <h4 className="font-black text-sm text-white uppercase tracking-wider group-hover:text-primary transition-colors">{audio.originalName}</h4>
-                <div className="flex items-center gap-3 mt-1">
-                   <p className="text-[10px] font-bold uppercase text-zinc-600 tracking-widest">
-                     Proprietário: <span className="text-zinc-400">{audio.ownerName}</span> // {formatSize(audio.size)}
+                <h4 className="font-display font-bold text-sm text-white uppercase tracking-wider group-hover:text-primary transition-colors">{audio.originalName}</h4>
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1">
+                   <p className="text-[10px] font-display font-bold uppercase text-industrial-silver/40 tracking-widest">
+                     Operador: <span className="text-industrial-silver/60">{audio.ownerName}</span> // {formatSize(audio.size)}
                    </p>
                    {playCountMap[audio.id] !== undefined && (
-                     <div className="flex items-center gap-1.5 bg-black/40 px-2 py-0.5 rounded-sm border border-white/5">
-                        <div className="w-1 h-1 bg-tertiary rounded-full animate-pulse" />
-                        <span className="text-[9px] font-black text-tertiary uppercase">{playCountMap[audio.id]} REPRODUÇÕES</span>
+                     <div className="flex items-center gap-1.5 bg-primary/5 px-2 py-0.5 border border-primary/10 rounded-sm">
+                        <div className="w-1 h-1 bg-primary rounded-full animate-pulse glow-orange" />
+                        <span className="text-[9px] font-display font-bold text-primary/70 uppercase tracking-widest">{playCountMap[audio.id]} REPRODUÇÕES</span>
                      </div>
                    )}
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-8">
-              <div className="hidden md:flex gap-1">
-                {[1,2,3,4,5,6,7,8].map(i => (
-                  <div key={i} className={`w-1 h-4 rounded-full ${index % 2 === 0 && i <= 5 ? 'bg-primary shadow-[0_0_5px_rgba(255,140,0,0.5)]' : 'bg-black'}`}></div>
+            <div className="flex items-center gap-4 sm:gap-8">
+              <div className="hidden lg:flex gap-1.5">
+                {[1,2,3,4,5,6].map(i => (
+                  <div key={i} className={`w-1 h-4 rounded-full ${i <= 3 ? 'bg-primary/20' : 'bg-white/5'}`}></div>
                 ))}
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
                 {isAdmin && (
-                  <button onClick={() => openEditMetadata(audio)} className="p-2 text-zinc-600 hover:text-emerald-400 hover:bg-emerald-500/10 rounded-sm transition-all material-symbols-outlined text-xl">edit</button>
+                  <button onClick={() => openEditMetadata(audio)} className="p-2.5 text-industrial-silver/30 hover:text-emerald-400 hover:bg-emerald-500/10 rounded-sm transition-all material-symbols-outlined text-xl" title="Editar Metadados">edit_note</button>
                 )}
-                <button onClick={() => setQrCodeModal(audio)} className="p-2 text-zinc-600 hover:text-primary hover:bg-primary/10 rounded-sm transition-all material-symbols-outlined text-xl">qr_code_2</button>
+                <button onClick={() => setQrCodeModal(audio)} className="p-2.5 text-industrial-silver/30 hover:text-primary hover:bg-primary/10 rounded-sm transition-all material-symbols-outlined text-xl" title="Gerar QR Code">qr_code_2</button>
                 {(isAdmin || audio.ownerUid === user?.uid) && (
-                  <button onClick={() => handleDelete(audio)} className="p-2 text-zinc-600 hover:text-red-500 hover:bg-red-500/10 rounded-sm transition-all material-symbols-outlined text-xl">delete</button>
+                  <button onClick={() => handleDelete(audio)} className="p-2.5 text-industrial-silver/30 hover:text-red-500 hover:bg-red-500/10 rounded-sm transition-all material-symbols-outlined text-xl" title="Deletar Arquivo">delete</button>
                 )}
               </div>
             </div>
           </div>
         ))}
         {filteredAudios.length === 0 && (
-          <div className="bg-black/20 p-24 text-center border-4 border-dashed border-[#1a1a1a] rounded-2xl opacity-20">
-            <p className="text-zinc-500 font-black text-[12px] uppercase tracking-[0.4em]">
-              {searchQuery ? 'Sem_Correspondência_de_Sinal' : 'Buffer_de_Áudio_Vazio'}
+          <div className="py-24 text-center border border-dashed border-primary/10 rounded-sm opacity-30">
+            <span className="material-symbols-outlined text-4xl mb-2 text-industrial-silver/20">search_off</span>
+            <p className="text-industrial-silver/50 font-display font-bold text-[12px] uppercase tracking-[0.4em]">
+              {searchQuery ? 'Sem Correspondência de Sinal' : 'Buffer de Áudio Vazio'}
             </p>
           </div>
         )}
       </div>
 
       {qrCodeModal && (
-        <div className="fixed inset-0 z-110 flex items-center justify-center bg-black/95 p-4 backdrop-blur-xl">
-          <div className="bg-[#222] border-8 border-[#1a1a1a] p-10 w-full max-w-sm rounded-[32px] shadow-2xl flex flex-col items-center relative overflow-hidden">
-            <Screw className="top-4 left-4" /><Screw className="top-4 right-4 -rotate-90" /><Screw className="bottom-4 left-4 -rotate-90" /><Screw className="bottom-4 right-4" />
-            <div className="noise-overlay" /><div className="scanlines" />
+        <div className="fixed inset-0 z-100 flex items-center justify-center bg-black/90 p-4 backdrop-blur-md">
+          <div className="bg-surface-container-low border border-primary/30 p-8 w-full max-w-sm rounded-sm shadow-2xl flex flex-col items-center relative">
+            <div className="absolute -top-3 left-6 bg-primary px-2 py-0.5 text-[10px] font-display font-bold text-black tracking-widest uppercase">
+              ASSINATURA-DIGITAL
+            </div>
             
-            <h3 className="font-black text-xl mb-8 text-primary uppercase tracking-[0.3em] border-b-4 border-[#1a1a1a] w-full text-center pb-6 relative z-10">
-              Assinatura_Digital
+            <h3 className="font-display font-bold text-xl mb-8 text-white uppercase tracking-widest text-center mt-2">
+              Gerador de <span className="text-primary">QR Code</span>
             </h3>
-            <div id="qr-code-container" className="bg-white p-6 rounded-lg mb-8 shadow-2xl relative z-10">
+            
+            <div id="qr-code-container" className="bg-white p-6 rounded-sm mb-8 shadow-inner ring-4 ring-primary/20">
               <QRCode value={qrCodeModal.id} size={200} />
             </div>
-            <p className="font-mono text-[10px] text-zinc-600 mb-10 text-center tracking-widest break-all font-bold px-4 relative z-10 bg-black/40 py-2 rounded border border-white/5">
-              ID: {qrCodeModal.id}
-            </p>
-            <div className="flex gap-4 mb-8 w-full justify-center relative z-10">
+            
+            <div className="w-full bg-black/40 p-3 rounded-sm border border-primary/10 mb-8">
+              <p className="text-[9px] font-display font-bold text-industrial-silver/40 uppercase tracking-[0.2em] mb-1">Identificador Único</p>
+              <p className="font-mono text-[10px] text-primary tracking-widest break-all font-bold">
+                {qrCodeModal.id}
+              </p>
+            </div>
+
+            <div className="flex gap-3 mb-6 w-full">
               <button
                 onClick={handleCopyQrCode}
-                className="flex-1 flex items-center justify-center gap-3 px-4 py-3 text-[10px] font-black border-2 border-white/5 text-zinc-400 hover:text-white hover:border-primary/40 hover:bg-primary/5 transition-all rounded-sm"
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-3 text-[10px] font-display font-bold border border-primary/20 text-industrial-silver/60 hover:text-primary hover:bg-primary/5 transition-all rounded-sm uppercase tracking-widest"
               >
-                <span className="material-symbols-outlined text-sm">content_copy</span>
-                COPIAR
+                <span className="material-symbols-outlined text-base">content_copy</span>
+                Copiar
               </button>
               <button
                 onClick={handleDownloadQrCode}
-                className="flex-1 flex items-center justify-center gap-3 px-4 py-3 text-[10px] font-black border-2 border-white/5 text-zinc-400 hover:text-white hover:border-primary/40 hover:bg-primary/5 transition-all rounded-sm"
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-3 text-[10px] font-display font-bold border border-primary/20 text-industrial-silver/60 hover:text-primary hover:bg-primary/5 transition-all rounded-sm uppercase tracking-widest"
               >
-                <span className="material-symbols-outlined text-sm">download</span>
-                SALVAR
+                <span className="material-symbols-outlined text-base">download</span>
+                Salvar
               </button>
             </div>
+            
             <button
               onClick={() => setQrCodeModal(null)}
-              className="px-10 py-4 text-[10px] font-black bg-[#333] hover:bg-[#444] text-white transition-all rounded-sm w-full relative z-10"
+              className="px-10 py-4 text-[11px] font-display font-bold text-industrial-silver/40 hover:text-white transition-all w-full border-t border-primary/5 uppercase tracking-[0.3em]"
             >
-              ENCERRAR_MODAL
+              Fechar Terminal
             </button>
           </div>
         </div>
       )}
 
       {editAudio && (
-        <div className="fixed inset-0 z-110 flex items-center justify-center bg-black/95 p-4 backdrop-blur-xl">
-          <div className="bg-[#222] border-8 border-[#1a1a1a] p-10 w-full max-w-xl rounded-[32px] shadow-2xl flex flex-col relative overflow-hidden">
-            <Screw className="top-4 left-4" /><Screw className="top-4 right-4 -rotate-90" /><Screw className="bottom-4 left-4 -rotate-90" /><Screw className="bottom-4 right-4" />
-            <div className="noise-overlay" /><div className="scanlines" />
+        <div className="fixed inset-0 z-100 flex items-center justify-center bg-black/90 p-4 backdrop-blur-md">
+          <div className="bg-surface-container-low border border-primary/30 p-8 w-full max-w-xl rounded-sm shadow-2xl flex flex-col relative">
+            <div className="absolute -top-3 left-6 bg-primary px-2 py-0.5 text-[10px] font-display font-bold text-black tracking-widest uppercase">
+              MODIFICAÇÃO-DE-SINAL
+            </div>
             
-            <div className="flex items-center gap-4 mb-8 border-b-4 border-[#1a1a1a] pb-6 relative z-10">
-              <div className="p-3 bg-emerald-500/10 border-2 border-emerald-500/20 rounded-sm">
+            <div className="flex items-center gap-5 mb-10 mt-2">
+              <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-sm">
                 <span className="material-symbols-outlined text-emerald-400 text-2xl">edit_note</span>
               </div>
               <div>
-                <h3 className="font-black text-xl text-white uppercase tracking-widest">Ajustar_Metadados</h3>
-                <p className="text-[10px] text-zinc-600 font-bold uppercase tracking-widest mt-1 truncate max-w-xs">Arquivo: <span className="text-emerald-400">{editAudio.originalName}</span></p>
+                <h3 className="font-display font-bold text-2xl text-white uppercase tracking-tighter">Ajustar <span className="text-emerald-400">Metadados</span></h3>
+                <p className="text-[10px] text-industrial-silver/40 font-display font-bold uppercase tracking-widest mt-1">Origem: {editAudio.originalName}</p>
               </div>
             </div>
 
-            <div className="space-y-5 mb-10 relative z-10">
-              <div className="grid grid-cols-2 gap-5">
+            <div className="space-y-6 mb-10">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {[
-                  { label: 'TÍTULO_DA_FITA', value: editTitle, set: setEditTitle, placeholder: 'Identificador do Arquivo' },
-                  { label: 'ARTISTA_/_AUTOR', value: editArtist, set: setEditArtist, placeholder: 'Origem do Áudio' },
-                  { label: 'NPC_RELACIONADO', value: editNpc, set: setEditNpc, placeholder: 'Assinatura Biológica' },
-                  { label: 'CAPÍTULO_/_NÓ', value: editChapter, set: setEditChapter, placeholder: 'Setor de Armazenamento' },
+                  { label: 'TÍTULO DA FITA', value: editTitle, set: setEditTitle, placeholder: 'Identificador do Arquivo' },
+                  { label: 'ARTISTA / AUTOR', value: editArtist, set: setEditArtist, placeholder: 'Origem do Áudio' },
+                  { label: 'NPC RELACIONADO', value: editNpc, set: setEditNpc, placeholder: 'Assinatura Biológica' },
+                  { label: 'CAPÍTULO / NÓ', value: editChapter, set: setEditChapter, placeholder: 'Setor de Armazenamento' },
                 ].map(({ label, value, set, placeholder }) => (
-                  <div key={label}>
-                    <label className="block text-[9px] font-black uppercase tracking-widest text-zinc-600 mb-2">{label}</label>
+                  <div key={label} className="group">
+                    <label className="block text-[9px] font-display font-bold uppercase tracking-[0.2em] text-industrial-silver/40 mb-2 group-focus-within:text-emerald-400 transition-colors">{label}</label>
                     <input
                       type="text"
                       value={value}
                       onChange={(e) => set(e.target.value)}
                       placeholder={placeholder}
-                      className="w-full bg-black/60 border-2 border-[#1a1a1a] text-[11px] font-bold text-white px-4 py-3 focus:border-emerald-500/40 outline-none placeholder:text-zinc-800 rounded-sm transition-all"
+                      className="w-full bg-surface-container-lowest border-none py-4 px-4 text-white font-sans text-sm tracking-wide focus:ring-0 placeholder:text-industrial-silver/10 outline-none transition-all"
                     />
+                    <div className="h-0.5 w-0 bg-emerald-500 transition-all duration-300 group-focus-within:w-full" />
                   </div>
                 ))}
               </div>
-              <div>
-                <label className="block text-[9px] font-black uppercase tracking-widest text-zinc-600 mb-2">DESCRIÇÃO_E_DADOS_ADICIONAIS</label>
+              <div className="group">
+                <label className="block text-[9px] font-display font-bold uppercase tracking-[0.2em] text-industrial-silver/40 mb-2 group-focus-within:text-emerald-400 transition-colors">DESCRIÇÃO E DADOS ADICIONAIS</label>
                 <textarea
                   value={editDescription}
                   onChange={(e) => setEditDescription(e.target.value)}
                   placeholder="Informações classificadas..."
                   rows={3}
-                  className="w-full bg-black/60 border-2 border-[#1a1a1a] text-[11px] font-bold text-white px-4 py-3 focus:border-emerald-500/40 outline-none placeholder:text-zinc-800 rounded-sm transition-all resize-none"
+                  className="w-full bg-surface-container-lowest border-none py-4 px-4 text-white font-sans text-sm tracking-wide focus:ring-0 placeholder:text-industrial-silver/10 outline-none transition-all resize-none"
                 />
+                <div className="h-0.5 w-0 bg-emerald-500 transition-all duration-300 group-focus-within:w-full" />
               </div>
               <div>
-                <label className="block text-[9px] font-black uppercase tracking-widest text-zinc-600 mb-2">NÍVEL_DE_CRIPTOGRAFIA</label>
-                <div className="flex gap-2">
+                <label className="block text-[9px] font-display font-bold uppercase tracking-[0.2em] text-industrial-silver/40 mb-3">NÍVEL DE CRIPTOGRAFIA</label>
+                <div className="flex flex-wrap gap-2">
                   {[1, 2, 3, 4].map((lvl) => (
                     <button
                       key={lvl}
                       onClick={() => setEditLevel(lvl)}
-                      className={`flex-1 py-3 text-[9px] font-black uppercase border-2 transition-all rounded-sm ${editLevel === lvl ? 'border-emerald-500 bg-emerald-500/10 text-emerald-400' : 'border-[#1a1a1a] bg-black/40 text-zinc-700 hover:text-zinc-500 hover:border-white/5'}`}
+                      className={`flex-1 py-3 text-[9px] font-display font-bold uppercase tracking-widest border transition-all rounded-sm ${editLevel === lvl ? 'border-emerald-500 bg-emerald-500/10 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.1)]' : 'border-white/5 bg-black/20 text-industrial-silver/30 hover:text-industrial-silver/60 hover:border-white/10'}`}
                     >
                       {lvl === 1 ? 'RESTRITO' : lvl === 2 ? 'CONFIDENCIAL' : lvl === 3 ? 'SIGILOSO' : 'TOP SECRET'}
                     </button>
@@ -520,20 +535,20 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
               </div>
             </div>
             
-            <div className="flex justify-end gap-5 relative z-10 pt-6 border-t-4 border-[#1a1a1a]">
+            <div className="flex flex-col sm:flex-row justify-end gap-4 pt-8 border-t border-primary/5">
               <button
                 onClick={() => setEditAudio(null)}
                 disabled={editSaving}
-                className="px-8 py-3 text-[10px] font-black text-zinc-500 hover:text-white transition-colors uppercase tracking-widest"
+                className="px-8 py-4 text-[10px] font-display font-bold text-industrial-silver/30 hover:text-white transition-colors uppercase tracking-[0.3em]"
               >
-                ABORTAR
+                Abortar Missão
               </button>
               <button
                 onClick={saveEditMetadata}
                 disabled={editSaving}
-                className="bg-emerald-600 hover:bg-emerald-500 text-white px-10 py-3 rounded-sm font-black text-[10px] tracking-widest uppercase transition-all active:scale-95 shadow-[0_0_15px_rgba(16,185,129,0.2)]"
+                className="bg-emerald-600 hover:bg-emerald-500 text-black px-12 py-4 rounded-sm font-display font-bold text-[11px] tracking-widest uppercase transition-all active:scale-95 shadow-lg flex items-center justify-center gap-2"
               >
-                {editSaving ? 'GRAVANDO...' : 'SALVAR_ALTERAÇÕES'}
+                {editSaving ? <><div className="w-4 h-4 border-2 border-black/20 border-t-black rounded-full animate-spin" /> Gravando...</> : 'Salvar Alterações'}
               </button>
             </div>
           </div>

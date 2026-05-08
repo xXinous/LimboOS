@@ -222,7 +222,7 @@ export default function GroupManager({ isAdmin }: GroupManagerProps) {
                          <p className={`font-black text-[11px] uppercase truncate ${selectedPlayers.includes(user.uid) ? 'text-primary' : 'text-zinc-500 group-hover:text-zinc-300'}`}>
                            {user.displayName || user.username || user.email?.split('@')[0]}
                          </p>
-                         <p className="text-[8px] font-mono text-zinc-800 font-bold uppercase tracking-tighter mt-0.5">UID: {user.uid.slice(0,12)}</p>
+                         <p className="text-[8px] font-mono text-zinc-800 font-bold uppercase tracking-tighter mt-0.5">UID: {(user.uid || "").slice(0,12)}</p>
                       </div>
                       <div className={`w-4 h-4 border-2 rounded-sm transition-all flex items-center justify-center ${selectedPlayers.includes(user.uid) ? 'bg-primary border-primary shadow-[0_0_8px_rgba(255,140,0,0.4)]' : 'border-zinc-900 group-hover:border-zinc-700'}`}>
                          {selectedPlayers.includes(user.uid) && <span className="material-symbols-outlined text-black text-[12px] font-black">check</span>}
@@ -256,7 +256,7 @@ export default function GroupManager({ isAdmin }: GroupManagerProps) {
                     <div className="flex items-center gap-1.5 bg-black/40 px-2 py-0.5 rounded-sm border border-white/5 shadow-inner">
                        <div className="w-1 h-1 bg-primary rounded-full animate-pulse" />
                        <p className="text-[8px] font-black text-zinc-500 uppercase tracking-widest">
-                         {group.playerUids.length} ATIVOS
+                         {(group.playerUids || []).length} ATIVOS
                        </p>
                     </div>
                     {group.campaignId && (
@@ -283,7 +283,7 @@ export default function GroupManager({ isAdmin }: GroupManagerProps) {
                 </div>
                 
                 <div className="flex -space-x-3 pt-2">
-                  {group.playerUids.slice(0, 6).map(uid => {
+                  {(group.playerUids || []).slice(0, 6).map(uid => {
                     const player = users.find(u => u.uid === uid);
                     const label = (player?.displayName || player?.username || 'A').charAt(0).toUpperCase();
                     return (
@@ -292,9 +292,9 @@ export default function GroupManager({ isAdmin }: GroupManagerProps) {
                       </div>
                     );
                   })}
-                  {group.playerUids.length > 6 && (
+                  {(group.playerUids || []).length > 6 && (
                     <div className="w-8 h-8 rounded-full bg-[#333] border-2 border-[#1a1a1a] flex items-center justify-center text-[9px] font-black text-zinc-500 shadow-lg">
-                       +{group.playerUids.length - 6}
+                       +{(group.playerUids || []).length - 6}
                     </div>
                   )}
                 </div>

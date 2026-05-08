@@ -204,7 +204,7 @@ export default function TerminalPanel() {
                           <UserCheck size={16} className={u.hasTerminalAccess ? 'text-emerald-500' : 'text-zinc-800'} />
                           <div>
                              <p className={`text-xs font-black uppercase ${selectedUids.has(u.uid) ? 'text-primary' : 'text-zinc-400 group-hover:text-white'}`}>{u.username}</p>
-                             <p className="text-[8px] font-mono text-zinc-700 font-bold uppercase mt-0.5 tracking-widest">UID: {u.uid.slice(0,12)}</p>
+                             <p className="text-[8px] font-mono text-zinc-700 font-bold uppercase mt-0.5 tracking-widest">UID: {(u.uid || "").slice(0,12)}</p>
                           </div>
                        </div>
                     </td>

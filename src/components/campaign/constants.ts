@@ -8,12 +8,22 @@ const REF_CARD_H = 480;
 const REF_GAP = 40;
 
 /**
- * Computes responsive card & carousel metrics based on actual container width.
- * On mobile the container fills 100 vw, so cards scale proportionally.
+ * Computes responsive card & carousel metrics based on actual container size.
+ * On mobile the container fills 100 vw/vh, so cards scale proportionally to fit within both dimensions.
  */
-export function getMetrics(containerWidth: number) {
+export function getMetrics(containerWidth: number, containerHeight: number) {
   // Ratio relative to the reference design
-  const ratio = Math.min(containerWidth / REF_CONTAINER, 1.15);
+  const widthRatio = containerWidth / REF_CONTAINER;
+  
+  // We want the card height (REF_CARD_H = 480) to fit within containerHeight
+  // with some padding (e.g., 64px for top/bottom margins in the flex container).
+  // If containerHeight is 0 (initial load), default to widthRatio.
+  const heightRatio = containerHeight > 0 ? (containerHeight - 64) / REF_CARD_H : widthRatio;
+  
+  // Choose the smallest ratio so it doesn't overflow horizontally OR vertically.
+  // We also limit it to 1.15 to avoid massive cards on ultra-wide screens.
+  const ratio = Math.min(widthRatio, heightRatio, 1.15);
+  
   const cardWidth  = Math.round(REF_CARD_W * ratio);
   const cardHeight = Math.round(REF_CARD_H * ratio);
   const gap        = Math.round(REF_GAP * ratio);

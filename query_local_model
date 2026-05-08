@@ -1,0 +1,22 @@
+#!/bin/bash
+# query_local_model - Script to query local LLM at localhost:6969
+SERVER_URL="http://localhost:6969/v1/chat/completions"
+MODEL="llama3.2:1b"
+
+if [ -n "$1" ] && [ -f "$1" ]; then
+    CONTENT=$(cat "$1")
+else
+    CONTENT=$(cat)
+fi
+
+if [ -z "$CONTENT" ]; then
+    echo "Erro: Nenhum conteúdo fornecido."
+    exit 1
+fi
+
+# Formata o JSON e envia para o servidor
+jq -n --arg content "$CONTENT" --arg model "$MODEL" \
+   '{"model": $model, "messages": [{"role": "user", "content": $content}], "stream": false}' | \
+curl -s -X POST "$SERVER_URL" \
+     -H "Content-Type: application/json" \
+     -d @- | jq -r '.choices[0].message.content'
