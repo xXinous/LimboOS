@@ -4,6 +4,26 @@ import type { IntelItem } from '../../types/intel';
 import type { DisplayMode } from '../../types/player';
 import React from 'react';
 
+const typeOrder = (item: IntelItem) => {
+  switch (item.type) {
+    case 'AUDIO': return 0;
+    case 'TEXT': return 1;
+    case 'VISUAL': return 2;
+    case 'META': return 3;
+    default: return 99;
+  }
+};
+
+const typeLabel = (item: IntelItem) => {
+  switch (item.type) {
+    case 'AUDIO': return '📼 Áudio';
+    case 'TEXT': return '💾 Textos';
+    case 'VISUAL': return '📷 Imagens';
+    case 'META': return '🏆 Conquistas';
+    default: return '❓ Desconhecido';
+  }
+};
+
 export default React.memo(function TapeLibrary({ 
   intelItems, 
   currentIntelId, 
@@ -17,26 +37,6 @@ export default React.memo(function TapeLibrary({
   displayMode: DisplayMode;
   onIntelSelect: (intel: IntelItem) => void;
 }) {
-  const typeOrder = (item: IntelItem) => {
-    switch (item.type) {
-      case 'AUDIO': return 0;
-      case 'TEXT': return 1;
-      case 'VISUAL': return 2;
-      case 'META': return 3;
-      default: return 99;
-    }
-  };
-
-  const typeLabel = (item: IntelItem) => {
-    switch (item.type) {
-      case 'AUDIO': return '📼 Áudio';
-      case 'TEXT': return '💾 Textos';
-      case 'VISUAL': return '📷 Imagens';
-      case 'META': return '🏆 Conquistas';
-      default: return '❓ Desconhecido';
-    }
-  };
-
   const sorted = React.useMemo(() => {
     if (displayMode === 'title') return [...intelItems].sort((a, b) => a.title.localeCompare(b.title));
     if (displayMode === 'chapter') return [...intelItems].sort((a, b) => (a.metadata?.chapter || '').localeCompare(b.metadata?.chapter || ''));

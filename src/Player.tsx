@@ -40,6 +40,8 @@ import type { IntelItem, PlayerIntelCollection } from './types/intel';
 import { campaigns } from './data/campaigns';
 import type { AppScreen, WalkmanStatus, DisplayMode } from './types/player';
 
+const EMPTY_ARRAY: any[] = [];
+
 export default function Player() {
   const [masterAccount, setMasterAccount] = useState<MasterAccount | null | undefined>(null);
   const [playerData, setPlayerData] = useState<PlayerData | null>(null);
@@ -139,17 +141,26 @@ export default function Player() {
     };
   }, [playerData?.activeCharacterId]);
 
-  // Unified Intel Fetching
-  useEffect(() => {
-    if (!playerData) return;
-    const fetchIntel = async () => {
+// Unified Intel Fetching (Adding debug logs and loading state management)
+useEffect(() => {
+  if (!playerData) return;
+  const fetchIntel = async () => {
+    console.log('[Player DEBUG] Starting intel fetch sequence.'); // Debug Log Start
+    setWalkmanStatus('LOADING'); // Indicate background work
+    try {
       const gallery = playerData.unlockedGalleryIds.length ? await fetchPlayerGalleryImages(playerData.uid, playerData.activeCharacterId) : [];
       setGalleryImages(gallery);
       const collection = await intelService.getCollection(playerData, gallery);
       setIntelCollection(collection);
-    };
-    fetchIntel();
-  }, [playerData?.unlockedTapeIds, playerData?.unlockedGalleryIds]);
+    } catch (error) {
+        console.error('[Player DEBUG] Error during Intel Fetch:', error);
+    } finally {
+        setWalkmanStatus('LOADED'); // Restore state when done
+        console.log('[Player DEBUG] Finished intel fetch sequence.'); // Debug Log End
+    }
+  };
+  fetchIntel();
+}, [playerData?.unlockedTapeIds, playerData?.unlockedGalleryIds]);
 
   useEffect(() => {
     audioEngine.setVolume(volume);
@@ -218,7 +229,7 @@ export default function Player() {
     } catch (err) { addToast({ type: 'error', title: 'Erro QR', subtitle: 'Tente dnv', icon: '⚠️' }); }
   }, [playerData, localStats, scanTimes, addToast]);
 
-  const handleIntelSelect = (intel: IntelItem) => {
+  const handleIntelSelect = useCallback((intel: IntelItem) => {
     if (!playerData) return;
     if (intel.type === 'VISUAL' || intel.type === 'TEXT') {
       setActiveEvidence(intel);
@@ -231,9 +242,9 @@ export default function Player() {
       setTimeout(() => { setCurrentIntel(intel); setWalkmanStatus('LOADED'); }, 400);
       activityLogger.logAction('tape_select', `Selecionou: ${intel.title}`, { intelId: intel.id });
     }
-  };
+  }, [playerData, currentIntel]);
 
-  const handleCharacterSwitch = () => {
+  const handleCharacterSwitch = useCallback(() => {
     if (playerData) activityLogger.logAction('character_switch', `Agente ${playerData.character.codinome} desativado para troca`);
     analyticsTracker.stopAll(false); // Force sync before switching
     playerSyncService.stopAll();
@@ -241,9 +252,9 @@ export default function Player() {
     setLocalStats(null);
     setIntelCollection(null);
     setScreen('characterSelection');
-  };
+  }, [playerData]);
 
-  const handleLogout = async () => {
+  const handleLogout = useCallback(async () => {
     if (playerData) activityLogger.logAuth('logout', `${playerData.character.codinome} saiu`);
     // Stop services BEFORE invalidating auth to avoid permission errors on final sync
     analyticsTracker.stopAll(true);
@@ -254,7 +265,7 @@ export default function Player() {
     setCurrentIntel(null);
     setWalkmanStatus('IDLE');
     setScreen('login');
-  };
+  }, [playerData]);
 
   const swipeHandlers = useSwipeable({
     onSwipedLeft: () => screen === 'player' && playerData && setScreen('profile'),
@@ -310,7 +321,7 @@ export default function Player() {
           <motion.div key="player" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} className="relative w-full max-w-sm h-full max-h-[750px] bg-surface-container-high rounded-[32px] border-8 border-[#1a1a1a] shadow-2xl flex flex-col p-3 sm:p-4 overflow-hidden z-10">
             <Screw className="top-4 left-4" /><Screw className="top-4 right-4 -rotate-90" /><Screw className="bottom-4 left-4 -rotate-90" /><Screw className="bottom-4 right-4" />
             <CassetteVisor currentIntel={currentIntel} status={walkmanStatus} onEject={() => { if (!hasPlayedCurrentTape.current && currentIntel) analyticsTracker.incrementStat('ejectWithoutPlay'); setWalkmanStatus('IDLE'); setCurrentIntel(null); }} onScanClick={() => setWalkmanStatus('SCANNING')} onCancelScan={() => setWalkmanStatus('IDLE')} onQrDetected={handleQrDetected} />
-            <TapeLibrary intelItems={intelCollection?.items || []} currentIntelId={currentIntel?.id ?? null} isPlaying={isPlaying} displayMode={displayMode} onIntelSelect={handleIntelSelect} />
+            <TapeLibrary intelItems={intelCollection?.items || EMPTY_ARRAY} currentIntelId={currentIntel?.id ?? null} isPlaying={isPlaying} displayMode={displayMode} onIntelSelect={handleIntelSelect} />
             <SideControls volume={volume} setVolume={setVolume} onModeChange={(dir) => { const modes: DisplayMode[] = ['default', 'title', 'chapter', 'type']; setDisplayMode(modes[(modes.indexOf(displayMode) + (dir === 'up' ? 1 : -1) + modes.length) % modes.length]); }} onProfileOpen={() => setScreen('profile')} onCharacterSwitch={handleCharacterSwitch} />
             <BottomControls status={walkmanStatus} setIsPlaying={(p) => setWalkmanStatus(p ? 'PLAYING' : 'LOADED')} hasTape={!!currentIntel} onRewind={() => { setWalkmanStatus('REWINDING'); setTimeout(() => setWalkmanStatus('LOADED'), 1500); }} hasTerminalAccess={playerData.hasTerminalAccess} onTerminalOpen={() => setScreen('bios')} hasMacAccess={playerData.hasMacAccess} onMacOpen={() => setScreen('macos')} />
           </motion.div>

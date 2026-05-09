@@ -114,8 +114,8 @@ export default function CampaignSelection({
               const projectedX = x.get() + info.velocity.x * 0.2;
               snapTo(Math.round(-projectedX / metrics.step));
             }}
-            style={{ x, paddingLeft: metrics.centerOffset, gap: metrics.gap }} 
-            className="flex flex-row items-center h-full w-fit will-change-transform py-4"
+            style={{ x, paddingLeft: metrics.centerOffset, paddingRight: metrics.centerOffset, gap: metrics.gap }} 
+            className="flex flex-row items-center h-full w-max will-change-transform py-4"
           >
             {campaigns.map((c, i) => (
               <CassetteCard key={c.id} campaign={c} onSelect={onSelect} index={i} dragX={x} cardWidth={metrics.cardWidth} cardHeight={metrics.cardHeight} step={metrics.step} isActive={currentIndex === i} onSnapToSelf={() => snapTo(i)} />
