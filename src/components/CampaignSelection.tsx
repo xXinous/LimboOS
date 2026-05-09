@@ -56,6 +56,15 @@ export default function CampaignSelection({
     });
   }, []);
 
+  // Ensure `x` stays perfectly aligned if the container is resized (e.g. mobile URL bar hiding)
+  const prevStepRef = useRef(metrics.step);
+  useEffect(() => {
+    if (prevStepRef.current !== metrics.step) {
+      x.jump(-currentIndex * metrics.step);
+      prevStepRef.current = metrics.step;
+    }
+  }, [metrics.step, currentIndex, x]);
+
   const snapTo = useCallback((index: number) => {
     if (!campaigns.length) return;
     const clamped = Math.max(0, Math.min(campaigns.length - 1, index));
@@ -114,24 +123,33 @@ export default function CampaignSelection({
               const projectedX = x.get() + info.velocity.x * 0.2;
               snapTo(Math.round(-projectedX / metrics.step));
             }}
-            style={{ x, paddingLeft: metrics.centerOffset, paddingRight: metrics.centerOffset, gap: metrics.gap }} 
-            className="flex flex-row items-center h-full w-max will-change-transform py-4"
+            style={{ x }} 
+            className="absolute inset-0 will-change-transform touch-none"
           >
             {campaigns.map((c, i) => (
-              <CassetteCard key={c.id} campaign={c} onSelect={onSelect} index={i} dragX={x} cardWidth={metrics.cardWidth} cardHeight={metrics.cardHeight} step={metrics.step} isActive={currentIndex === i} onSnapToSelf={() => snapTo(i)} />
+              <div 
+                key={c.id} 
+                className="absolute top-1/2 left-1/2" 
+                style={{ 
+                  transform: `translate(calc(-50% + ${i * metrics.step}px), -50%)`,
+                  perspective: '1200px'
+                }}
+              >
+                <CassetteCard campaign={c} onSelect={onSelect} index={i} dragX={x} cardWidth={metrics.cardWidth} cardHeight={metrics.cardHeight} step={metrics.step} isActive={currentIndex === i} onSnapToSelf={() => snapTo(i)} />
+              </div>
             ))}
           </motion.div>
         </div>
 
         {currentIndex > 0 && (
           <button onClick={() => snapTo(currentIndex - 1)} 
-            className="absolute left-4 top-1/2 -translate-y-1/2 z-20 w-12 h-12 rounded-full bg-surface-container-high/80 border border-primary/20 text-primary hover:bg-primary/20 transition-all flex items-center justify-center backdrop-blur-sm shadow-xl">
+            className="absolute left-4 top-1/2 -translate-y-1/2 z-20 w-12 h-12 rounded-full bg-black/20 border border-primary/20 text-primary hover:bg-primary/40 transition-all flex items-center justify-center backdrop-blur-md shadow-xl">
             <ChevronLeft size={24} />
           </button>
         )}
         {currentIndex < campaigns.length - 1 && (
           <button onClick={() => snapTo(currentIndex + 1)} 
-            className="absolute right-4 top-1/2 -translate-y-1/2 z-20 w-12 h-12 rounded-full bg-surface-container-high/80 border border-primary/20 text-primary hover:bg-primary/20 transition-all flex items-center justify-center backdrop-blur-sm shadow-xl">
+            className="absolute right-4 top-1/2 -translate-y-1/2 z-20 w-12 h-12 rounded-full bg-black/20 border border-primary/20 text-primary hover:bg-primary/40 transition-all flex items-center justify-center backdrop-blur-md shadow-xl">
             <ChevronRight size={24} />
           </button>
         )}

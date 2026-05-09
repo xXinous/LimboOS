@@ -24,6 +24,7 @@ import {
   GalleryCategory,
   QrRedirect
 } from '../types/player';
+import type { IntelItem } from '../types/intel';
 
 const DEFAULT_STATS: PlayerStats = {
   totalListenTime: 0,
@@ -264,6 +265,53 @@ export async function fetchAudioTapeById(audioId: string) {
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 }
 
+export async function fetchAllAudios() {
+  const snap = await getDocs(collection(db, 'audios'));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+export async function fetchAllGalleryImages(): Promise<GalleryImage[]> {
+  const snap = await getDocs(collection(db, 'gallery'));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() } as GalleryImage));
+}
+
+/**
+ * Persiste alterações de um IntelItem de volta para o Firebase.
+ */
+export async function updateRemoteIntel(item: IntelItem): Promise<void> {
+  const collectionName = item.type === 'AUDIO' ? 'audios' : item.type === 'VISUAL' ? 'gallery' : null;
+  if (!collectionName) return;
+
+  const docRef = doc(db, collectionName, item.id);
+  const snap = await getDoc(docRef);
+  
+  if (!snap.exists()) return;
+
+  const updateData: any = {
+    level: item.level,
+    title: item.title,
+    description: item.description,
+  };
+
+  if (item.type === 'AUDIO' && item.metadata) {
+    if (item.metadata.artist) updateData.artist = item.metadata.artist;
+    if (item.metadata.npc) updateData.npc = item.metadata.npc;
+    if (item.metadata.chapter) updateData.chapter = item.metadata.chapter;
+    if (item.metadata.duration) updateData.duration = item.metadata.duration;
+    if (item.metadata.isSecret !== undefined) updateData.isSecret = item.metadata.isSecret;
+    if (item.mediaUrl) updateData.url = item.mediaUrl;
+  }
+
+  if (item.type === 'VISUAL' && item.metadata) {
+    if (item.metadata.visualCategory) updateData.category = item.metadata.visualCategory;
+    if (item.metadata.npc) updateData.npc = item.metadata.npc;
+    if (item.metadata.chapter) updateData.chapter = item.metadata.chapter;
+    if (item.mediaUrl) updateData.imageUrl = item.mediaUrl;
+  }
+
+  await setDoc(docRef, updateData, { merge: true });
+}
+
 export async function fetchQrRedirect(sourceId: string): Promise<string | null> {
   const snap = await getDoc(doc(db, 'qrRedirects', sourceId));
   return snap.exists() ? snap.data().targetId || null : null;
@@ -313,11 +361,6 @@ export async function grantGalleryImage(uid: string, characterIdOrImageId: strin
 }
 
 // --- Admin Gallery Functions ---
-
-export async function fetchAllGalleryImages(): Promise<GalleryImage[]> {
-  const snap = await getDocs(collection(db, 'gallery'));
-  return snap.docs.map(d => ({ id: d.id, ...d.data() } as GalleryImage));
-}
 
 export async function uploadGalleryImage(
   file: File,

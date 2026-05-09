@@ -1,5 +1,6 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { intelRegistry, type EvidenceIntelAdmin } from '../../data/intel_registry';
+import { intelService } from '../../services/IntelService';
 import type { IntelItem, IntelType, AccessLevel, VisualCategory } from '../../types/intel';
 import { ACCESS_LEVEL_LABELS } from '../../types/intel';
 import Screw from '../../components/player/Screw';
@@ -50,6 +51,22 @@ export default function IntelCreatorPanel() {
   const [formData, setFormData] = useState<Omit<IntelItem, 'id'> & { id: string }>({ id: '', ...EMPTY_ITEM });
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [showExport, setShowExport] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    const sync = async () => {
+      setIsLoading(true);
+      try {
+        await intelService.syncRegistryWithFirebase();
+        refreshItems();
+      } catch (err) {
+        console.error("Sync error:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    sync();
+  }, [refreshItems]);
 
   const refreshItems = useCallback(() => {
     setAllItems(intelRegistry.getAll());
@@ -102,7 +119,7 @@ export default function IntelCreatorPanel() {
     setFeedback(null);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!formData.id.trim() || !formData.title.trim()) {
       setFeedback({ type: 'error', text: 'ID e Título são obrigatórios.' });
       return;
@@ -125,10 +142,19 @@ export default function IntelCreatorPanel() {
       ...(formData.campaignId ? { campaignId: formData.campaignId } : {}),
       ...(Object.keys(cleanMeta).length > 0 ? { metadata: cleanMeta } : {}),
     };
-    intelRegistry.register(intelItem);
-    refreshItems();
-    setShowEditor(false);
-    setFeedback({ type: 'success', text: `✓ "${intelItem.title}" ${editingItem ? 'atualizado' : 'registrado'} com sucesso.` });
+
+    setIsLoading(true);
+    try {
+      await intelService.persistChanges(intelItem);
+      refreshItems();
+      setShowEditor(false);
+      setFeedback({ type: 'success', text: `✓ "${intelItem.title}" ${editingItem ? 'atualizado' : 'registrado'} com sucesso no sistema e nuvem.` });
+    } catch (err) {
+      console.error("Save error:", err);
+      setFeedback({ type: 'error', text: 'Falha ao persistir alterações no Firebase.' });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleExportJSON = () => setShowExport(true);
@@ -151,7 +177,12 @@ export default function IntelCreatorPanel() {
         <div className="flex items-center gap-4">
           <div className="w-1.5 h-8 bg-primary shadow-[0_0_10px_rgba(255,140,0,0.4)]" />
           <div>
-            <h2 className="font-display font-bold uppercase tracking-widest text-lg text-white">Criador de Intel</h2>
+            <h2 className="font-display font-bold uppercase tracking-widest text-lg text-white flex items-center gap-3">
+              Criador de Intel
+              {isLoading && (
+                <span className="inline-block w-4 h-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+              )}
+            </h2>
             <p className="text-[10px] font-display font-bold text-industrial-silver/40 uppercase tracking-widest mt-1">Gestão do Registro Mestre de Colecionáveis</p>
           </div>
         </div>

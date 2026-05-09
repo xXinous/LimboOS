@@ -22,17 +22,21 @@ export const CassetteCard = memo(({ campaign, onSelect, index, dragX, cardWidth,
   const [isExpanded, setIsExpanded] = useState(false);
 
   const cardX = useMemo(() => index * step, [index, step]);
-  const distance = useTransform(dragX, (val) => Math.abs(val + cardX));
+  const relativePosition = useTransform(dragX, (val) => val + cardX);
+  const distance = useTransform(relativePosition, Math.abs);
   
-  const scale = useTransform(distance, [0, step], [1, 0.85], { clamp: true });
-  const opacity = useTransform(distance, [0, step], [1, 0.4], { clamp: true });
-  const rotateY = useTransform(distance, [0, step], [0, 15], { clamp: true });
+  const scale = useTransform(distance, [0, step, step * 2], [1, 0.85, 0.75], { clamp: true });
+  const opacity = useTransform(distance, [0, step, step * 2], [1, 0.6, 0.3], { clamp: true });
+  const rotateY = useTransform(relativePosition, [-step * 2, -step, 0, step, step * 2], [25, 15, 0, -15, -25], { clamp: true });
+  const rotateX = useTransform(distance, [0, step], [0, 5], { clamp: true });
+  const rotateZ = useTransform(relativePosition, [-step, 0, step], [-2, 0, 2], { clamp: true });
   const zIndex = useTransform(distance, [0, step], [10, 0]);
-  const y = useTransform(distance, [0, step], [0, 10], { clamp: true });
+  const y = useTransform(distance, [0, step, step * 2], [0, 20, 35], { clamp: true });
+  const filter = useTransform(distance, [0, step, step * 2], ['blur(0px) brightness(1)', 'blur(3px) brightness(0.6)', 'blur(6px) brightness(0.4)'], { clamp: true });
   
   return (
     <motion.div
-      style={{ scale, opacity, rotateY, zIndex, y, width: cardWidth, height: cardHeight }}
+      style={{ scale, opacity, rotateY, rotateX, rotateZ, zIndex, y, filter, width: cardWidth, height: cardHeight }}
       className="relative shrink-0 select-none origin-center will-change-transform"
       onClick={() => {
         if (!isActive) {
