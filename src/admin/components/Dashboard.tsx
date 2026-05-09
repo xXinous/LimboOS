@@ -4,18 +4,18 @@ import { db } from '../../lib/firebase';
 import { doc, getDoc, collection, onSnapshot, query } from 'firebase/firestore';
 import Sidebar from './Sidebar';
 import Header from './Header';
-import UserRegistry from './UserRegistry';
-import AudioBuffer from './AudioBuffer';
-import AnalyticsPanel from './AnalyticsPanel';
-import AchievementsPanel from './AchievementsPanel';
-import TerminalPanel from './TerminalPanel';
-import InventoryManager from './InventoryManager';
-import SystemLogPanel from './SystemLogPanel';
-import RedirectsPanel from './RedirectsPanel';
-import GalleryPanel from './GalleryPanel';
-import JukeboxPanel from './JukeboxPanel';
-import CampaignsPanel from './CampaignsPanel';
-import IntelCreatorPanel from './IntelCreatorPanel';
+const UserRegistry = React.lazy(() => import('./UserRegistry'));
+const AudioBuffer = React.lazy(() => import('./AudioBuffer'));
+const AnalyticsPanel = React.lazy(() => import('./AnalyticsPanel'));
+const AchievementsPanel = React.lazy(() => import('./AchievementsPanel'));
+const TerminalPanel = React.lazy(() => import('./TerminalPanel'));
+const InventoryManager = React.lazy(() => import('./InventoryManager'));
+const SystemLogPanel = React.lazy(() => import('./SystemLogPanel'));
+const RedirectsPanel = React.lazy(() => import('./RedirectsPanel'));
+const GalleryPanel = React.lazy(() => import('./GalleryPanel'));
+const JukeboxPanel = React.lazy(() => import('./JukeboxPanel'));
+const CampaignsPanel = React.lazy(() => import('./CampaignsPanel'));
+const IntelCreatorPanel = React.lazy(() => import('./IntelCreatorPanel'));
 
 interface DashboardProps {
   user: User | null;
@@ -102,66 +102,75 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
 
             {/* Renderização de Abas */}
             <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
-              {activeTab === 'dashboard' && (
-                <div className="space-y-8">
-                  <AnalyticsPanel />
-                  <div className="border-t border-primary/10 pt-8">
-                    <div className="flex items-center gap-3 mb-6">
-                      <div className="h-px flex-1 bg-linear-to-r from-transparent to-primary/20" />
-                      <h3 className="text-industrial-silver/40 font-display text-[10px] uppercase font-bold tracking-[0.3em]">Log_Central_do_Nucleo</h3>
-                      <div className="h-px flex-1 bg-linear-to-l from-transparent to-primary/20" />
+              <React.Suspense fallback={
+                <div className="flex items-center justify-center p-24">
+                  <div className="flex flex-col items-center gap-4">
+                    <div className="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
+                    <p className="text-[10px] font-display font-bold text-primary uppercase tracking-[0.4em] animate-pulse">Acessando_Dados...</p>
+                  </div>
+                </div>
+              }>
+                {activeTab === 'dashboard' && (
+                  <div className="space-y-8">
+                    <AnalyticsPanel />
+                    <div className="border-t border-primary/10 pt-8">
+                      <div className="flex items-center gap-3 mb-6">
+                        <div className="h-px flex-1 bg-linear-to-r from-transparent to-primary/20" />
+                        <h3 className="text-industrial-silver/40 font-display text-[10px] uppercase font-bold tracking-[0.3em]">Log_Central_do_Nucleo</h3>
+                        <div className="h-px flex-1 bg-linear-to-l from-transparent to-primary/20" />
+                      </div>
+                      <SystemLogPanel />
                     </div>
-                    <SystemLogPanel />
                   </div>
-                </div>
-              )}
+                )}
 
-              {activeTab === 'missions' && <CampaignsPanel />}
-              {activeTab === 'players' && <UserRegistry isAdmin={isAdmin} />}
-              {activeTab === 'inventory' && (
-                <div className="space-y-8">
-                  <InventoryManager />
-                  <div className="border-t border-primary/10 pt-8">
-                    <div className="flex items-center gap-3 mb-6">
-                      <div className="h-px flex-1 bg-linear-to-r from-transparent to-primary/20" />
-                      <h3 className="text-industrial-silver/40 font-display text-[10px] uppercase font-bold tracking-[0.3em]">Conquistas_do_Sistema</h3>
-                      <div className="h-px flex-1 bg-linear-to-l from-transparent to-primary/20" />
+                {activeTab === 'missions' && <CampaignsPanel />}
+                {activeTab === 'players' && <UserRegistry isAdmin={isAdmin} />}
+                {activeTab === 'inventory' && (
+                  <div className="space-y-8">
+                    <InventoryManager />
+                    <div className="border-t border-primary/10 pt-8">
+                      <div className="flex items-center gap-3 mb-6">
+                        <div className="h-px flex-1 bg-linear-to-r from-transparent to-primary/20" />
+                        <h3 className="text-industrial-silver/40 font-display text-[10px] uppercase font-bold tracking-[0.3em]">Conquistas_do_Sistema</h3>
+                        <div className="h-px flex-1 bg-linear-to-l from-transparent to-primary/20" />
+                      </div>
+                      <AchievementsPanel />
                     </div>
-                    <AchievementsPanel />
                   </div>
-                </div>
-              )}
+                )}
 
-              {activeTab === 'library' && (
-                <div className="bg-surface-container-low border border-primary/20 overflow-hidden rounded-sm shadow-xl">
-                  {/* Navegação da Biblioteca */}
-                  <div className="flex flex-wrap border-b border-primary/10 bg-black/20">
-                    <LibrarySubTab label="Acervo" active={libraryTab === 'acervo'} onClick={() => setLibraryTab('acervo')} icon="album" />
-                    <LibrarySubTab label="Jukebox" active={libraryTab === 'jukebox'} onClick={() => setLibraryTab('jukebox')} icon="queue_music" />
-                    <LibrarySubTab label="Galeria" active={libraryTab === 'galeria'} onClick={() => setLibraryTab('galeria')} icon="photo_library" />
-                    <LibrarySubTab label="QR Codes" active={libraryTab === 'qr'} onClick={() => setLibraryTab('qr')} icon="qr_code" />
+                {activeTab === 'library' && (
+                  <div className="bg-surface-container-low border border-primary/20 overflow-hidden rounded-sm shadow-xl">
+                    {/* Navegação da Biblioteca */}
+                    <div className="flex flex-wrap border-b border-primary/10 bg-black/20">
+                      <LibrarySubTab label="Acervo" active={libraryTab === 'acervo'} onClick={() => setLibraryTab('acervo')} icon="album" />
+                      <LibrarySubTab label="Jukebox" active={libraryTab === 'jukebox'} onClick={() => setLibraryTab('jukebox')} icon="queue_music" />
+                      <LibrarySubTab label="Galeria" active={libraryTab === 'galeria'} onClick={() => setLibraryTab('galeria')} icon="photo_library" />
+                      <LibrarySubTab label="QR Codes" active={libraryTab === 'qr'} onClick={() => setLibraryTab('qr')} icon="qr_code" />
+                    </div>
+
+                    <div className="p-4 sm:p-8">
+                      {libraryTab === 'acervo' && <AudioBuffer user={user} isAdmin={isAdmin} />}
+                      {libraryTab === 'jukebox' && <JukeboxPanel />}
+                      {libraryTab === 'galeria' && <GalleryPanel />}
+                      {libraryTab === 'qr' && <RedirectsPanel />}
+                    </div>
                   </div>
+                )}
 
-                  <div className="p-4 sm:p-8">
-                    {libraryTab === 'acervo' && <AudioBuffer user={user} isAdmin={isAdmin} />}
-                    {libraryTab === 'jukebox' && <JukeboxPanel />}
-                    {libraryTab === 'galeria' && <GalleryPanel />}
-                    {libraryTab === 'qr' && <RedirectsPanel />}
+                {activeTab === 'intel' && (
+                  <div className="space-y-8">
+                    <IntelCreatorPanel />
                   </div>
-                </div>
-              )}
+                )}
 
-              {activeTab === 'intel' && (
-                <div className="space-y-8">
-                  <IntelCreatorPanel />
-                </div>
-              )}
-
-              {activeTab === 'systems' && (
-                <div className="space-y-8">
-                  <TerminalPanel />
-                </div>
-              )}
+                {activeTab === 'systems' && (
+                  <div className="space-y-8">
+                    <TerminalPanel />
+                  </div>
+                )}
+              </React.Suspense>
             </div>
 
           </div>

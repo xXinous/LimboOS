@@ -53,6 +53,10 @@ export default function IntelCreatorPanel() {
   const [showExport, setShowExport] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
+  const refreshItems = useCallback(() => {
+    setAllItems(intelRegistry.getAll());
+  }, []);
+
   useEffect(() => {
     const sync = async () => {
       setIsLoading(true);
@@ -67,10 +71,6 @@ export default function IntelCreatorPanel() {
     };
     sync();
   }, [refreshItems]);
-
-  const refreshItems = useCallback(() => {
-    setAllItems(intelRegistry.getAll());
-  }, []);
 
   const filteredItems = useMemo(() => {
     return allItems.filter(item => {
