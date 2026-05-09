@@ -4,10 +4,13 @@ import type { GalleryImage } from '../types/player';
 import { intelRegistry } from '../data/intel_registry';
 import { 
   fetchAudioTapeById, 
+  fetchAllAudios,
+  fetchAllGalleryImages,
   fetchQrRedirect, 
   firestoreUnlockTape,
   firestoreGrantAchievements,
   fetchPlayerGalleryImages,
+  updateRemoteIntel,
 } from '../store/firestore';
 
 /**
@@ -26,6 +29,50 @@ class IntelService {
       IntelService.instance = new IntelService();
     }
     return IntelService.instance;
+  }
+
+  // --- Sincronização ---
+
+  /**
+   * Sincroniza o registro local com o Firebase.
+   * Útil para o painel administrativo ver todos os itens remotos.
+   */
+  public async syncRegistryWithFirebase(): Promise<void> {
+    const [audios, gallery] = await Promise.all([
+      fetchAllAudios(),
+      fetchAllGalleryImages(),
+    ]);
+
+    audios.forEach(audio => {
+      const a = audio as any;
+      intelRegistry.registerRemoteAudio({
+        id: a.id,
+        title: a.title,
+        artist: a.artist,
+        npc: a.npc,
+        chapter: a.chapter,
+        description: a.description,
+        url: a.audioUrl || a.url,
+        duration: a.duration,
+        isSecret: a.isSecret,
+        level: a.level,
+      });
+    });
+
+    gallery.forEach(img => {
+      intelRegistry.registerGalleryImage(img);
+    });
+  }
+
+  /**
+   * Persiste as alterações de um IntelItem tanto localmente quanto no Firebase.
+   */
+  public async persistChanges(item: IntelItem): Promise<void> {
+    // 1. Atualiza no registro em memória
+    intelRegistry.register(item);
+
+    // 2. Persiste no Firebase (se for item remoto)
+    await updateRemoteIntel(item);
   }
 
   // --- Resolução ---

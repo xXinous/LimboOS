@@ -16,6 +16,10 @@ service firebase.storage {
       return isAuthenticated() && request.auth.token.email == "gm.mpg@runningman.local";
     }
 
+    match /profilePhotos/{userId}/{allPaths=**} {
+      allow write: if isAuthenticated() && request.auth.uid == userId;
+    }
+
     match /{allPaths=**} {
       // Anyone authenticated can read/download the audios
       allow read: if isAuthenticated();
