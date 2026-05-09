@@ -7,6 +7,7 @@ import type { PlayerData } from '../../types/player';
 import type { Campaign } from '../../data/campaigns';
 import type { PlayerIntelCollection, IntelItem, AccessLevel } from '../../types/intel';
 import { ACCESS_LEVEL_LABELS } from '../../types/intel';
+import RetroSpinner from '../player/RetroSpinner';
 
 const STATUS_CONFIG = {
   vivo: { label: 'ATIVO', color: 'text-green-500', dot: 'bg-green-500', glow: 'glow-green' },
