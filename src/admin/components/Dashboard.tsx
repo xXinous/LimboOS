@@ -1,15 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { User } from 'firebase/auth';
 import { db } from '../../lib/firebase';
 import { doc, getDoc, collection, onSnapshot, query } from 'firebase/firestore';
+import { userService } from '../../services/UserService';
+import { MasterAccount, CharacterData } from '../../types/player';
+import SpotlightSearch, { buildSearchItems } from './SpotlightSearch';
 import Sidebar from './Sidebar';
 import Header from './Header';
 const UserRegistry = React.lazy(() => import('./UserRegistry'));
+const GroupManager = React.lazy(() => import('./GroupManager'));
 const AudioBuffer = React.lazy(() => import('./AudioBuffer'));
 const AnalyticsPanel = React.lazy(() => import('./AnalyticsPanel'));
 const AchievementsPanel = React.lazy(() => import('./AchievementsPanel'));
 const TerminalPanel = React.lazy(() => import('./TerminalPanel'));
-const InventoryManager = React.lazy(() => import('./InventoryManager'));
 const SystemLogPanel = React.lazy(() => import('./SystemLogPanel'));
 const RedirectsPanel = React.lazy(() => import('./RedirectsPanel'));
 const GalleryPanel = React.lazy(() => import('./GalleryPanel'));
@@ -37,6 +40,9 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
   const [stats, setStats] = useState<Stats>({ totalUsers: 0, totalAudios: 0, totalPlays: 0 });
   const [sessionTime, setSessionTime] = useState(() => new Date().toISOString().substr(11, 8));
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [spotlightOpen, setSpotlightOpen] = useState(false);
+  const [allAccounts, setAllAccounts] = useState<MasterAccount[]>([]);
+  const [allCharacters, setAllCharacters] = useState<{uid: string, char: CharacterData}[]>([]);
 
   useEffect(() => {
     const checkAdmin = async () => {
@@ -67,6 +73,43 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
     return () => unsubs.forEach(u => u());
   }, [isAdmin, user]);
 
+  // Load accounts + characters for spotlight search
+  useEffect(() => {
+    if (!isAdmin) return;
+    const unsub = userService.subscribeToUsers(async (accs) => {
+      setAllAccounts(accs);
+      const agents: {uid: string, char: CharacterData}[] = [];
+      for (const acc of accs) {
+        const chars = await userService.fetchCharactersForUser(acc.uid);
+        chars.forEach(char => agents.push({ uid: acc.uid, char }));
+      }
+      setAllCharacters(agents);
+    });
+    return () => unsub();
+  }, [isAdmin]);
+
+  // Keyboard shortcuts: Cmd+K for spotlight, Cmd+1-7 for tabs
+  useEffect(() => {
+    const tabOrder = ['dashboard', 'missions', 'players', 'squads', 'library', 'intel', 'systems'];
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setSpotlightOpen(prev => !prev);
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key >= '1' && e.key <= '7') {
+        e.preventDefault();
+        const idx = parseInt(e.key) - 1;
+        if (tabOrder[idx]) setActiveTab(tabOrder[idx]);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
+
+  const spotlightItems = useMemo(() => {
+    return buildSearchItems(allAccounts, allCharacters, setActiveTab);
+  }, [allAccounts, allCharacters]);
+
   return (
     <div className="h-screen bg-surface flex relative overflow-hidden font-sans">
       <div className="noise-overlay" />
@@ -82,7 +125,7 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
 
       {/* Right column: Header (sticky) + scrollable content */}
       <div className="flex-1 flex flex-col overflow-hidden relative z-10">
-        <Header user={user} onLogout={onLogout} />
+        <Header user={user} onLogout={onLogout} onSpotlight={() => setSpotlightOpen(true)} />
 
         <main className="flex-1 overflow-y-auto p-4 sm:p-8 custom-scrollbar bg-surface/50 backdrop-blur-sm">
           <div className="max-w-6xl mx-auto space-y-8">
@@ -126,19 +169,7 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
 
                 {activeTab === 'missions' && <CampaignsPanel />}
                 {activeTab === 'players' && <UserRegistry isAdmin={isAdmin} />}
-                {activeTab === 'inventory' && (
-                  <div className="space-y-8">
-                    <InventoryManager />
-                    <div className="border-t border-primary/10 pt-8">
-                      <div className="flex items-center gap-3 mb-6">
-                        <div className="h-px flex-1 bg-linear-to-r from-transparent to-primary/20" />
-                        <h3 className="text-industrial-silver/40 font-display text-[10px] uppercase font-bold tracking-[0.3em]">Conquistas_do_Sistema</h3>
-                        <div className="h-px flex-1 bg-linear-to-l from-transparent to-primary/20" />
-                      </div>
-                      <AchievementsPanel />
-                    </div>
-                  </div>
-                )}
+                {activeTab === 'squads' && <GroupManager isAdmin={isAdmin} />}
 
                 {activeTab === 'library' && (
                   <div className="bg-surface-container-low border border-primary/20 overflow-hidden rounded-sm shadow-xl">
@@ -162,6 +193,14 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
                 {activeTab === 'intel' && (
                   <div className="space-y-8">
                     <IntelCreatorPanel />
+                    <div className="border-t border-primary/10 pt-8">
+                      <div className="flex items-center gap-3 mb-6">
+                        <div className="h-px flex-1 bg-linear-to-r from-transparent to-primary/20" />
+                        <h3 className="text-industrial-silver/40 font-display text-[10px] uppercase font-bold tracking-[0.3em]">Catálogo_de_Conquistas</h3>
+                        <div className="h-px flex-1 bg-linear-to-l from-transparent to-primary/20" />
+                      </div>
+                      <AchievementsPanel />
+                    </div>
                   </div>
                 )}
 
@@ -184,6 +223,9 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
           <span className="text-[8px] font-display font-bold uppercase tracking-[0.3em] text-industrial-silver/20">RM_ADMIN_SYSTEM_V4.0 // ENCRYPTED_NODE</span>
         </footer>
       </div>
+
+      {/* Spotlight Search */}
+      <SpotlightSearch open={spotlightOpen} onClose={() => setSpotlightOpen(false)} items={spotlightItems} />
     </div>
   );
 }

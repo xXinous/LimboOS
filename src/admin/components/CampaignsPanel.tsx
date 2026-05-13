@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import Screw from '../../components/player/Screw';
 import { db, storage } from '../../lib/firebase';
 import {
   collection,
@@ -12,10 +14,12 @@ import {
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { Campaign, campaigns as initialCampaigns } from '../../data/campaigns';
-import { Group, UserData } from '../../types/player';
+import { Group, UserData, MasterAccount, CharacterData } from '../../types/player';
 import { activityLogger } from '../../services/ActivityLogger';
 import { useModal } from './ConfirmModal';
 import { intelRegistry } from '../../data/intel_registry';
+import { userService } from '../../services/UserService';
+import CampaignInventoryModal from './CampaignInventoryModal';
 
 export default function CampaignsPanel() {
   const { showAlert, showConfirm, modal } = useModal();
@@ -23,6 +27,7 @@ export default function CampaignsPanel() {
   const [persistentItems, setPersistentItems] = useState<string[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
   const [users, setUsers] = useState<UserData[]>([]);
+  const [allCharacters, setAllCharacters] = useState<{account: MasterAccount; character: CharacterData}[]>([]);
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [editingCampaign, setEditingCampaign] = useState<Partial<Campaign> | null>(null);
@@ -31,6 +36,8 @@ export default function CampaignsPanel() {
 
   const [showItemsModal, setShowItemsModal] = useState(false);
   const [itemSearch, setItemSearch] = useState('');
+  
+  const [showInventoryModal, setShowInventoryModal] = useState<Campaign | null>(null);
 
   useEffect(() => {
     const unsubCampaigns = onSnapshot(collection(db, 'campaigns'), (snap) => {
@@ -55,10 +62,18 @@ export default function CampaignsPanel() {
       setGroups(list);
     });
 
-    const unsubUsers = onSnapshot(collection(db, 'users'), (snap) => {
+    const unsubUsers = onSnapshot(collection(db, 'users'), async (snap) => {
       const list: UserData[] = [];
       snap.forEach(d => list.push(d.data() as UserData));
       setUsers(list);
+      
+      // Load all characters
+      try {
+        const chars = await userService.fetchAllCharactersWithAccounts();
+        setAllCharacters(chars.filter(c => c.account.role !== 'admin' && !c.character.archived));
+      } catch (err) {
+        console.error("Error fetching characters:", err);
+      }
     });
 
     return () => {
@@ -124,25 +139,27 @@ export default function CampaignsPanel() {
     }
   };
 
-  const handleAssignToCampaign = async (targetId: string, campaignId: string, type: 'user' | 'group') => {
+  const handleAssignGroup = async (groupId: string, campaignId: string) => {
     try {
-      if (type === 'user') {
-        await updateDoc(doc(db, 'users', targetId), { campaignId });
-        activityLogger.logAdmin('gm.mpg', 'user_assigned', `Usuário atribuído à campanha: ${campaignId}`, { uid: targetId });
-      } else {
-        const group = groups.find(g => g.id === targetId);
-        if (!group) return;
-        const batch = writeBatch(db);
-        batch.update(doc(db, 'groups', targetId), { campaignId });
-        group.playerUids.forEach(uid => {
-          batch.update(doc(db, 'users', uid), { campaignId });
-        });
-        await batch.commit();
-        activityLogger.logAdmin('gm.mpg', 'group_assigned', `Grupo atribuído à campanha: ${campaignId}`, { groupId: targetId });
-      }
-      showAlert("Sucesso", "Atribuição concluída.");
-    } catch (error) {
-      console.error("Erro na atribuição:", error);
+      await updateDoc(doc(db, 'groups', groupId), { campaignId });
+      showAlert("Sucesso", "Esquadrão atribuído com sucesso.");
+    } catch (err) {
+      console.error(err);
+      showAlert("Erro", "Falha na atribuição.");
+    }
+  };
+
+  const handleAssignCharacter = async (uid: string, charId: string, campaignId: string) => {
+    try {
+      await updateDoc(doc(db, 'users', uid, 'characters', charId), { campaignId });
+      showAlert("Sucesso", "Agente atribuído com sucesso.");
+      
+      // Update local state temporarily
+      setAllCharacters(prev => prev.map(c => 
+        c.character.id === charId ? { ...c, character: { ...c.character, campaignId } } : c
+      ));
+    } catch (err) {
+      console.error(err);
       showAlert("Erro", "Falha na atribuição.");
     }
   };
@@ -234,11 +251,21 @@ export default function CampaignsPanel() {
               <div className="absolute inset-0 bg-linear-to-t from-surface-container-low via-surface-container-low/20 to-transparent" />
               
               <div className="absolute bottom-6 left-6 right-6">
-                <div className="flex items-center gap-3 mb-2">
-                   <div className="w-2 h-2 rounded-full bg-primary animate-pulse glow-orange" />
-                   <p className="text-[10px] font-display font-bold text-primary/70 uppercase tracking-[0.2em]">{campaign.rpgSystem}</p>
+                <div className="flex items-center justify-between">
+                   <div className="flex items-center gap-3 mb-2">
+                      <div className="w-2 h-2 rounded-full bg-primary animate-pulse glow-orange" />
+                      <p className="text-[10px] font-display font-bold text-primary/70 uppercase tracking-[0.2em]">{campaign.rpgSystem}</p>
+                   </div>
                 </div>
-                <h3 className="font-display font-bold text-3xl text-white uppercase tracking-tighter group-hover:text-primary transition-colors leading-none">{campaign.name}</h3>
+                <div className="flex justify-between items-end">
+                   <h3 className="font-display font-bold text-3xl text-white uppercase tracking-tighter group-hover:text-primary transition-colors leading-none">{campaign.name}</h3>
+                   <button 
+                     onClick={() => setShowInventoryModal(campaign)}
+                     className="flex items-center gap-2 bg-primary/20 text-primary border border-primary/30 px-3 py-1.5 rounded-sm hover:bg-primary hover:text-black transition-all font-display font-bold text-[9px] uppercase tracking-widest"
+                   >
+                     <span className="material-symbols-outlined text-xs">folder_open</span> Inventário
+                   </button>
+                </div>
               </div>
               
               <div className="absolute top-6 right-6 flex gap-2 opacity-0 group-hover:opacity-100 transition-all translate-y-2 group-hover:translate-y-0">
@@ -283,7 +310,7 @@ export default function CampaignsPanel() {
                     <p className="text-[8px] text-industrial-silver/30 font-display font-bold uppercase tracking-widest">Esquadrões</p>
                     <select 
                       className="w-full bg-surface-container-lowest border border-white/5 text-[10px] font-display font-bold text-primary p-3 outline-none rounded-sm focus:border-primary/40 transition-all appearance-none cursor-pointer shadow-inner"
-                      onChange={(e) => e.target.value && handleAssignToCampaign(e.target.value, campaign.id, 'group')}
+                      onChange={(e) => e.target.value && handleAssignGroup(e.target.value, campaign.id)}
                       value=""
                     >
                       <option value="">Ligar Grupo...</option>
@@ -296,12 +323,16 @@ export default function CampaignsPanel() {
                     <p className="text-[8px] text-industrial-silver/30 font-display font-bold uppercase tracking-widest">Agentes Solo</p>
                     <select 
                       className="w-full bg-surface-container-lowest border border-white/5 text-[10px] font-display font-bold text-primary p-3 outline-none rounded-sm focus:border-primary/40 transition-all appearance-none cursor-pointer shadow-inner"
-                      onChange={(e) => e.target.value && handleAssignToCampaign(e.target.value, campaign.id, 'user')}
+                      onChange={(e) => {
+                         if (!e.target.value) return;
+                         const [uid, charId] = e.target.value.split('|');
+                         handleAssignCharacter(uid, charId, campaign.id);
+                      }}
                       value=""
                     >
                       <option value="">Ligar Agente...</option>
-                      {users.filter(u => u.role !== 'admin' && u.campaignId !== campaign.id).map(u => (
-                        <option key={u.uid} value={u.uid}>{u.displayName || u.username}</option>
+                      {allCharacters.filter(c => c.character.campaignId !== campaign.id && !groups.some(g => g.campaignId === campaign.id && g.characterSlots?.some(s => s.characterId === c.character.id))).map(c => (
+                        <option key={c.character.id} value={`${c.account.uid}|${c.character.id}`}>{c.character.codinome} ({c.account.masterName || c.account.email})</option>
                       ))}
                     </select>
                   </div>
@@ -313,9 +344,9 @@ export default function CampaignsPanel() {
                       GRP: {g.name}
                     </span>
                   ))}
-                  {users.filter(u => u.campaignId === campaign.id && !groups.some(g => g.campaignId === campaign.id && g.playerUids.includes(u.uid))).map(u => (
-                    <span key={u.uid} className="text-[9px] font-display font-bold bg-white/5 text-industrial-silver/40 border border-white/5 px-3 py-1 rounded-sm uppercase tracking-wider">
-                      AGT: {u.displayName || u.username}
+                  {allCharacters.filter(c => c.character.campaignId === campaign.id).map(c => (
+                    <span key={c.character.id} className="text-[9px] font-display font-bold bg-white/5 text-industrial-silver/40 border border-white/5 px-3 py-1 rounded-sm uppercase tracking-wider">
+                      AGT: {c.character.codinome}
                     </span>
                   ))}
                 </div>
@@ -519,24 +550,24 @@ export default function CampaignsPanel() {
       )}
 
       {/* Modal de Itens Persistentes */}
+      <AnimatePresence>
       {showItemsModal && (
-        <div className="fixed inset-0 z-100 flex items-center justify-center bg-black/90 p-4 backdrop-blur-md">
-          <div className="bg-surface-container-low border border-primary/30 w-full max-w-xl rounded-sm shadow-2xl flex flex-col max-h-[85vh] relative">
-            <div className="absolute -top-3 left-6 bg-primary px-2 py-0.5 text-[10px] font-display font-bold text-black tracking-widest uppercase">
-              COFRE-CROSS-CAMPAIGN
-            </div>
+        <div className="fixed inset-0 z-[120] flex justify-end bg-black/80 backdrop-blur-sm" onClick={() => setShowItemsModal(false)}>
+          <motion.div initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'spring', stiffness: 300, damping: 30 }} className="bg-[#222] border-l-8 border-[#1a1a1a] w-full max-w-2xl shadow-2xl flex flex-col h-full relative overflow-hidden font-chakra" onClick={e => e.stopPropagation()}>
+            <Screw className="top-4 left-4" /><Screw className="top-4 right-4 -rotate-90" /><Screw className="bottom-4 left-4 -rotate-90" /><Screw className="bottom-4 right-4" />
+            <div className="noise-overlay" /><div className="scanlines" />
             
-            <div className="p-8 border-b border-white/5 flex justify-between items-center bg-black/40">
+            <div className="p-8 border-b-4 border-[#1a1a1a] flex justify-between items-center bg-black/40 relative z-10">
               <div className="mt-2">
-                <h3 className="font-display font-bold text-2xl text-white uppercase tracking-tighter">Retenção de <span className="text-primary">Recursos</span></h3>
-                <p className="text-[10px] font-display font-bold text-industrial-silver/40 uppercase tracking-widest mt-1">Itens disponíveis em todas as missões</p>
+                <h3 className="font-black text-xl text-white uppercase tracking-widest">Retenção de <span className="text-primary">Recursos</span></h3>
+                <p className="text-[10px] font-bold text-industrial-silver/40 uppercase tracking-widest mt-1">Itens disponíveis em todas as missões</p>
               </div>
               <button onClick={() => setShowItemsModal(false)} className="p-3 text-industrial-silver/20 hover:text-white transition-all material-symbols-outlined rounded-sm">
                 close
               </button>
             </div>
             
-            <div className="p-6 bg-black/20">
+            <div className="p-6 bg-black/20 border-b-2 border-[#1a1a1a] relative z-10">
               <div className="relative group">
                 <span className="absolute left-4 top-1/2 -translate-y-1/2 material-symbols-outlined text-industrial-silver/20 text-base group-focus-within:text-primary transition-colors">search</span>
                 <input 
@@ -544,12 +575,12 @@ export default function CampaignsPanel() {
                   placeholder="LOCALIZAR ITEM NO ACERVO..."
                   value={itemSearch}
                   onChange={e => setItemSearch(e.target.value)}
-                  className="w-full bg-surface-container-lowest border border-white/5 text-[11px] font-display font-bold px-12 py-4 text-white outline-none rounded-sm uppercase tracking-widest transition-all shadow-inner placeholder:text-industrial-silver/10"
+                  className="w-full bg-black/60 border-2 border-[#1a1a1a] text-[11px] font-bold px-12 py-4 text-white outline-none rounded-sm uppercase tracking-widest transition-all shadow-inner focus:ring-1 focus:ring-primary placeholder:text-zinc-700"
                 />
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-6 custom-scrollbar bg-black/10">
+            <div className="flex-1 overflow-y-auto p-6 custom-scrollbar bg-black/10 relative z-10">
               <div className="grid grid-cols-1 gap-2">
                 {allRegistryIntel.filter(i => 
                   (i.title || '').toLowerCase().includes(itemSearch.toLowerCase()) || 
@@ -558,21 +589,21 @@ export default function CampaignsPanel() {
                   <button
                     key={item.id}
                     onClick={() => togglePersistentItem(item.id)}
-                    className={`flex items-center justify-between p-4 text-left transition-all border rounded-sm group ${
+                    className={`flex items-center justify-between p-4 text-left transition-all border-2 rounded-sm group ${
                       persistentItems.includes(item.id) 
-                        ? 'bg-primary/5 border-primary/30 text-primary shadow-inner' 
-                        : 'bg-surface-container-lowest border-white/5 text-industrial-silver/30 hover:bg-white/5 hover:text-industrial-silver/60'
+                        ? 'bg-primary/10 border-primary/30 text-primary shadow-inner' 
+                        : 'bg-[#1a1a1a] border-[#1a1a1a] text-zinc-500 hover:bg-white/5 hover:text-white hover:border-white/10'
                     }`}
                   >
                     <div className="flex items-center gap-4">
-                      <div className={`w-10 h-10 rounded-sm bg-black/40 border flex items-center justify-center transition-all ${persistentItems.includes(item.id) ? 'border-primary/40 text-primary shadow-[0_0_10px_rgba(255,140,0,0.1)]' : 'border-white/5 text-industrial-silver/20'}`}>
+                      <div className={`w-10 h-10 rounded-sm bg-black/40 border-2 flex items-center justify-center transition-all ${persistentItems.includes(item.id) ? 'border-primary/40 text-primary shadow-[0_0_10px_rgba(255,140,0,0.1)]' : 'border-[#1a1a1a] text-zinc-600'}`}>
                         <span className="material-symbols-outlined text-xl">
                           {item.type === 'AUDIO' ? 'album' : item.type === 'TEXT' ? 'save' : 'description'}
                         </span>
                       </div>
                       <div>
-                        <p className="text-[11px] font-display font-bold uppercase tracking-wider">{item.title}</p>
-                        <p className={`text-[9px] font-display font-bold uppercase tracking-widest mt-0.5 ${persistentItems.includes(item.id) ? 'text-primary/40' : 'text-industrial-silver/10'}`}>{item.metadata?.chapter || 'REGISTRO GERAL'}</p>
+                        <p className="text-[11px] font-black uppercase tracking-wider">{item.title}</p>
+                        <p className={`text-[9px] font-bold uppercase tracking-widest mt-0.5 ${persistentItems.includes(item.id) ? 'text-primary/40' : 'text-zinc-600'}`}>{item.metadata?.chapter || 'REGISTRO GERAL'}</p>
                       </div>
                     </div>
                     {persistentItems.includes(item.id) && (
@@ -583,16 +614,27 @@ export default function CampaignsPanel() {
               </div>
             </div>
 
-            <div className="p-8 border-t border-white/5 flex justify-end bg-black/40">
+            <div className="p-8 border-t-4 border-[#1a1a1a] flex justify-end bg-black/40 relative z-10 shrink-0">
               <button 
                 onClick={() => setShowItemsModal(false)}
-                className="bg-surface-container-high hover:bg-white/5 text-industrial-silver/60 hover:text-white px-12 py-4 text-[10px] font-display font-bold tracking-widest transition-all rounded-sm uppercase active:scale-95 border border-white/5"
+                className="bg-[#333] hover:bg-[#444] text-white px-12 py-4 text-[10px] font-black tracking-widest transition-all rounded-sm uppercase active:scale-95"
               >
                 Concluir Operação
               </button>
             </div>
-          </div>
+          </motion.div>
         </div>
+      )}
+      </AnimatePresence>
+
+      {/* Modal de Inventário por Campanha */}
+      {showInventoryModal && (
+        <CampaignInventoryModal
+          campaign={showInventoryModal}
+          groups={groups}
+          allCharacters={allCharacters}
+          onClose={() => setShowInventoryModal(null)}
+        />
       )}
     </div>
   );

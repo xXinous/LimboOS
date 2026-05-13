@@ -75,7 +75,7 @@ export default React.memo(function TapeLibrary({
                         <span className="text-[9px] text-orange-500/80 font-bold uppercase tracking-widest">{typeLabel(item)}</span>
                       </div>
                     )}
-                    <motion.div layout initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                       onClick={() => {
                         activityLogger.logAction('player', `Selecionou prova: ${item.title}`, { intelId: item.id, title: item.title });
                         onIntelSelect(item);

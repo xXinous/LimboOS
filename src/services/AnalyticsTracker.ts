@@ -92,13 +92,19 @@ export class AnalyticsTracker {
     activityLogger.logAction('tape_end', 'Reprodução finalizada');
   }
 
+  private tickCount = 0;
+
   private tick() {
     if (!this.localStats || !this.playerData) return;
     this.localStats.totalListenTime += 5;
     if (this.currentVolume === 100) this.localStats.maxVolumeTime += 5;
     if (this.currentVolume === 0) this.localStats.zeroVolumeTime += 5;
-    this.syncLocalChanges();
-    this.checkAchievements();
+    
+    this.tickCount++;
+    if (this.tickCount % 6 === 0) {
+      this.syncLocalChanges();
+      this.checkAchievements();
+    }
   }
 
   private syncLocalChanges() {

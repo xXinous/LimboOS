@@ -30,13 +30,7 @@ export interface UserAchievement {
   achievementId: string;
 }
 
-export interface PlayerStats {
-  totalListenTime?: number;
-  screwClicks?: number;
-  ejectWithoutPlay?: number;
-  maxVolumeTime?: number;
-  zeroVolumeTime?: number;
-}
+import type { PlayerStats } from '../types/player';
 
 export interface UserData {
   uid: string;
@@ -134,7 +128,7 @@ export class AdminAnalyticsService {
     let count = 0;
 
     // Delete play events
-    const deletePromises = [];
+    const deletePromises: Promise<void>[] = [];
     playEventsSnap.docs.forEach((docSnap) => {
       batch.delete(docSnap.ref);
       count++;
@@ -148,12 +142,13 @@ export class AdminAnalyticsService {
     // Reset user stats
     batch = writeBatch(db);
     count = 0;
-    const statsPromises = [];
+    const statsPromises: Promise<void>[] = [];
     usersSnap.docs.forEach((userDoc) => {
       const statsRef = doc(db, 'users', userDoc.id, 'stats', 'main');
       batch.set(statsRef, {
         totalListenTime: 0,
         screwClicks: 0,
+        fidgetClicks: 0,
         ejectWithoutPlay: 0,
         maxVolumeTime: 0,
         zeroVolumeTime: 0,
@@ -272,10 +267,11 @@ export class AdminAnalyticsService {
     const statsTotals = stats.reduce((acc, s) => ({
       totalListenTime: acc.totalListenTime + (s.totalListenTime || 0),
       screwClicks: acc.screwClicks + (s.screwClicks || 0),
+      fidgetClicks: acc.fidgetClicks + (s.fidgetClicks || 0),
       ejectWithoutPlay: acc.ejectWithoutPlay + (s.ejectWithoutPlay || 0),
       maxVolumeTime: acc.maxVolumeTime + (s.maxVolumeTime || 0),
       zeroVolumeTime: acc.zeroVolumeTime + (s.zeroVolumeTime || 0),
-    }), { totalListenTime: 0, screwClicks: 0, ejectWithoutPlay: 0, maxVolumeTime: 0, zeroVolumeTime: 0 });
+    }), { totalListenTime: 0, screwClicks: 0, fidgetClicks: 0, ejectWithoutPlay: 0, maxVolumeTime: 0, zeroVolumeTime: 0 });
 
     return { 
       activeUsers, 
@@ -293,6 +289,7 @@ export class AdminAnalyticsService {
       totalListenSecs: statsTotals.totalListenTime,
       avgListenSecs: users.length > 0 ? statsTotals.totalListenTime / users.length : 0,
       totalScrews: statsTotals.screwClicks,
+      totalFidgets: statsTotals.fidgetClicks,
       totalEjects: statsTotals.ejectWithoutPlay,
       totalMacVolSecs: statsTotals.maxVolumeTime,
       totalZeroVolSecs: statsTotals.zeroVolumeTime,

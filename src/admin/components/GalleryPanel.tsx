@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { db } from '../../lib/firebase';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { useModal } from './ConfirmModal';
@@ -349,9 +350,10 @@ export default function GalleryPanel() {
         )}
       </div>
 
+      <AnimatePresence>
       {showUpload && (
-        <div className="fixed inset-0 z-110 flex items-center justify-center bg-black/95 p-4 backdrop-blur-xl">
-          <div className="bg-[#222] border-8 border-[#1a1a1a] w-full max-w-xl rounded-[32px] shadow-2xl flex flex-col max-h-[85vh] relative overflow-hidden">
+        <div className="fixed inset-0 z-[120] flex justify-end bg-black/80 backdrop-blur-sm" onClick={() => { setShowUpload(false); resetUploadForm(); }}>
+          <motion.div initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'spring', stiffness: 300, damping: 30 }} className="bg-[#222] border-l-8 border-[#1a1a1a] w-full max-w-2xl shadow-2xl flex flex-col h-full relative overflow-hidden" onClick={e => e.stopPropagation()}>
             <Screw className="top-4 left-4" /><Screw className="top-4 right-4 -rotate-90" /><Screw className="bottom-4 left-4 -rotate-90" /><Screw className="bottom-4 right-4" />
             <div className="noise-overlay" /><div className="scanlines" />
             
@@ -472,13 +474,13 @@ export default function GalleryPanel() {
                 {uploading ? 'TRANSMITINDO...' : 'ENVIAR_PARA_GRID'}
               </button>
             </div>
-          </div>
+          </motion.div>
         </div>
       )}
 
       {showGrantModal && (
-        <div className="fixed inset-0 z-110 flex items-center justify-center bg-black/95 p-4 backdrop-blur-xl">
-          <div className="bg-[#222] border-8 border-[#1a1a1a] w-full max-w-xl rounded-[32px] shadow-2xl flex flex-col max-h-[85vh] relative overflow-hidden">
+        <div className="fixed inset-0 z-[120] flex justify-end bg-black/80 backdrop-blur-sm" onClick={() => { setShowGrantModal(null); setGrantedUids(new Set()); }}>
+          <motion.div initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'spring', stiffness: 300, damping: 30 }} className="bg-[#222] border-l-8 border-[#1a1a1a] w-full max-w-2xl shadow-2xl flex flex-col h-full relative overflow-hidden" onClick={e => e.stopPropagation()}>
             <Screw className="top-4 left-4" /><Screw className="top-4 right-4 -rotate-90" /><Screw className="bottom-4 left-4 -rotate-90" /><Screw className="bottom-4 right-4" />
             <div className="noise-overlay" /><div className="scanlines" />
             
@@ -574,47 +576,46 @@ export default function GalleryPanel() {
                 CONCLUIR_SINC
               </button>
             </div>
-          </div>
+          </motion.div>
         </div>
       )}
 
       {previewImage && (
-        <div
-          className="fixed inset-0 z-120 flex items-center justify-center bg-black/98 backdrop-blur-2xl cursor-pointer"
-          onClick={() => setPreviewImage(null)}
-        >
-          <div className="relative max-w-5xl max-h-[90vh] w-full mx-6 flex flex-col items-center" onClick={e => e.stopPropagation()}>
-            <div className="bg-black border-4 border-[#1a1a1a] p-4 rounded-xl shadow-2xl relative">
-               <img src={previewImage.imageUrl} alt={previewImage.title} className="max-w-full max-h-[70vh] object-contain grayscale-0 transition-all" />
-               <div className="absolute top-4 left-4 bg-black/60 backdrop-blur-md px-3 py-1 border border-white/10 rounded-sm flex items-center gap-2">
-                  <span className="material-symbols-outlined text-xs text-cyan-500">{getCategoryInfo(previewImage.category).icon}</span>
-                  <span className="text-[9px] font-black text-cyan-400 uppercase tracking-widest">{getCategoryInfo(previewImage.category).label}</span>
-               </div>
-            </div>
-            <div className="mt-8 text-center max-w-2xl">
-              <div className="flex items-center justify-center gap-3 mb-2">
-                 <div className="h-px w-8 bg-zinc-800" />
-                 <span className="text-[10px] font-black text-cyan-500/50 uppercase tracking-[0.3em]">Nível_de_Criptografia_{previewImage.level || 1}</span>
-                 <div className="h-px w-8 bg-zinc-800" />
+        <div className="fixed inset-0 z-[130] flex justify-end bg-black/90 backdrop-blur-md cursor-pointer" onClick={() => setPreviewImage(null)}>
+          <motion.div initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'spring', stiffness: 300, damping: 30 }} className="bg-[#111] border-l-8 border-[#1a1a1a] w-full max-w-5xl shadow-2xl flex flex-col h-full relative overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="noise-overlay" /><div className="scanlines" />
+            <div className="flex-1 overflow-y-auto p-8 flex flex-col items-center justify-center relative z-10 custom-scrollbar">
+              <div className="w-full flex justify-end mb-4">
+                <button onClick={() => setPreviewImage(null)} className="w-12 h-12 bg-black/60 border-2 border-white/5 flex items-center justify-center hover:bg-white hover:text-black transition-all rounded-full group shadow-2xl">
+                  <span className="material-symbols-outlined text-xl group-hover:rotate-90 transition-transform">close</span>
+                </button>
               </div>
-              <h4 className="text-3xl font-black text-white uppercase tracking-tighter mb-4">{previewImage.title}</h4>
-              {previewImage.description && (
-                <p className="text-sm text-zinc-500 font-bold uppercase tracking-wide leading-relaxed">{previewImage.description}</p>
-              )}
+              <div className="bg-black border-4 border-[#1a1a1a] p-4 rounded-xl shadow-2xl relative w-full flex justify-center">
+                 <img src={previewImage.imageUrl} alt={previewImage.title} className="max-w-full max-h-[70vh] object-contain grayscale-0 transition-all" />
+                 <div className="absolute top-4 left-4 bg-black/60 backdrop-blur-md px-3 py-1 border border-white/10 rounded-sm flex items-center gap-2">
+                    <span className="material-symbols-outlined text-xs text-cyan-500">{getCategoryInfo(previewImage.category).icon}</span>
+                    <span className="text-[9px] font-black text-cyan-400 uppercase tracking-widest">{getCategoryInfo(previewImage.category).label}</span>
+                 </div>
+              </div>
+              <div className="mt-8 text-center max-w-2xl">
+                <div className="flex items-center justify-center gap-3 mb-2">
+                   <div className="h-px w-8 bg-zinc-800" />
+                   <span className="text-[10px] font-black text-cyan-500/50 uppercase tracking-[0.3em]">Nível_de_Criptografia_{previewImage.level || 1}</span>
+                   <div className="h-px w-8 bg-zinc-800" />
+                </div>
+                <h4 className="text-3xl font-black text-white uppercase tracking-tighter mb-4">{previewImage.title}</h4>
+                {previewImage.description && (
+                  <p className="text-sm text-zinc-500 font-bold uppercase tracking-wide leading-relaxed">{previewImage.description}</p>
+                )}
+              </div>
             </div>
-            <button
-              onClick={() => setPreviewImage(null)}
-              className="absolute -top-12 right-0 w-12 h-12 bg-black/60 border-2 border-white/5 flex items-center justify-center hover:bg-white hover:text-black transition-all rounded-full group shadow-2xl"
-            >
-              <span className="material-symbols-outlined text-xl group-hover:rotate-90 transition-transform">close</span>
-            </button>
-          </div>
+          </motion.div>
         </div>
       )}
 
       {editModalImage && (
-        <div className="fixed inset-0 z-110 flex items-center justify-center bg-black/95 p-4 backdrop-blur-xl">
-          <div className="bg-[#222] border-8 border-[#1a1a1a] w-full max-w-xl rounded-[32px] shadow-2xl flex flex-col max-h-[85vh] relative overflow-hidden">
+        <div className="fixed inset-0 z-[120] flex justify-end bg-black/80 backdrop-blur-sm" onClick={() => setEditModalImage(null)}>
+          <motion.div initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'spring', stiffness: 300, damping: 30 }} className="bg-[#222] border-l-8 border-[#1a1a1a] w-full max-w-2xl shadow-2xl flex flex-col h-full relative overflow-hidden" onClick={e => e.stopPropagation()}>
             <Screw className="top-4 left-4" /><Screw className="top-4 right-4 -rotate-90" /><Screw className="bottom-4 left-4 -rotate-90" /><Screw className="bottom-4 right-4" />
             <div className="noise-overlay" /><div className="scanlines" />
             
@@ -704,9 +705,10 @@ export default function GalleryPanel() {
                 {editSaving ? 'GRAVANDO...' : 'SALVAR_METADADOS'}
               </button>
             </div>
-          </div>
+          </motion.div>
         </div>
       )}
+      </AnimatePresence>
     </section>
   );
 }

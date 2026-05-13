@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { FaApple } from 'react-icons/fa';
+import AppleIcon from './icons/AppleIcon';
 import { checkMacClosed, firestoreUnlockTape } from '../store/firestore';
 import { analyticsTracker } from '../services/AnalyticsTracker';
 import { activityLogger } from '../services/ActivityLogger';
@@ -82,6 +82,7 @@ interface MacOsAppProps {
   onClose: () => void;
 }
 import { diskRepairService } from '../services/DiskRepairService';
+import { intelRegistry } from '../data/intel_registry';
 
 export default function MacOsApp({ uid, onClose }: MacOsAppProps) {
   const [phase, setPhase] = useState<'login' | 'desktop'>('login');
@@ -117,7 +118,7 @@ export default function MacOsApp({ uid, onClose }: MacOsAppProps) {
     setRepairStep('reading');
     setRepairProgress(0);
     await diskRepairService.startAnalysis(uid, '', setRepairProgress);
-    setScrambleText(diskRepairService.getScrambleText());
+    setScrambleText(intelRegistry.get('evidence-disk-01-corrupted')?.textContent || 'ERRO');
     setRepairStep('corrupted');
   }, [uid]);
 
@@ -161,7 +162,7 @@ export default function MacOsApp({ uid, onClose }: MacOsAppProps) {
             className={`flex items-center px-2 py-px cursor-pointer transition-colors ${appleMenuOpen ? 'bg-black text-white' : ''}`}
             onClick={(e) => { e.stopPropagation(); setAppleMenuOpen(prev => !prev); }}
           >
-            <span className="text-sm"><FaApple /></span>
+            <span className="text-sm"><AppleIcon /></span>
           </div>
     
           <AnimatePresence>
@@ -213,7 +214,7 @@ export default function MacOsApp({ uid, onClose }: MacOsAppProps) {
               <div className="w-full max-w-[280px] bg-[#eee] border-2 border-black p-4 flex flex-col items-center gap-4 text-center"
                 style={{ boxShadow: '2px 2px 0 rgba(0,0,0,1)' }}
               >
-                <div className="text-5xl text-black py-2"><FaApple /></div>
+                <div className="text-5xl text-black py-2"><AppleIcon size={48} /></div>
                 <h2 className="font-bold text-lg tracking-tight">Bem-vindo ao Macintosh</h2>
                 <div
                   className="w-full h-8 border border-black flex items-center justify-center text-xs font-black tracking-widest uppercase"

@@ -26,7 +26,6 @@ import { analyticsTracker } from './services/AnalyticsTracker';
 import { activityLogger } from './services/ActivityLogger';
 import { intelService } from './services/IntelService';
 import { playerSyncService } from './services/PlayerSyncService';
-import { diskRepairService } from './services/DiskRepairService';
 import { onAuthStateChanged, logout } from './store/profile';
 import type { MasterAccount, CharacterData, PlayerData, PlayerStats, LimboGlobalState, GalleryImage } from './types/player';
 import { 
@@ -37,7 +36,6 @@ import {
   firestoreSetCampaign
 } from './store/firestore';
 import type { IntelItem, PlayerIntelCollection } from './types/intel';
-import { campaigns } from './data/campaigns';
 import type { AppScreen, WalkmanStatus, DisplayMode } from './types/player';
 
 const EMPTY_ARRAY: any[] = [];
@@ -63,6 +61,20 @@ export default function Player() {
   const [galleryImages, setGalleryImages] = useState<GalleryImage[]>([]);
   
   const hasPlayedCurrentTape = useRef(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout>>();
+  const isInitialIntelLoad = useRef(true);
+  
+  // Estabiliza o playerData para callbacks sem quebrar o memo
+  const playerDataRef = useRef<PlayerData | null>(null);
+  useEffect(() => {
+    playerDataRef.current = playerData;
+  }, [playerData]);
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
   
   // Derived states
   const isPlaying = walkmanStatus === 'PLAYING';
@@ -141,12 +153,16 @@ export default function Player() {
     };
   }, [playerData?.activeCharacterId]);
 
+const tapeIdsKey = playerData?.unlockedTapeIds?.join(',') ?? '';
+const galleryIdsKey = playerData?.unlockedGalleryIds?.join(',') ?? '';
+
 // Unified Intel Fetching (Adding debug logs and loading state management)
 useEffect(() => {
   if (!playerData) return;
   const fetchIntel = async () => {
-    console.log('[Player DEBUG] Starting intel fetch sequence.'); // Debug Log Start
-    setWalkmanStatus('LOADING'); // Indicate background work
+    if (isInitialIntelLoad.current) {
+      setWalkmanStatus('LOADING'); // Indicate background work only on first load
+    }
     try {
       const gallery = playerData.unlockedGalleryIds.length ? await fetchPlayerGalleryImages(playerData.uid, playerData.activeCharacterId) : [];
       setGalleryImages(gallery);
@@ -155,21 +171,21 @@ useEffect(() => {
     } catch (error) {
         console.error('[Player DEBUG] Error during Intel Fetch:', error);
     } finally {
-        setWalkmanStatus('LOADED'); // Restore state when done
-        console.log('[Player DEBUG] Finished intel fetch sequence.'); // Debug Log End
+        if (isInitialIntelLoad.current) {
+          setWalkmanStatus('LOADED'); // Restore state when done
+          isInitialIntelLoad.current = false;
+        }
     }
   };
   fetchIntel();
-}, [playerData?.unlockedTapeIds, playerData?.unlockedGalleryIds]);
+}, [tapeIdsKey, galleryIdsKey]);
 
   useEffect(() => {
     audioEngine.setVolume(volume);
     analyticsTracker.setVolume(volume);
   }, [volume]);
 
-  useEffect(() => {
-    if (playerData) diskRepairService.init();
-  }, [playerData?.activeCharacterId]);
+
 
   // Audio Engine interactions
   useEffect(() => {
@@ -208,29 +224,30 @@ useEffect(() => {
   }, []);
 
   const handleQrDetected = useCallback(async (code: string) => {
-    if (!playerData || !localStats) return addToast({ type: 'error', title: 'Aguarde', subtitle: 'Perfil carregando...', icon: '⏳' });
+    const currentPD = playerDataRef.current;
+    if (!currentPD || !localStats) return addToast({ type: 'error', title: 'Aguarde', subtitle: 'Perfil carregando...', icon: '⏳' });
     setWalkmanStatus('IDLE');
     
     try {
       const intel = await intelService.resolve(code);
       if (!intel) return addToast({ type: 'error', title: 'Código Desconhecido', subtitle: code, icon: '❌' });
       
-      const { alreadyOwned, updatedIds } = await intelService.unlock(playerData, intel.id);
+      const { alreadyOwned, updatedIds } = await intelService.unlock(currentPD, intel.id);
       const now = Date.now();
       const recentScans = [...scanTimes.filter(t => now - t < 300000), now];
       setScanTimes(recentScans);
       analyticsTracker.checkAchievements(recentScans);
-      setPlayerData({ ...playerData, unlockedTapeIds: updatedIds });
+      setPlayerData({ ...currentPD, unlockedTapeIds: updatedIds });
       
       hasPlayedCurrentTape.current = false;
       setWalkmanStatus('LOADING');
-      setTimeout(() => { setCurrentIntel(intel); setWalkmanStatus('LOADED'); addToast({ type: 'tape', title: alreadyOwned ? 'Intel Inserida' : 'Intel Desbloqueada!', subtitle: intel.title, icon: '📼' }); }, 400);
+      timerRef.current = setTimeout(() => { setCurrentIntel(intel); setWalkmanStatus('LOADED'); addToast({ type: 'tape', title: alreadyOwned ? 'Intel Inserida' : 'Intel Desbloqueada!', subtitle: intel.title, icon: '📼' }); }, 400);
       activityLogger.logAction(alreadyOwned ? 'tape_insert' : 'tape_unlock', `${alreadyOwned ? 'Inseriu' : 'Desbloqueou'}: ${intel.title}`, { tapeId: intel.id });
     } catch (err) { addToast({ type: 'error', title: 'Erro QR', subtitle: 'Tente dnv', icon: '⚠️' }); }
-  }, [playerData, localStats, scanTimes, addToast]);
+  }, [localStats, scanTimes, addToast]);
 
   const handleIntelSelect = useCallback((intel: IntelItem) => {
-    if (!playerData) return;
+    if (!playerDataRef.current) return;
     if (intel.type === 'VISUAL' || intel.type === 'TEXT') {
       setActiveEvidence(intel);
       activityLogger.logAction(intel.type === 'VISUAL' ? 'pista_open' : 'evidence_open', `Abriu: ${intel.title}`, { intelId: intel.id });
@@ -239,23 +256,23 @@ useEffect(() => {
       if (!hasPlayedCurrentTape.current && currentIntel) analyticsTracker.incrementStat('ejectWithoutPlay');
       hasPlayedCurrentTape.current = false;
       setWalkmanStatus('LOADING');
-      setTimeout(() => { setCurrentIntel(intel); setWalkmanStatus('LOADED'); }, 400);
+      timerRef.current = setTimeout(() => { setCurrentIntel(intel); setWalkmanStatus('LOADED'); }, 400);
       activityLogger.logAction('tape_select', `Selecionou: ${intel.title}`, { intelId: intel.id });
     }
-  }, [playerData, currentIntel]);
+  }, [currentIntel]);
 
   const handleCharacterSwitch = useCallback(() => {
-    if (playerData) activityLogger.logAction('character_switch', `Agente ${playerData.character.codinome} desativado para troca`);
+    if (playerDataRef.current) activityLogger.logAction('character_switch', `Agente ${playerDataRef.current.character.codinome} desativado para troca`);
     analyticsTracker.stopAll(false); // Force sync before switching
     playerSyncService.stopAll();
     setPlayerData(null);
     setLocalStats(null);
     setIntelCollection(null);
     setScreen('characterSelection');
-  }, [playerData]);
+  }, []);
 
   const handleLogout = useCallback(async () => {
-    if (playerData) activityLogger.logAuth('logout', `${playerData.character.codinome} saiu`);
+    if (playerDataRef.current) activityLogger.logAuth('logout', `${playerDataRef.current.character.codinome} saiu`);
     // Stop services BEFORE invalidating auth to avoid permission errors on final sync
     analyticsTracker.stopAll(true);
     playerSyncService.stopAll();
@@ -265,11 +282,37 @@ useEffect(() => {
     setCurrentIntel(null);
     setWalkmanStatus('IDLE');
     setScreen('login');
-  }, [playerData]);
+  }, []);
+
+  const handleEject = useCallback(() => { 
+    if (!hasPlayedCurrentTape.current && currentIntel) analyticsTracker.incrementStat('ejectWithoutPlay'); 
+    setWalkmanStatus('IDLE'); setCurrentIntel(null); 
+  }, [currentIntel]);
+
+  const handleScanClick = useCallback(() => setWalkmanStatus('SCANNING'), []);
+  const handleCancelScan = useCallback(() => setWalkmanStatus('IDLE'), []);
+  
+  const handleSetIsPlaying = useCallback((p: boolean) => setWalkmanStatus(p ? 'PLAYING' : 'LOADED'), []);
+  const handleRewind = useCallback(() => { 
+    setWalkmanStatus('REWINDING'); 
+    if (timerRef.current) clearTimeout(timerRef.current); 
+    timerRef.current = setTimeout(() => setWalkmanStatus('LOADED'), 1500); 
+  }, []);
+
+  const handleModeChange = useCallback((dir: 'up' | 'down') => {
+    setDisplayMode(prev => {
+      const modes: DisplayMode[] = ['default', 'title', 'chapter', 'type']; 
+      return modes[(modes.indexOf(prev) + (dir === 'up' ? 1 : -1) + modes.length) % modes.length];
+    });
+  }, []);
+
+  const handleProfileOpen = useCallback(() => setScreen('profile'), []);
+  const handleTerminalOpen = useCallback(() => setScreen('bios'), []);
+  const handleMacOpen = useCallback(() => setScreen('macos'), []);
 
   const swipeHandlers = useSwipeable({
-    onSwipedLeft: () => screen === 'player' && playerData && setScreen('profile'),
-    onSwipedRight: () => screen === 'profile' && playerData && setScreen('player'),
+    onSwipedLeft: () => screen === 'player' && playerDataRef.current && setScreen('profile'),
+    onSwipedRight: () => screen === 'profile' && playerDataRef.current && setScreen('player'),
     trackMouse: true,
     preventScrollOnSwipe: true,
   });
@@ -307,7 +350,7 @@ useEffect(() => {
           <motion.div key="agentDossier" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full h-full flex items-center justify-center p-0 sm:p-4">
             <div className="w-full h-full max-w-[520px] rounded-none sm:rounded-[20px] shadow-[0_35px_100px_rgba(0,0,0,0.9)] border-0 sm:border-2 border-primary/20 relative flex flex-col mx-auto overflow-hidden bg-surface">
               <React.Suspense fallback={<RetroLoading message="ABRINDO DOSSIÊ..." />}>
-                <AgentDossierOverlay onClose={() => setScreen('campaignSelection')} playerData={playerData} campaigns={campaigns} intel={intelCollection} />
+                <AgentDossierOverlay onClose={() => setScreen('campaignSelection')} playerData={playerData} intel={intelCollection} />
               </React.Suspense>
             </div>
           </motion.div>
@@ -320,10 +363,10 @@ useEffect(() => {
         ) : screen === 'player' ? (
           <motion.div key="player" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} className="relative w-full max-w-sm h-full max-h-[750px] bg-surface-container-high rounded-[32px] border-8 border-[#1a1a1a] shadow-2xl flex flex-col p-3 sm:p-4 overflow-hidden z-10">
             <Screw className="top-4 left-4" /><Screw className="top-4 right-4 -rotate-90" /><Screw className="bottom-4 left-4 -rotate-90" /><Screw className="bottom-4 right-4" />
-            <CassetteVisor currentIntel={currentIntel} status={walkmanStatus} onEject={() => { if (!hasPlayedCurrentTape.current && currentIntel) analyticsTracker.incrementStat('ejectWithoutPlay'); setWalkmanStatus('IDLE'); setCurrentIntel(null); }} onScanClick={() => setWalkmanStatus('SCANNING')} onCancelScan={() => setWalkmanStatus('IDLE')} onQrDetected={handleQrDetected} />
+            <CassetteVisor currentIntel={currentIntel} status={walkmanStatus} onEject={handleEject} onScanClick={handleScanClick} onCancelScan={handleCancelScan} onQrDetected={handleQrDetected} />
             <TapeLibrary intelItems={intelCollection?.items || EMPTY_ARRAY} currentIntelId={currentIntel?.id ?? null} isPlaying={isPlaying} displayMode={displayMode} onIntelSelect={handleIntelSelect} />
-            <SideControls volume={volume} setVolume={setVolume} onModeChange={(dir) => { const modes: DisplayMode[] = ['default', 'title', 'chapter', 'type']; setDisplayMode(modes[(modes.indexOf(displayMode) + (dir === 'up' ? 1 : -1) + modes.length) % modes.length]); }} onProfileOpen={() => setScreen('profile')} onCharacterSwitch={handleCharacterSwitch} />
-            <BottomControls status={walkmanStatus} setIsPlaying={(p) => setWalkmanStatus(p ? 'PLAYING' : 'LOADED')} hasTape={!!currentIntel} onRewind={() => { setWalkmanStatus('REWINDING'); setTimeout(() => setWalkmanStatus('LOADED'), 1500); }} hasTerminalAccess={playerData.hasTerminalAccess} onTerminalOpen={() => setScreen('bios')} hasMacAccess={playerData.hasMacAccess} onMacOpen={() => setScreen('macos')} />
+            <SideControls volume={volume} setVolume={setVolume} onModeChange={handleModeChange} onProfileOpen={handleProfileOpen} onCharacterSwitch={handleCharacterSwitch} />
+            <BottomControls status={walkmanStatus} setIsPlaying={handleSetIsPlaying} hasTape={!!currentIntel} onRewind={handleRewind} hasTerminalAccess={playerData.hasTerminalAccess} onTerminalOpen={handleTerminalOpen} hasMacAccess={playerData.hasMacAccess} onMacOpen={handleMacOpen} />
           </motion.div>
         ) : (
           <motion.div key="apps" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-50">

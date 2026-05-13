@@ -4,8 +4,11 @@ import { logout } from '../store/profile';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import Dashboard from './components/Dashboard';
+import { ToastProvider } from './components/ToastProvider';
 import RetroLoading from '../components/player/RetroLoading';
 
+// Lazy-load Material Symbols font (admin-only, ~250KB)
+const MATERIAL_SYMBOLS_URL = 'https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap';
 const ADMIN_CODENAME = 'gm.mpg';
 
 export default function App() {
@@ -13,6 +16,14 @@ export default function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Load Material Symbols font for admin panel
+    if (!document.querySelector(`link[href="${MATERIAL_SYMBOLS_URL}"]`)) {
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = MATERIAL_SYMBOLS_URL;
+      document.head.appendChild(link);
+    }
+
     testConnection();
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
@@ -46,5 +57,5 @@ export default function App() {
     return null;
   }
 
-  return <Dashboard user={user} onLogout={logout} />;
+  return <ToastProvider><Dashboard user={user} onLogout={logout} /></ToastProvider>;
 }

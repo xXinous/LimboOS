@@ -1,4 +1,4 @@
-import { db, functions } from "../lib/firebase";
+import { db } from "../lib/firebase";
 import {
   collection,
   doc,
@@ -15,7 +15,6 @@ import {
 } from "firebase/firestore";
 import { initializeApp, deleteApp } from "firebase/app";
 import { getAuth, createUserWithEmailAndPassword } from "firebase/auth";
-import { httpsCallable } from "firebase/functions";
 import { MasterAccount, CharacterData, PlayerStats } from "../types/player";
 
 export interface PlayCountData {
@@ -112,9 +111,18 @@ export class UserService {
   }
 
   public async deleteUser(uid: string): Promise<void> {
+    // Recursively delete all subcollections before deleting the master account
+    const characters = await this.fetchCharactersForUser(uid);
+    for (const char of characters) {
+      await this.deleteCharacter(uid, char.id);
+    }
+    // Delete playEvents associated with this user
+    const playEventsSnap = await getDocs(query(collection(db, 'playEvents'), where('uid', '==', uid)));
+    const batch = writeBatch(db);
+    playEventsSnap.docs.forEach((d) => batch.delete(d.ref));
+    if (playEventsSnap.docs.length > 0) await batch.commit();
     // Delete master account document
-    await deleteDoc(doc(db, "users", uid));
-    // Note: Recursive delete for sub-collections might be needed via Cloud Function for production
+    await deleteDoc(doc(db, 'users', uid));
   }
 
   public async updateMasterAccount(uid: string, data: Partial<MasterAccount>): Promise<void> {
@@ -146,6 +154,17 @@ export class UserService {
       tapeId: intelId,
       unlockedAt: serverTimestamp(),
     });
+  }
+
+  public async grantUserAchievement(uid: string, characterId: string, achievementId: string): Promise<void> {
+    await setDoc(doc(db, "users", uid, "characters", characterId, "achievements", achievementId), {
+      achievementId,
+      unlockedAt: serverTimestamp(),
+    });
+  }
+
+  public async revokeUserAchievement(uid: string, characterId: string, achievementId: string): Promise<void> {
+    await deleteDoc(doc(db, "users", uid, "characters", characterId, "achievements", achievementId));
   }
 
   public async createSyntheticUser(masterId: string, rawPassword: string, role: 'player' | 'admin'): Promise<{ uid: string; characterId: string }> {
@@ -191,10 +210,93 @@ export class UserService {
   }
 
   public async resetUserPassword(targetUid: string, newPassword: string): Promise<void> {
+    const { getFunctions } = await import('firebase/functions');
+    const { httpsCallable } = await import('firebase/functions');
+    const { getApp } = await import('firebase/app');
+    const functions = getFunctions(getApp(), 'southamerica-east1');
     const fn = httpsCallable(functions, 'adminResetPassword');
     const result = await fn({ targetUid, newPassword });
     const data = result.data as { success?: boolean };
     if (!data.success) throw new Error('Falha ao alterar senha.');
+  }
+
+  /**
+   * Soft-delete: sets archived=true instead of destroying the character document.
+   */
+  public async archiveCharacter(uid: string, characterId: string, archived = true): Promise<void> {
+    await updateDoc(doc(db, "users", uid, "characters", characterId), { archived });
+  }
+
+  /**
+   * Quick character creation by admin — only codinome required, everything else defaults.
+   */
+  public async createCharacterForAccount(uid: string, codinome: string): Promise<string> {
+    const charId = `${Date.now()}_${Math.random().toString(36).slice(2, 5)}`;
+    await setDoc(doc(db, "users", uid, "characters", charId), {
+      codinome: codinome.trim(),
+      agentStatus: 'vivo',
+      dangerLevel: 1,
+      archived: false,
+      createdAt: serverTimestamp(),
+    });
+    return charId;
+  }
+
+  /**
+   * Transfers a character from one account to another by copying all subcollections
+   * and deleting from the source.
+   */
+  public async transferCharacter(fromUid: string, toUid: string, characterId: string): Promise<void> {
+    // 1. Copy character document
+    const charSnap = await getDoc(doc(db, "users", fromUid, "characters", characterId));
+    if (!charSnap.exists()) throw new Error('Character not found');
+    await setDoc(doc(db, "users", toUid, "characters", characterId), charSnap.data());
+
+    // 2. Copy tapes subcollection
+    const tapesSnap = await getDocs(collection(db, "users", fromUid, "characters", characterId, "tapes"));
+    const batch1 = writeBatch(db);
+    tapesSnap.docs.forEach(d => {
+      batch1.set(doc(db, "users", toUid, "characters", characterId, "tapes", d.id), d.data());
+    });
+    if (tapesSnap.docs.length > 0) await batch1.commit();
+
+    // 3. Copy achievements subcollection
+    const achSnap = await getDocs(collection(db, "users", fromUid, "characters", characterId, "achievements"));
+    const batch2 = writeBatch(db);
+    achSnap.docs.forEach(d => {
+      batch2.set(doc(db, "users", toUid, "characters", characterId, "achievements", d.id), d.data());
+    });
+    if (achSnap.docs.length > 0) await batch2.commit();
+
+    // 4. Copy stats
+    const statsSnap = await getDoc(doc(db, "users", fromUid, "characters", characterId, "stats", "main"));
+    if (statsSnap.exists()) {
+      await setDoc(doc(db, "users", toUid, "characters", characterId, "stats", "main"), statsSnap.data());
+    }
+
+    // 5. Delete from source
+    await this.deleteCharacter(fromUid, characterId);
+  }
+
+  /**
+   * Returns a consolidated list of all characters with their parent account info.
+   * Used by GroupManager for character-level selection.
+   */
+  public async fetchAllCharactersWithAccounts(): Promise<{ account: MasterAccount; character: CharacterData }[]> {
+    const accountsSnap = await getDocs(collection(db, "users"));
+    const results: { account: MasterAccount; character: CharacterData }[] = [];
+
+    for (const accDoc of accountsSnap.docs) {
+      const account = { uid: accDoc.id, ...accDoc.data() } as MasterAccount;
+      const charsSnap = await getDocs(collection(db, "users", accDoc.id, "characters"));
+      charsSnap.docs.forEach(charDoc => {
+        results.push({
+          account,
+          character: { id: charDoc.id, ...charDoc.data() } as CharacterData,
+        });
+      });
+    }
+    return results;
   }
 
   public async generateUserBackup(account: MasterAccount, character: CharacterData): Promise<string> {

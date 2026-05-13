@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Play, Pause, RotateCcw, Menu, Monitor } from 'lucide-react';
-import { FaApple } from 'react-icons/fa';
+import AppleIcon from '../icons/AppleIcon';
 import { motion, AnimatePresence } from 'motion/react';
 import { analyticsTracker } from '../../services/AnalyticsTracker';
 import { activityLogger } from '../../services/ActivityLogger';
@@ -71,7 +71,7 @@ export default React.memo(function BottomControls({
                 onClick={() => { onMacOpen?.(); setShowMenu(false); }}
                 className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-[#252525] active:bg-[#333] transition-colors text-[10px] font-black tracking-widest text-zinc-300"
               >
-                <div className="w-3.5 flex justify-center"><FaApple size={14} /></div> MACOS v7.1
+                <div className="w-3.5 flex justify-center"><AppleIcon size={14} /></div> MACOS v7.1
               </button>
             )}
           </motion.div>
@@ -114,7 +114,7 @@ export default React.memo(function BottomControls({
             <span className="text-[#33FF33] text-[10px] font-black tracking-tighter drop-shadow-[0_0_5px_rgba(51,255,51,0.5)]">MH-DOS</span>
           ) : macAccess ? (
             <span className="text-zinc-300 drop-shadow-[0_0_5px_rgba(255,255,255,0.3)]">
-              <FaApple size={18} />
+              <AppleIcon size={18} />
             </span>
           ) : (
             <span className="text-orange-500 text-xs font-bold">EQ</span>

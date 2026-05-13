@@ -34,7 +34,7 @@ class CampaignService {
   private async initializeIfEmpty(size: number) {
     if (size > 0 || localFallbackCampaigns.length === 0) return;
     
-    console.log("[CampaignService] Banco vazio. Inicializando com dados locais...");
+
     try {
       const batch = writeBatch(db);
       localFallbackCampaigns.forEach(c => {
@@ -50,7 +50,7 @@ class CampaignService {
    * Subscreve para atualizações de campanhas ativas/bloqueadas.
    */
   public subscribeToActiveCampaigns(callback: (campaigns: Campaign[]) => void): () => void {
-    console.log(`[CampaignService] Iniciando escuta na coleção: ${this.collectionName}`);
+
     
     const q = query(
       collection(db, this.collectionName), 
@@ -59,13 +59,11 @@ class CampaignService {
 
     return onSnapshot(q, (snap: QuerySnapshot<DocumentData>) => {
       if (snap.empty) {
-        console.log(`[CampaignService] Coleção vazia no Firestore. Usando fallback local.`);
         this.initializeIfEmpty(0); // Tenta inicializar em background
         callback(localFallbackCampaigns);
         return;
       }
 
-      console.log(`[CampaignService] Recebidos ${snap.size} documentos do Firestore`);
       const list = snap.docs.map(doc => ({
         id: doc.id,
         ...doc.data()

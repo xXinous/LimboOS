@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { diskRepairService, DISK_REPAIR_REPAIRED_TEXT } from '../services/DiskRepairService';
+import { diskRepairService } from '../services/DiskRepairService';
+import { intelRegistry } from '../data/intel_registry';
 
 interface DiskRepairAppProps {
   uid: string;
@@ -9,8 +10,6 @@ interface DiskRepairAppProps {
   onBackToTerminal?: () => void;
   isWindowed?: boolean;
 }
-
-export { DISK_REPAIR_CORRUPTED_TEXT, DISK_REPAIR_REPAIRED_TEXT } from '../services/DiskRepairService';
 
 import RetroLoading from './player/RetroLoading';
 
@@ -28,7 +27,7 @@ export default function DiskRepairApp({ uid, characterId = '', onClose, onBackTo
     setPhase('loading');
     setProgress(0);
     await diskRepairService.startAnalysis(uid, characterId, setProgress);
-    setScrambleText(diskRepairService.getScrambleText());
+    setScrambleText(intelRegistry.get('evidence-disk-01-corrupted')?.textContent || 'ERRO');
     setPhase('viewer');
   };
 
@@ -79,8 +78,27 @@ export default function DiskRepairApp({ uid, characterId = '', onClose, onBackTo
                 <p className="text-xs mt-1">O formato do volume é irreconhecível. Os cabeçários magnéticos estão desativados por exposição severa a ímãs.</p>
               </div>
             </div>
-            <div className="h-40 bg-black text-[#00ff00] font-mono text-[10px] p-2 overflow-hidden break-all border border-[#808080] shadow-[inset_1px_1px_#0a0a0a,inset_-1px_-1px_#fff]">
-              {scrambleText}
+            <div className="h-40 bg-black font-mono text-[10px] p-2 overflow-hidden break-all border-2 border-red-800/60 shadow-[inset_0_0_30px_rgba(255,0,0,0.1),0_0_15px_rgba(255,0,0,0.2)] relative">
+              {/* Scan line */}
+              <div className="absolute left-0 right-0 h-6 pointer-events-none z-10" style={{
+                background: 'linear-gradient(transparent, rgba(255,0,0,0.06), rgba(0,255,255,0.03), transparent)',
+                animation: 'corrupted-scan 3s linear infinite',
+              }} />
+              {/* Noise overlay */}
+              <div className="absolute inset-0 pointer-events-none mix-blend-overlay opacity-15" style={{
+                backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`,
+              }} />
+              <style>{`
+                @keyframes corrupted-scan { 0% { transform: translateY(-100%); } 100% { transform: translateY(calc(100% + 200px)); } }
+                @keyframes disk-flicker { 0%,100% { opacity: 0.9; } 50% { opacity: 0.7; } 75% { opacity: 1; } }
+              `}</style>
+              <div className="relative z-5" style={{
+                color: '#ff3333',
+                textShadow: '0 0 5px rgba(255,0,0,0.4), 2px 0 1px rgba(0,255,255,0.3), -2px 0 1px rgba(255,0,0,0.3)',
+                animation: 'disk-flicker 2s step-end infinite',
+              }}>
+                {scrambleText}
+              </div>
             </div>
             <div className="flex justify-end gap-2 mt-2">
               <button onClick={handleRetry} className="px-4 py-1 bg-[#c0c0c0] shadow-[inset_1px_1px_#fff,inset_-1px_-1px_#0a0a0a,inset_-2px_-2px_#808080] active:shadow-[inset_1px_1px_#0a0a0a,inset_2px_2px_#808080,inset_-1px_-1px_#fff] outline-none">
@@ -117,7 +135,7 @@ export default function DiskRepairApp({ uid, characterId = '', onClose, onBackTo
               </div>
             </div>
             <div className="h-40 bg-white text-black font-mono text-xs p-3 overflow-y-auto border border-[#808080] shadow-[inset_1px_1px_#0a0a0a,inset_-1px_-1px_#fff] whitespace-pre-wrap">
-               {DISK_REPAIR_REPAIRED_TEXT}
+               {intelRegistry.get('evidence-disk-01')?.textContent || 'RECUPERADO'}
             </div>
             <div className="text-xs text-center border-t border-[#808080] pt-2 mt-2">
               <p>O conteúdo do disquete agora pode ser copiado com segurança para a unidade central.</p>

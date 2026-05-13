@@ -23,7 +23,7 @@ export async function migrateLegacyUser(uid: string): Promise<string | null> {
   if (!userSnap.exists()) return null;
 
   const data = userSnap.data();
-  console.log(`[Migration] Starting migration for user ${uid}...`);
+
 
   const characterId = 'legacy_default';
   const charRef = doc(db, 'users', uid, 'characters', characterId);
@@ -58,7 +58,6 @@ export async function migrateLegacyUser(uid: string): Promise<string | null> {
     
     const snap = await getDocs(oldCol);
     if (!snap.empty) {
-      console.log(`[Migration] Moving ${snap.size} items from ${sub}...`);
       const batch = writeBatch(db);
       snap.forEach(d => {
         batch.set(doc(newCol, d.id), d.data());
@@ -73,7 +72,6 @@ export async function migrateLegacyUser(uid: string): Promise<string | null> {
   const newStatsRef = doc(db, 'users', uid, 'characters', characterId, 'stats', 'main');
   const statsSnap = await getDoc(oldStatsRef);
   if (statsSnap.exists()) {
-    console.log(`[Migration] Moving stats...`);
     await setDoc(newStatsRef, statsSnap.data());
     await deleteDoc(oldStatsRef);
   }
@@ -91,7 +89,6 @@ export async function migrateLegacyUser(uid: string): Promise<string | null> {
 
   await updateDoc(userRef, fieldsToCleanup);
 
-  console.log(`[Migration] User ${uid} migrated successfully to character ${characterId}`);
   return characterId;
 }
 
@@ -105,14 +102,12 @@ export async function needsMigration(uid: string): Promise<boolean> {
   
   // Case 1: Legacy fields at root
   if (data.codinome || data.agentId || data.spotifyPlaylistUrl) {
-    console.log(`[MigrationCheck] User ${uid} has legacy root fields.`);
     return true;
   }
   
   // Case 2: Stats at root
   const statsSnap = await getDoc(doc(db, 'users', uid, 'stats', 'main'));
   if (statsSnap.exists()) {
-    console.log(`[MigrationCheck] User ${uid} has legacy root stats.`);
     return true;
   }
   
@@ -124,7 +119,6 @@ export async function needsMigration(uid: string): Promise<boolean> {
   ]);
 
   if (!tapesSnap.empty || !achSnap.empty || !galSnap.empty) {
-    console.log(`[MigrationCheck] User ${uid} has legacy subcollections.`);
     return true;
   }
 

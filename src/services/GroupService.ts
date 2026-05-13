@@ -7,13 +7,17 @@ import {
   setDoc, 
   updateDoc, 
   deleteDoc, 
+  getDoc,
+  getDocs,
   onSnapshot, 
   serverTimestamp, 
   query, 
   orderBy,
-  Timestamp
+  Timestamp,
+  arrayUnion,
+  arrayRemove
 } from 'firebase/firestore';
-import { Group } from '../types/player';
+import { Group, GroupCharacterSlot } from '../types/player';
 
 export class GroupService {
   private static instance: GroupService;
@@ -37,14 +41,19 @@ export class GroupService {
     });
   }
 
-  public async createGroup(name: string, playerUids: string[], sessions: string[]): Promise<string> {
+  public async createGroup(name: string, characterSlots: GroupCharacterSlot[], sessions: string[], campaignId?: string): Promise<string> {
     const groupRef = doc(collection(db, 'groups'));
     const now = Timestamp.now();
     
+    // Keep playerUids for backwards compat
+    const playerUids = [...new Set(characterSlots.map(s => s.uid))];
+
     const newGroup: Group = {
       id: groupRef.id,
       name,
       playerUids,
+      characterSlots,
+      campaignId: campaignId || undefined,
       sessions,
       createdAt: now,
       updatedAt: now
@@ -56,6 +65,12 @@ export class GroupService {
 
   public async updateGroup(groupId: string, data: Partial<Group>): Promise<void> {
     const groupRef = doc(db, 'groups', groupId);
+    
+    // Keep playerUids in sync with characterSlots
+    if (data.characterSlots) {
+      data.playerUids = [...new Set(data.characterSlots.map(s => s.uid))];
+    }
+    
     await updateDoc(groupRef, {
       ...data,
       updatedAt: serverTimestamp()
@@ -68,9 +83,90 @@ export class GroupService {
 
   public async addSessionDate(groupId: string, date: string): Promise<void> {
     const groupRef = doc(db, 'groups', groupId);
-    // Nota: Em uma refatoração futura, poderíamos usar arrayUnion aqui
-    // Por enquanto, assumiremos que o componente enviará o array atualizado via updateGroup
+    await updateDoc(groupRef, {
+      sessions: arrayUnion(date),
+      updatedAt: serverTimestamp()
+    });
+  }
+
+  /**
+   * Add a character slot to an existing group
+   */
+  public async addCharacterToGroup(groupId: string, uid: string, characterId: string): Promise<void> {
+    const groupRef = doc(db, 'groups', groupId);
+    const snap = await getDoc(groupRef);
+    if (!snap.exists()) throw new Error('Group not found');
+
+    const group = snap.data() as Group;
+    const slots = group.characterSlots || [];
+    
+    // Prevent duplicate
+    if (slots.some(s => s.characterId === characterId)) return;
+
+    const newSlot: GroupCharacterSlot = {
+      uid,
+      characterId,
+      joinedAt: Timestamp.now(),
+    };
+
+    await updateDoc(groupRef, {
+      characterSlots: [...slots, newSlot],
+      playerUids: arrayUnion(uid),
+      updatedAt: serverTimestamp()
+    });
+  }
+
+  /**
+   * Remove a character slot from a group
+   */
+  public async removeCharacterFromGroup(groupId: string, characterId: string): Promise<void> {
+    const groupRef = doc(db, 'groups', groupId);
+    const snap = await getDoc(groupRef);
+    if (!snap.exists()) throw new Error('Group not found');
+
+    const group = snap.data() as Group;
+    const newSlots = (group.characterSlots || []).filter(s => s.characterId !== characterId);
+    const newUids = [...new Set(newSlots.map(s => s.uid))];
+
+    await updateDoc(groupRef, {
+      characterSlots: newSlots,
+      playerUids: newUids,
+      updatedAt: serverTimestamp()
+    });
+  }
+
+  /**
+   * Grant intel to all (or only alive) characters in a group.
+   * Returns the count of characters that received the intel.
+   */
+  public async grantIntelToGroup(groupId: string, intelId: string, aliveOnly: boolean = true): Promise<number> {
+    const groupSnap = await getDoc(doc(db, 'groups', groupId));
+    if (!groupSnap.exists()) throw new Error('Group not found');
+
+    const group = groupSnap.data() as Group;
+    const slots = group.characterSlots || [];
+    let grantCount = 0;
+
+    for (const slot of slots) {
+      // Check character status if aliveOnly
+      if (aliveOnly) {
+        const charSnap = await getDoc(doc(db, 'users', slot.uid, 'characters', slot.characterId));
+        if (!charSnap.exists()) continue;
+        const charData = charSnap.data();
+        if (charData.agentStatus !== 'vivo') continue;
+      }
+
+      await setDoc(doc(db, 'users', slot.uid, 'characters', slot.characterId, 'tapes', intelId), {
+        tapeId: intelId,
+        unlockedAt: serverTimestamp(),
+        campaignId: group.campaignId || null
+      });
+      grantCount++;
+    }
+
+    return grantCount;
   }
 }
 
 export const groupService = GroupService.getInstance();
+

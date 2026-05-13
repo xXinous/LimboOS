@@ -1,7 +1,8 @@
 import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import Player from './Player';
 import RetroLoading from './components/player/RetroLoading';
+
+const Player = lazy(() => import('./Player'));
 
 const AdminApp = lazy(() => import('./admin/AdminApp'));
 const TerminalApp = lazy(() => import('./terminal/TerminalApp'));

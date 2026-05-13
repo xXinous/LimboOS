@@ -19,6 +19,8 @@ export interface MasterAccount {
   // Account-level flags
   hasTerminalAccess?: boolean;
   hasMacAccess?: boolean;
+  suspended?: boolean;
+  notes?: string;
 }
 
 // --- Database Models: Character (Agent) ---
@@ -31,6 +33,7 @@ export interface CharacterData {
   profilePhotoUrl?: string;
   campaignId?: string;
   createdAt: Timestamp;
+  archived?: boolean; // Soft-delete: hides from default views but preserves logs
   
   // Character-specific game flags
   achievementsRevealed?: boolean;
@@ -74,11 +77,19 @@ export interface GameEventsState {
   diskRepairAllowed: boolean;
 }
 
+// Character-level slot in a group (replaces account-level playerUids)
+export interface GroupCharacterSlot {
+  uid: string;         // Master account UID
+  characterId: string; // Character document ID
+  joinedAt: Timestamp;
+}
+
 export interface Group {
   id: string;
   name: string;
   description?: string;
-  playerUids: string[];
+  playerUids: string[];           // Legacy: account-level membership
+  characterSlots?: GroupCharacterSlot[]; // New: character-level membership
   campaignId?: string;
   sessions: string[]; // Lista de datas das sessões
   createdAt: Timestamp;

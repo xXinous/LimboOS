@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useModal } from './ConfirmModal';
-import { adminAnalyticsService, PlayEvent, AudioMetadata, UserAchievement, PlayerStats, UserData } from '../../services/AdminAnalyticsService';
+import { adminAnalyticsService, PlayEvent, AudioMetadata, UserAchievement, UserData } from '../../services/AdminAnalyticsService';
+import { PlayerStats } from '../../types/player';
 import { intelRegistry } from '../../data/intel_registry';
 import { activityLogger } from '../../services/ActivityLogger';
 

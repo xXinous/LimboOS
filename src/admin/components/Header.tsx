@@ -5,9 +5,10 @@ import { LogOut } from 'lucide-react';
 interface HeaderProps {
   user: User | null;
   onLogout: () => void;
+  onSpotlight?: () => void;
 }
 
-export default function Header({ user, onLogout }: HeaderProps) {
+export default function Header({ user, onLogout, onSpotlight }: HeaderProps) {
   return (
     <header className="w-full z-50 flex justify-between items-center px-8 h-20 bg-surface-container-low/50 backdrop-blur-md border-b border-primary/20 shrink-0">
       <div className="flex items-center gap-4">
@@ -15,6 +16,17 @@ export default function Header({ user, onLogout }: HeaderProps) {
           <div className="w-2 h-2 bg-primary rounded-full animate-pulse shadow-[0_0_8px_rgba(255,140,0,0.4)]" />
           <span className="font-display uppercase font-bold tracking-[0.2em] text-[10px] text-primary">Status: Conectado</span>
         </div>
+        {onSpotlight && (
+          <button
+            onClick={onSpotlight}
+            className="flex items-center gap-2 bg-black/20 border border-white/5 px-4 py-1.5 rounded-sm hover:border-primary/20 hover:bg-primary/5 transition-all group"
+            title="Busca Global (Cmd+K)"
+          >
+            <span className="material-symbols-outlined text-sm text-industrial-silver/30 group-hover:text-primary transition-colors">search</span>
+            <span className="font-display uppercase font-bold tracking-[0.2em] text-[9px] text-industrial-silver/20 group-hover:text-industrial-silver/40 hidden md:inline transition-colors">Buscar...</span>
+            <kbd className="text-[8px] font-display font-bold text-industrial-silver/15 bg-black/30 border border-white/5 px-1.5 py-0.5 rounded-sm hidden md:inline">⌘K</kbd>
+          </button>
+        )}
         <span className="text-[9px] font-display uppercase font-bold tracking-[0.4em] text-industrial-silver/30 hidden md:inline">Terminal_de_Comando_Geral</span>
       </div>
       

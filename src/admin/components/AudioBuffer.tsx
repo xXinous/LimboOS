@@ -3,7 +3,6 @@ import { db, storage } from '../../lib/firebase';
 import { collection, onSnapshot, doc, deleteDoc, addDoc, updateDoc, serverTimestamp, query, orderBy, getDoc } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import { User } from 'firebase/auth';
-import { parseBlob } from 'music-metadata';
 import { useModal } from './ConfirmModal';
 import QRCode from 'react-qr-code';
 import Screw from '../../components/player/Screw';
@@ -121,6 +120,7 @@ export default function AudioBuffer({ user, isAdmin }: { user: User | null, isAd
     let parsedIsSecret = false;
     let parsedDuration = 0;
     try {
+      const { parseBlob } = await import('music-metadata');
       const meta = await parseBlob(file);
       const common = meta.common;
       const format = meta.format;

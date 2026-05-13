@@ -11,6 +11,7 @@ import {
   runTransaction,
   query,
   orderBy,
+  where,
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { storage, db } from '../lib/firebase';
@@ -92,13 +93,11 @@ export async function createCharacter(uid: string, codinome: string): Promise<Ch
 export async function loadPlayerData(uid: string, characterId: string): Promise<PlayerData> {
   if (!uid || !characterId) throw new Error('LoadPlayerData failed: Missing identifiers');
   
-  const [accountSnap, charSnap, tapesSnap, achievementsSnap, statsSnap, gallerySnap] = await Promise.all([
+  const [accountSnap, charSnap, statsSnap, achievementsSnap] = await Promise.all([
     getDoc(doc(db, 'users', uid)),
     getDoc(doc(db, 'users', uid, 'characters', characterId)),
-    getDocs(collection(db, 'users', uid, 'characters', characterId, 'tapes')),
-    getDocs(collection(db, 'users', uid, 'characters', characterId, 'achievements')),
     getDoc(doc(db, 'users', uid, 'characters', characterId, 'stats', 'main')),
-    getDocs(collection(db, 'users', uid, 'characters', characterId, 'gallery'))
+    getDocs(collection(db, 'users', uid, 'characters', characterId, 'achievements'))
   ]);
 
   if (!accountSnap.exists() || !charSnap.exists()) {
@@ -113,10 +112,10 @@ export async function loadPlayerData(uid: string, characterId: string): Promise<
     ...account,
     activeCharacterId: characterId,
     character,
-    unlockedTapeIds: tapesSnap.docs.map((d) => d.id),
+    unlockedTapeIds: [], // Populated asynchronously by PlayerSyncService
     achievementIds: achievementsSnap.docs.map((d) => d.id),
     stats,
-    unlockedGalleryIds: gallerySnap.docs.map((d) => d.id),
+    unlockedGalleryIds: [], // Populated asynchronously by PlayerSyncService
   };
 }
 
@@ -265,6 +264,20 @@ export async function fetchAudioTapeById(audioId: string) {
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 }
 
+export async function fetchAudioTapesByIds(audioIds: string[]) {
+  if (audioIds.length === 0) return [];
+  const audios: any[] = [];
+  for (let i = 0; i < audioIds.length; i += 30) {
+    const chunk = audioIds.slice(i, i + 30);
+    const q = query(collection(db, 'audios'), where('__name__', 'in', chunk));
+    const snap = await getDocs(q);
+    snap.docs.forEach(d => {
+      audios.push({ id: d.id, ...d.data() });
+    });
+  }
+  return audios;
+}
+
 export async function fetchAllAudios() {
   const snap = await getDocs(collection(db, 'audios'));
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -338,10 +351,17 @@ export async function fetchPlayerGalleryImages(uid: string, characterId: string)
   const grantSnap = await getDocs(collection(db, 'users', uid, 'characters', characterId, 'gallery'));
   const imageIds = grantSnap.docs.map(d => d.id);
   if (imageIds.length === 0) return [];
+  
   const images: GalleryImage[] = [];
-  for (const id of imageIds) {
-    const imgSnap = await getDoc(doc(db, 'gallery', id));
-    if (imgSnap.exists()) images.push({ id: imgSnap.id, ...imgSnap.data() } as GalleryImage);
+  // Firestore 'in' queries support up to 30 items per query
+  for (let i = 0; i < imageIds.length; i += 30) {
+    const chunk = imageIds.slice(i, i + 30);
+    const { where } = await import('firebase/firestore');
+    const q = query(collection(db, 'gallery'), where('__name__', 'in', chunk));
+    const snap = await getDocs(q);
+    snap.docs.forEach(d => {
+      images.push({ id: d.id, ...d.data() } as GalleryImage);
+    });
   }
   return images;
 }
@@ -426,4 +446,3 @@ export async function fetchUserGalleryGrants(imageId: string): Promise<string[]>
 
 // Re-export types used by admin panels
 export type { GalleryImage, GalleryCategory, LimboGlobalState } from '../types/player';
-

@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { format } from 'date-fns';
-import { Group, UserData } from '../../types/player';
+import { Group, UserData, CharacterData, GroupCharacterSlot } from '../../types/player';
 import { Campaign } from '../../data/campaigns';
 import { groupService } from '../../services/GroupService';
 import { userService } from '../../services/UserService';
 import { activityLogger } from '../../services/ActivityLogger';
 import { db } from '../../lib/firebase';
-import { collection, onSnapshot } from 'firebase/firestore';
+import { collection, onSnapshot, Timestamp } from 'firebase/firestore';
 import { useModal } from './ConfirmModal';
 import Screw from '../../components/player/Screw';
+import BulkInventoryModal from './BulkInventoryModal';
+import RetroSpinner from '../../components/player/RetroSpinner';
 
 interface GroupManagerProps {
   isAdmin: boolean;
@@ -17,6 +19,7 @@ interface GroupManagerProps {
 export default function GroupManager({ isAdmin }: GroupManagerProps) {
   const [groups, setGroups] = useState<Group[]>([]);
   const [users, setUsers] = useState<UserData[]>([]);
+  const [allCharacters, setAllCharacters] = useState<{uid: string, char: CharacterData}[]>([]);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [isCreating, setIsCreating] = useState(false);
   const [editingGroup, setEditingGroup] = useState<Group | null>(null);
@@ -24,14 +27,29 @@ export default function GroupManager({ isAdmin }: GroupManagerProps) {
   
   // Form State
   const [groupName, setGroupName] = useState("");
-  const [selectedPlayers, setSelectedPlayers] = useState<string[]>([]);
+  const [selectedCharacters, setSelectedCharacters] = useState<{uid: string, characterId: string}[]>([]);
   const [selectedCampaign, setSelectedCampaign] = useState("");
   const [sessionDate, setSessionDate] = useState("");
   const [sessions, setSessions] = useState<string[]>([]);
+  const [showArchived, setShowArchived] = useState(false);
+
+  // Intel Grant State
+  const [showGrantModal, setShowGrantModal] = useState<string | null>(null);
+  const [grantLoading, setGrantLoading] = useState(false);
 
   useEffect(() => {
     const unsubGroups = groupService.subscribeToGroups(setGroups);
-    const unsubUsers = userService.subscribeToUsers(setUsers);
+    const unsubUsers = userService.subscribeToUsers(async (fetchedUsers) => {
+      setUsers(fetchedUsers);
+      const agents: {uid: string, char: CharacterData}[] = [];
+      for (const user of fetchedUsers) {
+        if (user.role === 'admin') continue;
+        const chars = await userService.fetchCharactersForUser(user.uid);
+        chars.forEach(c => agents.push({ uid: user.uid, char: c }));
+      }
+      setAllCharacters(agents);
+    });
+    
     const unsubCampaigns = onSnapshot(collection(db, 'campaigns'), (snap) => {
       const list: Campaign[] = [];
       snap.forEach(d => list.push({ id: d.id, ...d.data() } as Campaign));
@@ -47,11 +65,17 @@ export default function GroupManager({ isAdmin }: GroupManagerProps) {
 
   const handleCreateGroup = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!groupName.trim() || selectedPlayers.length === 0) return;
+    if (!groupName.trim() || selectedCharacters.length === 0) return;
 
     try {
-      await groupService.createGroup(groupName, selectedPlayers, sessions);
-      activityLogger.logAdmin('gm.mpg', 'group_created', `Grupo criado: ${groupName}`, { players: selectedPlayers.length });
+      const slots: GroupCharacterSlot[] = selectedCharacters.map(c => ({
+        uid: c.uid,
+        characterId: c.characterId,
+        joinedAt: Timestamp.now()
+      }));
+
+      await groupService.createGroup(groupName, slots, sessions, selectedCampaign || undefined);
+      activityLogger.logAdmin('gm.mpg', 'group_created', `Grupo criado: ${groupName}`, { players: selectedCharacters.length });
       resetForm();
     } catch (error) {
       console.error("Erro ao criar grupo:", error);
@@ -63,10 +87,16 @@ export default function GroupManager({ isAdmin }: GroupManagerProps) {
     if (!editingGroup || !groupName.trim()) return;
 
     try {
+      const currentSlots = editingGroup.characterSlots || [];
+      const newSlots: GroupCharacterSlot[] = selectedCharacters.map(sc => {
+        const existing = currentSlots.find(cs => cs.characterId === sc.characterId);
+        return existing ? existing : { uid: sc.uid, characterId: sc.characterId, joinedAt: Timestamp.now() };
+      });
+
       await groupService.updateGroup(editingGroup.id, {
         name: groupName,
-        playerUids: selectedPlayers,
-        campaignId: selectedCampaign,
+        characterSlots: newSlots,
+        campaignId: selectedCampaign || undefined,
         sessions: sessions
       });
       activityLogger.logAdmin('gm.mpg', 'group_updated', `Grupo atualizado: ${groupName}`);
@@ -87,11 +117,29 @@ export default function GroupManager({ isAdmin }: GroupManagerProps) {
     }
   };
 
+  const handleGrantIntelToGroup = async (groupId: string, intelIds: Set<string>, aliveOnly: boolean) => {
+    setGrantLoading(true);
+    try {
+      let totalCount = 0;
+      for (const intelId of intelIds) {
+        const count = await groupService.grantIntelToGroup(groupId, intelId, aliveOnly);
+        totalCount += count;
+      }
+      activityLogger.logAdmin('gm.mpg', 'group_intel_granted', `${intelIds.size} Intels concedidas a agentes do esquadrão ${groupId}`);
+      setShowGrantModal(null);
+    } catch (error) {
+      console.error("Erro ao conceder intel:", error);
+      throw error;
+    } finally {
+      setGrantLoading(false);
+    }
+  };
+
   const resetForm = () => {
     setIsCreating(false);
     setEditingGroup(null);
     setGroupName("");
-    setSelectedPlayers([]);
+    setSelectedCharacters([]);
     setSelectedCampaign("");
     setSessions([]);
     setSessionDate("");
@@ -100,7 +148,7 @@ export default function GroupManager({ isAdmin }: GroupManagerProps) {
   const startEdit = (group: Group) => {
     setEditingGroup(group);
     setGroupName(group.name);
-    setSelectedPlayers(group.playerUids);
+    setSelectedCharacters(group.characterSlots ? group.characterSlots.map(s => ({ uid: s.uid, characterId: s.characterId })) : []);
     setSelectedCampaign(group.campaignId || "");
     setSessions(group.sessions || []);
     setIsCreating(true);
@@ -116,11 +164,19 @@ export default function GroupManager({ isAdmin }: GroupManagerProps) {
     setSessions(sessions.filter(s => s !== date));
   };
 
-  const togglePlayer = (uid: string) => {
-    setSelectedPlayers(prev => 
-      prev.includes(uid) ? prev.filter(id => id !== uid) : [...prev, uid]
-    );
+  const toggleCharacter = (uid: string, characterId: string) => {
+    setSelectedCharacters(prev => {
+      const exists = prev.find(c => c.characterId === characterId);
+      if (exists) return prev.filter(c => c.characterId !== characterId);
+      return [...prev, { uid, characterId }];
+    });
   };
+
+  const isSelected = (characterId: string) => {
+    return selectedCharacters.some(c => c.characterId === characterId);
+  };
+
+  const filteredCharacters = allCharacters.filter(c => showArchived || !c.char.archived);
 
   return (
     <div className="space-y-8 font-chakra">
@@ -203,32 +259,52 @@ export default function GroupManager({ isAdmin }: GroupManagerProps) {
                 </div>
               </div>
 
-              {/* Coluna 2: Seleção de Jogadores */}
+              {/* Coluna 2: Seleção de Personagens */}
               <div>
-                <label className="block font-black text-[10px] text-zinc-500 mb-3 uppercase tracking-widest">Vincular_Agentes_ao_Vetor ({selectedPlayers.length})</label>
-                <div className="bg-black/60 border-2 border-[#1a1a1a] h-72 overflow-y-auto p-3 space-y-1 custom-scrollbar rounded-sm">
-                  {users.filter(u => u.role !== 'admin').map(user => (
-                    <button
-                      key={user.uid}
-                      type="button"
-                      onClick={() => togglePlayer(user.uid)}
-                      className={`w-full flex items-center justify-between p-3 text-left transition-all border-2 rounded-sm group ${
-                        selectedPlayers.includes(user.uid) 
-                          ? 'bg-primary/5 border-primary/30 text-primary shadow-inner' 
-                          : 'bg-transparent border-transparent text-zinc-700 hover:bg-white/5'
-                      }`}
-                    >
-                      <div className="min-w-0">
-                         <p className={`font-black text-[11px] uppercase truncate ${selectedPlayers.includes(user.uid) ? 'text-primary' : 'text-zinc-500 group-hover:text-zinc-300'}`}>
-                           {user.displayName || user.username || user.email?.split('@')[0]}
-                         </p>
-                         <p className="text-[8px] font-mono text-zinc-800 font-bold uppercase tracking-tighter mt-0.5">UID: {(user.uid || "").slice(0,12)}</p>
-                      </div>
-                      <div className={`w-4 h-4 border-2 rounded-sm transition-all flex items-center justify-center ${selectedPlayers.includes(user.uid) ? 'bg-primary border-primary shadow-[0_0_8px_rgba(255,140,0,0.4)]' : 'border-zinc-900 group-hover:border-zinc-700'}`}>
-                         {selectedPlayers.includes(user.uid) && <span className="material-symbols-outlined text-black text-[12px] font-black">check</span>}
-                      </div>
-                    </button>
-                  ))}
+                <div className="flex justify-between items-center mb-3">
+                   <label className="block font-black text-[10px] text-zinc-500 uppercase tracking-widest">Vincular_Agentes_ao_Vetor ({selectedCharacters.length})</label>
+                   <label className="flex items-center gap-2 cursor-pointer group">
+                     <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} className="hidden" />
+                     <span className={`text-[8px] font-black uppercase tracking-widest transition-colors ${showArchived ? 'text-primary' : 'text-zinc-600 group-hover:text-zinc-400'}`}>Incluir_Arquivados</span>
+                   </label>
+                </div>
+                <div className="bg-black/60 border-2 border-[#1a1a1a] h-72 overflow-y-auto p-3 space-y-2 custom-scrollbar rounded-sm">
+                  {filteredCharacters.map(item => {
+                    const isSel = isSelected(item.char.id);
+                    const user = users.find(u => u.uid === item.uid);
+                    return (
+                      <button
+                        key={item.char.id}
+                        type="button"
+                        onClick={() => toggleCharacter(item.uid, item.char.id)}
+                        className={`w-full flex items-center justify-between p-3 text-left transition-all border-2 rounded-sm group ${
+                          isSel 
+                            ? 'bg-primary/5 border-primary/30 text-primary shadow-inner' 
+                            : 'bg-transparent border-transparent text-zinc-700 hover:bg-white/5'
+                        } ${item.char.archived ? 'opacity-50 grayscale' : ''}`}
+                      >
+                        <div className="flex items-center gap-3">
+                           <div className={`w-8 h-8 rounded-sm bg-black border border-[#1a1a1a] flex items-center justify-center font-black text-sm ${item.char.agentStatus === 'vivo' ? 'text-emerald-500' : 'text-red-500'}`}>
+                              {(item.char.codinome || '?')[0].toUpperCase()}
+                           </div>
+                           <div className="min-w-0">
+                              <p className={`font-black text-[11px] uppercase truncate ${isSel ? 'text-primary' : 'text-zinc-500 group-hover:text-zinc-300'}`}>
+                                {item.char.codinome}
+                              </p>
+                              <p className="text-[8px] font-mono text-zinc-800 font-bold uppercase tracking-tighter mt-0.5">
+                                JOGADOR: {user?.displayName || user?.email?.split('@')[0]}
+                              </p>
+                           </div>
+                        </div>
+                        <div className={`w-4 h-4 border-2 rounded-sm transition-all flex items-center justify-center ${isSel ? 'bg-primary border-primary shadow-[0_0_8px_rgba(255,140,0,0.4)]' : 'border-zinc-900 group-hover:border-zinc-700'}`}>
+                           {isSel && <span className="material-symbols-outlined text-black text-[12px] font-black">check</span>}
+                        </div>
+                      </button>
+                    );
+                  })}
+                  {filteredCharacters.length === 0 && (
+                    <p className="text-zinc-600 text-[10px] font-black uppercase tracking-widest text-center py-8">Nenhum Agente Encontrado</p>
+                  )}
                 </div>
               </div>
             </div>
@@ -245,7 +321,7 @@ export default function GroupManager({ isAdmin }: GroupManagerProps) {
           </form>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {groups.map(group => (
             <div key={group.id} className="bg-[#1a1a1a] border-4 border-[#1a1a1a] p-6 group hover:border-primary/20 transition-all rounded-xl shadow-xl relative overflow-hidden active:scale-[0.99]">
               <div className="absolute top-0 right-0 w-12 h-12 bg-primary/5 rotate-45 translate-x-6 -translate-y-6 border-b border-primary/10" />
@@ -256,23 +332,31 @@ export default function GroupManager({ isAdmin }: GroupManagerProps) {
                     <div className="flex items-center gap-1.5 bg-black/40 px-2 py-0.5 rounded-sm border border-white/5 shadow-inner">
                        <div className="w-1 h-1 bg-primary rounded-full animate-pulse" />
                        <p className="text-[8px] font-black text-zinc-500 uppercase tracking-widest">
-                         {(group.playerUids || []).length} ATIVOS
+                         {(group.characterSlots || []).length} AGENTES
                        </p>
                     </div>
                     {group.campaignId && (
-                      <span className="text-[8px] font-black bg-primary/10 text-primary border border-primary/20 px-2 py-0.5 rounded-sm uppercase tracking-widest">
+                      <span className="text-[8px] font-black bg-primary/10 text-primary border border-primary/20 px-2 py-0.5 rounded-sm uppercase tracking-widest flex items-center gap-1">
+                        <span className="material-symbols-outlined text-[10px]">hub</span>
                         {campaigns.find(c => c.id === group.campaignId)?.name || group.campaignId}
                       </span>
                     )}
                   </div>
                 </div>
                 <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all translate-x-2 group-hover:translate-x-0">
-                  <button onClick={() => startEdit(group)} className="w-8 h-8 flex items-center justify-center bg-black/60 border border-white/10 rounded-sm text-zinc-600 hover:text-emerald-400 transition-all active:scale-90"><span className="material-symbols-outlined text-sm">edit</span></button>
-                  <button onClick={() => handleDeleteGroup(group.id)} className="w-8 h-8 flex items-center justify-center bg-black/60 border border-white/10 rounded-sm text-zinc-600 hover:text-red-500 transition-all active:scale-90"><span className="material-symbols-outlined text-sm">delete</span></button>
+                  <button onClick={() => setShowGrantModal(group.id)} className="w-8 h-8 flex items-center justify-center bg-black/60 border border-white/10 rounded-sm text-primary hover:bg-primary hover:text-black transition-all active:scale-90" title="Transferência de Evidências em Lote">
+                    <span className="material-symbols-outlined text-sm">wifi_tethering</span>
+                  </button>
+                  <button onClick={() => startEdit(group)} className="w-8 h-8 flex items-center justify-center bg-black/60 border border-white/10 rounded-sm text-zinc-600 hover:text-emerald-400 transition-all active:scale-90">
+                    <span className="material-symbols-outlined text-sm">edit</span>
+                  </button>
+                  <button onClick={() => handleDeleteGroup(group.id)} className="w-8 h-8 flex items-center justify-center bg-black/60 border border-white/10 rounded-sm text-zinc-600 hover:text-red-500 transition-all active:scale-90">
+                    <span className="material-symbols-outlined text-sm">delete</span>
+                  </button>
                 </div>
               </div>
 
-              <div className="space-y-4">
+              <div className="space-y-6">
                 <div className="flex flex-wrap gap-1.5">
                   {group.sessions?.slice(0, 4).map(date => (
                     <span key={date} className="text-[8px] font-mono bg-black text-zinc-600 px-2 py-1 rounded-sm border border-white/5 font-bold tracking-widest uppercase shadow-sm">
@@ -282,21 +366,20 @@ export default function GroupManager({ isAdmin }: GroupManagerProps) {
                   {group.sessions?.length > 4 && <span className="text-[8px] font-black text-zinc-800 self-center">+{group.sessions.length - 4}</span>}
                 </div>
                 
-                <div className="flex -space-x-3 pt-2">
-                  {(group.playerUids || []).slice(0, 6).map(uid => {
-                    const player = users.find(u => u.uid === uid);
-                    const label = (player?.displayName || player?.username || 'A').charAt(0).toUpperCase();
+                <div className="flex flex-wrap gap-3 pt-2">
+                  {(group.characterSlots || []).map(slot => {
+                    const item = allCharacters.find(c => c.char.id === slot.characterId);
+                    if (!item) return null;
                     return (
-                      <div key={uid} className="w-8 h-8 rounded-full bg-black border-2 border-[#1a1a1a] flex items-center justify-center text-[10px] font-black text-primary shadow-lg ring-2 ring-black/40" title={player?.displayName || 'Agente'}>
-                        {label}
+                      <div key={slot.characterId} className="flex items-center gap-2 bg-black/40 border border-white/5 px-2 py-1.5 rounded-sm min-w-[120px]">
+                         <div className={`w-2 h-2 rounded-full ${item.char.agentStatus === 'vivo' ? 'bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.5)]' : item.char.agentStatus === 'morto' ? 'bg-red-500' : 'bg-yellow-500'}`} />
+                         <div className="min-w-0">
+                           <p className="font-black text-[9px] text-zinc-300 uppercase truncate">{item.char.codinome}</p>
+                           <p className="font-mono text-[8px] text-zinc-600 truncate">{users.find(u => u.uid === slot.uid)?.displayName || '???'}</p>
+                         </div>
                       </div>
                     );
                   })}
-                  {(group.playerUids || []).length > 6 && (
-                    <div className="w-8 h-8 rounded-full bg-[#333] border-2 border-[#1a1a1a] flex items-center justify-center text-[9px] font-black text-zinc-500 shadow-lg">
-                       +{(group.playerUids || []).length - 6}
-                    </div>
-                  )}
                 </div>
               </div>
             </div>
@@ -309,6 +392,20 @@ export default function GroupManager({ isAdmin }: GroupManagerProps) {
           )}
         </div>
       )}
+
+      {/* Grant Intel Modal (Batch) */}
+      {showGrantModal && (
+        <BulkInventoryModal 
+           onClose={() => setShowGrantModal(null)}
+           onSuccess={() => {}}
+           onExecuteBulk={async (selectedIds) => {
+              const aliveOnly = await showConfirm('Condição de Distribuição', 'Distribuir apenas para agentes VIVOS no esquadrão?', 'Apenas Vivos', 'Todos (Inclui Mortos)');
+              await handleGrantIntelToGroup(showGrantModal, selectedIds, aliveOnly);
+           }} 
+           title="Vetor de Transmissão: Esquadrão"
+        />
+      )}
+
       {modal}
     </div>
   );

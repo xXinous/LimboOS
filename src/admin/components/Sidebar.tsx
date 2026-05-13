@@ -21,8 +21,8 @@ export default function Sidebar({ activeTab, setActiveTab, isCollapsed, onToggle
       title: "Mesa de Jogo",
       items: [
         { id: 'missions', label: 'Missões', icon: 'map' },
-        { id: 'players', label: 'Agentes', icon: 'group' },
-        { id: 'inventory', label: 'Inventário', icon: 'inventory_2' },
+        { id: 'players', label: 'Contas & Agentes', icon: 'group' },
+        { id: 'squads', label: 'Esquadrões', icon: 'groups' },
       ]
     },
     {

@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { intelRegistry, type EvidenceIntelAdmin } from '../../data/intel_registry';
 import { intelService } from '../../services/IntelService';
 import type { IntelItem, IntelType, AccessLevel, VisualCategory } from '../../types/intel';
@@ -512,37 +513,40 @@ export default function IntelCreatorPanel() {
       )}
 
       {/* Export Modal */}
+      <AnimatePresence>
       {showExport && (
-        <div className="fixed inset-0 z-100 flex items-center justify-center bg-black/90 p-4 backdrop-blur-md">
-          <div className="bg-surface-container-low border border-primary/30 w-full max-w-4xl rounded-sm shadow-2xl flex flex-col max-h-[85vh] relative">
-            <div className="absolute -top-3 left-6 bg-primary px-2 py-0.5 text-[10px] font-display font-bold text-black tracking-widest uppercase">
-              EXPORTAÇÃO-DE-BANCO-DE-DADOS
+        <div className="fixed inset-0 z-[120] flex justify-end bg-black/80 backdrop-blur-sm" onClick={() => setShowExport(false)}>
+          <motion.div initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'spring', stiffness: 300, damping: 30 }} className="bg-[#222] border-l-8 border-[#1a1a1a] w-full max-w-4xl shadow-2xl flex flex-col h-full relative overflow-hidden font-chakra" onClick={e => e.stopPropagation()}>
+            <Screw className="top-4 left-4" /><Screw className="top-4 right-4 -rotate-90" /><Screw className="bottom-4 left-4 -rotate-90" /><Screw className="bottom-4 right-4" />
+            <div className="noise-overlay" /><div className="scanlines" />
+            
+            <div className="p-8 border-b-4 border-[#1a1a1a] flex justify-between items-center bg-black/40 relative z-10">
+              <div className="mt-2">
+                <h3 className="font-black text-2xl text-white uppercase tracking-tighter">Exportar <span className="text-primary">Registro Mestre</span></h3>
+                <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mt-1">Cópia do IntelRegistry ({allItems.length} entradas localizadas)</p>
+              </div>
+              <button onClick={() => setShowExport(false)} className="p-3 text-zinc-600 hover:text-white material-symbols-outlined rounded-sm">close</button>
             </div>
             
-            <div className="p-8 border-b border-white/5 flex justify-between items-center bg-black/40">
-              <div className="mt-2">
-                <h3 className="font-display font-bold text-2xl text-white uppercase tracking-tighter">Exportar <span className="text-primary">Registro Mestre</span></h3>
-                <p className="text-[10px] font-display font-bold text-industrial-silver/40 uppercase tracking-widest mt-1">Cópia do IntelRegistry ({allItems.length} entradas localizadas)</p>
-              </div>
-              <button onClick={() => setShowExport(false)} className="p-3 text-industrial-silver/20 hover:text-white material-symbols-outlined rounded-sm">close</button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-8 bg-black/20 custom-scrollbar">
-              <pre className="bg-surface-container-lowest border border-white/5 p-8 text-[11px] font-mono text-primary/70 whitespace-pre-wrap break-all rounded-sm leading-relaxed shadow-inner">
+            <div className="flex-1 overflow-y-auto p-8 bg-black/20 custom-scrollbar relative z-10">
+              <pre className="bg-black/60 border-2 border-[#1a1a1a] p-8 text-[11px] font-mono text-primary/70 whitespace-pre-wrap break-all rounded-sm leading-relaxed shadow-inner">
                  {exportJSON}
               </pre>
             </div>
-            <div className="p-8 border-t border-white/5 flex justify-end gap-6 bg-black/40">
+            
+            <div className="p-8 border-t-4 border-[#1a1a1a] flex justify-end gap-6 bg-black/40 relative z-10 shrink-0">
               <button
                 onClick={() => { navigator.clipboard.writeText(exportJSON); setFeedback({ type: 'success', text: '✓ JSON REGISTRY COPIADO COM SUCESSO' }); setShowExport(false); }}
-                className="w-full sm:w-auto bg-primary text-black px-12 py-4 text-[11px] font-display font-bold uppercase tracking-widest hover:bg-primary-container transition-all rounded-sm active:scale-95 glow-orange shadow-lg flex items-center justify-center gap-3"
+                className="w-full sm:w-auto bg-primary text-black px-12 py-4 text-[11px] font-black uppercase tracking-widest hover:bg-primary-container transition-all rounded-sm active:scale-95 glow-orange shadow-lg flex items-center justify-center gap-3"
               >
                 <span className="material-symbols-outlined text-base">content_copy</span>
                 COPIAR PARA ÁREA DE TRANSFERÊNCIA
               </button>
             </div>
-          </div>
+          </motion.div>
         </div>
       )}
+      </AnimatePresence>
     </section>
   );
 }
