@@ -115,29 +115,6 @@ class ActivityLogger {
     metadata?: Record<string, unknown> 
   } {
     // Signature A: (category, message, metadata?) -> uses internal setUser state
-    // Signature B: (uid, username, category, message, metadata?)
-    // Signature C: (uid, username, characterId, category, message, metadata?)
-    
-    if (args.length >= 5 && typeof args[0] === 'string' && typeof args[1] === 'string' && typeof args[2] === 'string' && typeof args[3] === 'string') {
-      return {
-        uid: args[0],
-        username: args[1],
-        characterId: args[2],
-        category: args[3],
-        message: args[4],
-        metadata: args[5] || {}
-      };
-    }
-
-    if (args.length >= 4 && typeof args[0] === 'string' && typeof args[1] === 'string' && typeof args[2] === 'string') {
-      return {
-        uid: args[0],
-        username: args[1],
-        category: args[2],
-        message: args[3],
-        metadata: args[4] || {}
-      };
-    }
 
     return {
       uid: this.currentUid || 'unknown',

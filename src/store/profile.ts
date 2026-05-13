@@ -28,6 +28,11 @@ export async function loginOrCreate(
     const { user } = await signInWithEmailAndPassword(auth, email, password);
     await updateLastLogin(user.uid);
     const account = await loadMasterAccount(user.uid);
+    // Block suspended non-admin accounts
+    if (account.suspended && account.role !== 'admin') {
+      await firebaseSignOut(auth);
+      return { ok: false, error: 'unknown' as const, message: 'CONTA SUSPENSA: Contate o administrador.' };
+    }
     return { ok: true, account };
   } catch (signInErr: unknown) {
     const code = (signInErr as { code?: string }).code ?? '';

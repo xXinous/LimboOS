@@ -1,0 +1,82 @@
+DOCUMENTO DE ESPECIFICAÇÃO TÉCNICA E PLANO DE REFATORAÇÃO
+TEMA: Mesclagem de Gestão de Inventário e Conquistas no Dossiê do Agente
+STATUS: Planejamento Detalhado (Pronto para Execução)
+
+================================================================================
+1. VISÃO GERAL E OBJETIVO ARQUITETURAL
+================================================================================
+Atualmente, o painel administrativo possui interfaces separadas para gerenciar detalhes vitais do jogador (`AgentDossierView.tsx`) e seu inventário/recursos (`InventoryManager.tsx`). Isso causa atrito cognitivo e repetição de fluxos.
+O objetivo deste plano é transformar o componente "Dossiê do Agente" na única e definitiva Fonte da Verdade (Single Source of Truth) para o Mestre do Jogo (Admin). Toda mutação de estado do personagem (incluindo adição/remoção de áudios, documentos e medalhas) será feita exclusivamente nesta interface.
+
+
+================================================================================
+2. MUDANÇAS NO DOSSIÊ DO AGENTE (AgentDossierView.tsx)
+================================================================================
+
+2.1. Refatoração do Cofre de Evidências (Grid de Inventário)
+- ESTADO ATUAL: O Dossiê lista itens de forma simplificada.
+- NOVA ESTRUTURA:
+  * Fetch de Dados: Ao carregar o Dossiê, consultar a subcoleção `tapes` (inventário do personagem) e cruzar com `intelRegistry` e a coleção global `audios`.
+  * Play Counts: Integrar uma query na coleção `playEvents` (filtrando por `uid` e `characterId`) para contar e exibir quantas vezes cada item (especialmente áudios) foi consumido pelo jogador.
+  * UI do Card: Cada item no grid deve possuir:
+    - Ícone correspondente ao tipo (Áudio, Texto, Imagem, etc.).
+    - Título e Subtítulo (ID, Artista, NPC, etc.).
+    - Indicador de "Plays" (se > 0).
+    - Botão de Lixeira (hover state) para exclusão rápida inline.
+  * Ação de Exclusão: Ao clicar na lixeira, acionar `useModal()` para confirmação. Se confirmado, usar `userService.removeUserIntel` e gerar log com `activityLogger.logAdmin`.
+
+2.2. Modal Avançado de Injeção em Massa (Bulk Add)
+- ESTADO ATUAL: O Dossiê usa o componente `GrantIntelModal.tsx`, que é simples e limitado. O sistema robusto vive isolado em `InventoryManager.tsx`.
+- NOVA ESTRUTURA (Integração):
+  * Importar a lógica do modal robusto para dentro de `AgentDossierView.tsx` (ou extraí-lo como um novo componente `BulkInventoryModal.tsx`).
+  * Estados necessários: `addTab` ('audio' | 'evidence'), `addSearch` (string), `selectedToAdd` (Set<string>), `addLoading` (boolean).
+  * UI:
+    - Abas para alternar entre catálogo de "Arquivos de Áudio" (coleção `audios`) e "Registros Intel" (`intelRegistry.getAll()`).
+    - Barra de busca filtrando a lista em tempo real.
+    - Checkboxes para multiseleção (desabilitados para itens que o agente já possui).
+  * Ação: Botão "Sincronizar Dados". Irá varrer o `Set` selecionado disparando `userService.addUserIntel` em Promise.all, atualizando o grid e gerando log de atividade (`inventory_add`).
+
+2.3. Gestão Completa de Conquistas (Achievements)
+- ESTADO ATUAL: A seção "Medalhas_Detectadas" no Dossiê é apenas de leitura.
+- NOVA ESTRUTURA:
+  * Revogação: Transformar os itens da lista de medalhas em "cards interativos". Adicionar um ícone (X ou Lixeira) no hover. Ao clicar, disparar confirmação e chamar um método (ex: `userService.removeAchievement(uid, charId, achId)`).
+  * Outorga: Adicionar um botão destacado "OUTORGAR_MEDALHA" no topo da seção de Medalhas.
+  * Modal de Conquistas: Criar um modal/dropdown listando as conquistas disponíveis (provavelmente puxadas do arquivo de dados ou serviço de achievements). Ao selecionar, injeta o ID no array `achievements` do personagem no Firestore e gera log de atividade.
+
+
+================================================================================
+3. REMOÇÃO DE REDUNDÂNCIAS E CÓDIGO MORTO
+================================================================================
+Após a conclusão bem-sucedida do Passo 2, os seguintes arquivos e rotas se tornam obsoletos e DEVERÃO SER DELETADOS/REMOVIDOS para manter a base de código enxuta:
+
+1. Arquivo a Deletar: `src/admin/components/InventoryManager.tsx`
+   - Todo o seu escopo útil foi absorvido pelo Dossiê.
+
+2. Arquivo a Deletar: `src/admin/components/GrantIntelModal.tsx`
+   - Substituído pelo novo modal de injeção rica em massa.
+
+3. Atualização de Roteamento/Menus:
+   - Modificar `src/admin/Dashboard.tsx` (e `Sidebar.tsx` se aplicável): Remover o botão/aba que direciona para a "Gestão de Inventário". O fluxo agora é exclusivamente: Menu "Agentes" -> Selecionar Agente -> Abre Dossiê -> Gerenciar tudo.
+
+4. Painel de Conquistas (AchievementsPanel.tsx):
+   - Se este painel existir e estiver sendo usado para gerenciar de forma global, garantir que a função de "atribuir a um usuário específico" por ele seja removida, mantendo-o apenas como um "Gerenciador de Catálogo de Medalhas" global.
+
+
+================================================================================
+4. SERVIÇOS E COMUNICAÇÃO (Firebase / Firestore)
+================================================================================
+O componente utilizará os seguintes métodos de serviço (ou adaptações diretas):
+
+- `userService.loadUserDetails(uid, charId)`: Para buscar inventário, playCounts (a implementar/modificar) e array de achievements.
+- `userService.addUserIntel(uid, charId, intelId)`: Para adição no novo Modal.
+- `userService.removeUserIntel(uid, charId, intelId)`: Para exclusão no Grid.
+- `userService.updateCharacter(uid, charId, { achievements: [...] })`: Para atualizar a array de medalhas (pode exigir criação de função auxiliar no UserService para facilitar append/remove atômico usando `arrayUnion` e `arrayRemove`).
+- `activityLogger.logAdmin(...)`: OBRIGATÓRIO em todas as mutações (Adicionar/Remover Item, Adicionar/Remover Medalha) para auditoria. Formato do autor: 'gm.mpg'.
+
+
+================================================================================
+5. REGRAS DE SEGURANÇA E PROTEÇÃO (CRÍTICO)
+================================================================================
+- O gerenciamento destes dados continua restrito à interface Admin (em `src/admin/`).
+- O Dossiê não estará acessível na interface padrão de jogadores (`src/components/`, `src/App.tsx`).
+- O Firebase Firestore Rules (`firestore.rules`) deve garantir que gravações nestas propriedades (tapes/, achievements) exijam que o requestor tenha a flag `{role: 'admin'}` ou similar, mitigando riscos de manipulação client-side pelo jogador comum.

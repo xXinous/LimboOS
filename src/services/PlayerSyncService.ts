@@ -92,13 +92,6 @@ export class PlayerSyncService {
       (snap) => {
         if (snap.exists()) {
           const data = snap.data();
-          
-          // Account-level force flags (optional, can be used for global broadcast)
-          if (data.forceTerminalOpen) {
-             onScreenChange(prev => (['bios', 'limbo', 'diskRepair'].includes(prev) ? prev : 'bios'));
-          } else if (data.forceMacOpen) {
-             onScreenChange(prev => (prev === 'macos' ? prev : 'macos'));
-          }
 
           onPlayerDataUpdate({
             hasTerminalAccess: !!data.hasTerminalAccess,

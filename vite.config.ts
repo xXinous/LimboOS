@@ -8,15 +8,17 @@ export default defineConfig(({mode}) => {
   return {
     plugins: [react(), tailwindcss()],
     build: {
-      chunkSizeWarningLimit: 600,
+      chunkSizeWarningLimit: 1000,
+      target: 'esnext',
+      minify: 'esbuild',
       rollupOptions: {
         output: {
           manualChunks: {
-            'vendor-firebase': ['firebase/app', 'firebase/auth', 'firebase/firestore', 'firebase/storage', 'firebase/database'],
-            'vendor-ui': ['lucide-react', 'motion', 'clsx'],
-          },
-        },
-      },
+            firebase: ['firebase/app', 'firebase/firestore', 'firebase/auth', 'firebase/storage'],
+            vendor: ['react', 'react-dom', 'react-router-dom', 'motion']
+          }
+        }
+      }
     },
     resolve: {
       alias: {
@@ -25,7 +27,7 @@ export default defineConfig(({mode}) => {
     },
     server: {
       // HMR is disabled in AI Studio via DISABLE_HMR env var.
-      // Do not modifyâfile watching is disabled to prevent flickering during agent edits.
+      // Do not modify—file watching is disabled to prevent flickering during agent edits.
       hmr: process.env.DISABLE_HMR !== 'true',
     },
   };

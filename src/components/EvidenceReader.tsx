@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { motion } from 'motion/react';
 import type { IntelItem } from '../types/intel';
 import { ACCESS_LEVEL_LABELS } from '../types/intel';
@@ -6,6 +6,159 @@ import { ACCESS_LEVEL_LABELS } from '../types/intel';
 interface EvidenceReaderProps {
   evidence: IntelItem;
   onClose: () => void;
+}
+
+/**
+ * Detects if text contains Zalgo/combining characters typical of corrupted data.
+ */
+function isCorruptedText(text: string): boolean {
+  // Match combining diacritical marks (Zalgo chars)
+  const zalgoPattern = /[\u0300-\u036f\u0489]/;
+  return zalgoPattern.test(text);
+}
+
+/**
+ * CorruptedTextRenderer — Renders corrupted/encrypted text with dramatic
+ * glitch effects: chromatic aberration, flickering, scan distortion.
+ */
+function CorruptedTextRenderer({ text }: { text: string }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [glitchOffset, setGlitchOffset] = useState(0);
+  const [flickerOpacity, setFlickerOpacity] = useState(1);
+
+  // Random glitch flicker effect
+  useEffect(() => {
+    const interval = setInterval(() => {
+      // Random chromatic aberration offset
+      setGlitchOffset(Math.random() > 0.7 ? (Math.random() * 4 - 2) : 0);
+      // Random flicker
+      setFlickerOpacity(Math.random() > 0.85 ? 0.3 + Math.random() * 0.4 : 1);
+    }, 100);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Split text into lines for per-line glitch offsets
+  const lines = text.split('\n');
+
+  return (
+    <div
+      ref={containerRef}
+      className="relative py-4 overflow-hidden"
+      style={{ opacity: flickerOpacity, transition: 'opacity 0.05s' }}
+    >
+      {/* Glitch CSS */}
+      <style>{`
+        @keyframes corrupted-scan {
+          0% { transform: translateY(-100%); }
+          100% { transform: translateY(calc(100% + 200px)); }
+        }
+        @keyframes corrupted-noise {
+          0%, 100% { clip-path: inset(0 0 95% 0); }
+          10% { clip-path: inset(40% 0 20% 0); }
+          20% { clip-path: inset(10% 0 60% 0); }
+          30% { clip-path: inset(80% 0 0% 0); }
+          40% { clip-path: inset(5% 0 70% 0); }
+          50% { clip-path: inset(50% 0 30% 0); }
+          60% { clip-path: inset(20% 0 40% 0); }
+          70% { clip-path: inset(70% 0 10% 0); }
+          80% { clip-path: inset(30% 0 55% 0); }
+          90% { clip-path: inset(60% 0 15% 0); }
+        }
+        @keyframes corrupted-jitter {
+          0%, 100% { transform: translateX(0); }
+          10% { transform: translateX(-2px); }
+          20% { transform: translateX(1px); }
+          30% { transform: translateX(-1px); }
+          40% { transform: translateX(3px); }
+          50% { transform: translateX(0); }
+          60% { transform: translateX(-3px); }
+          70% { transform: translateX(2px); }
+          80% { transform: translateX(-1px); }
+          90% { transform: translateX(1px); }
+        }
+        .corrupted-line {
+          position: relative;
+          animation: corrupted-jitter 3s step-end infinite;
+          animation-delay: var(--jitter-delay);
+        }
+        .corrupted-glow {
+          text-shadow:
+            0 0 5px rgba(255, 0, 0, 0.4),
+            0 0 10px rgba(255, 0, 0, 0.2),
+            2px 0 2px rgba(0, 255, 255, 0.3),
+            -2px 0 2px rgba(255, 0, 0, 0.3);
+        }
+        .corrupted-chromatic::before,
+        .corrupted-chromatic::after {
+          content: attr(data-text);
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          pointer-events: none;
+        }
+        .corrupted-chromatic::before {
+          color: rgba(255, 0, 0, 0.5);
+          animation: corrupted-noise 2s step-end infinite;
+          left: 2px;
+          z-index: -1;
+        }
+        .corrupted-chromatic::after {
+          color: rgba(0, 255, 255, 0.5);
+          animation: corrupted-noise 3s step-end infinite reverse;
+          left: -2px;
+          z-index: -1;
+        }
+      `}</style>
+
+      {/* Corrupted scan bar */}
+      <div
+        className="absolute left-0 right-0 h-8 pointer-events-none z-10"
+        style={{
+          background: 'linear-gradient(transparent, rgba(255, 0, 0, 0.08), rgba(0, 255, 255, 0.04), transparent)',
+          animation: 'corrupted-scan 4s linear infinite',
+        }}
+      />
+
+      {/* Noise overlay on the text */}
+      <div
+        className="absolute inset-0 pointer-events-none z-20 mix-blend-overlay opacity-20"
+        style={{
+          backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`,
+        }}
+      />
+
+      {/* Main corrupted text */}
+      <div
+        className="font-mono text-xs leading-loose tracking-wider whitespace-pre-wrap break-all relative z-5"
+        style={{ transform: `translateX(${glitchOffset}px)` }}
+      >
+        {lines.map((line, i) => (
+          <div
+            key={i}
+            className="corrupted-line corrupted-glow"
+            style={{
+              '--jitter-delay': `${i * 0.15}s`,
+              color: i % 3 === 0 ? '#ff3333' : i % 3 === 1 ? '#ff6633' : '#cc0000',
+              opacity: 0.7 + Math.random() * 0.3,
+            } as React.CSSProperties}
+          >
+            <span className="corrupted-chromatic" data-text={line}>
+              {line}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      {/* Bottom warning bar */}
+      <div className="mt-4 flex items-center gap-2 text-red-500/60 text-[9px] font-mono uppercase tracking-[0.3em] animate-pulse">
+        <span>⚠</span>
+        <span>ERRO CRC — CHECKSUM INVÁLIDO — SETORES DANIFICADOS</span>
+        <span>⚠</span>
+      </div>
+    </div>
+  );
 }
 
 /**
@@ -27,14 +180,19 @@ export default function EvidenceReader({ evidence, onClose }: EvidenceReaderProp
   // Detect if mediaUrl is a video
   const isVideo = isVisual && evidence.mediaUrl && /\.(mp4|webm|ogg|mov)$/i.test(evidence.mediaUrl);
 
-  // Color scheme per type
+  // Detect corrupted text content
+  const isCorrupted = isText && isCorruptedText(evidence.textContent || evidence.description || '');
+
+  // Color scheme per type — corrupted text gets a red/danger scheme
   const scheme = isVisual
     ? { bg: 'bg-[#0a0a0f]', text: 'text-cyan-400', border: 'border-cyan-400', accent: 'cyan', selBg: 'selection:bg-cyan-400', selText: 'selection:text-[#0a0a0f]', scrollThumb: '#22d3ee' }
     : isMeta
       ? { bg: 'bg-[#0f0a15]', text: 'text-purple-400', border: 'border-purple-400', accent: 'purple', selBg: 'selection:bg-purple-400', selText: 'selection:text-[#0f0a15]', scrollThumb: '#a855f7' }
       : isAudio
         ? { bg: 'bg-[#0d0a00]', text: 'text-amber-400', border: 'border-amber-400', accent: 'amber', selBg: 'selection:bg-amber-400', selText: 'selection:text-[#0d0a00]', scrollThumb: '#f59e0b' }
-        : { bg: 'bg-[#0a0a0a]', text: 'text-[#00ff00]', border: 'border-[#00ff00]', accent: 'green', selBg: 'selection:bg-[#00ff00]', selText: 'selection:text-[#0a0a0a]', scrollThumb: '#00ff00' };
+        : isCorrupted
+          ? { bg: 'bg-[#0a0000]', text: 'text-red-500', border: 'border-red-500', accent: 'red', selBg: 'selection:bg-red-500', selText: 'selection:text-black', scrollThumb: '#ef4444' }
+          : { bg: 'bg-[#0a0a0a]', text: 'text-[#00ff00]', border: 'border-[#00ff00]', accent: 'green', selBg: 'selection:bg-[#00ff00]', selText: 'selection:text-[#0a0a0a]', scrollThumb: '#00ff00' };
 
   const typeIcons: Record<string, string> = { AUDIO: '📼', VISUAL: '📷', TEXT: '💾', META: '🏆' };
 
@@ -155,10 +313,14 @@ export default function EvidenceReader({ evidence, onClose }: EvidenceReaderProp
             )}
           </div>
         ) : (
-          /* TEXT: Terminal-style text content */
-          <div className={`text-sm leading-relaxed whitespace-pre-wrap py-4 ${scheme.selBg} ${scheme.selText}`}>
-            {evidence.textContent || evidence.description}
-          </div>
+          /* TEXT: Terminal-style text content — with corrupted rendering for damaged files */
+          isCorruptedText(evidence.textContent || evidence.description || '') ? (
+            <CorruptedTextRenderer text={evidence.textContent || evidence.description || ''} />
+          ) : (
+            <div className={`text-sm leading-relaxed whitespace-pre-wrap py-4 ${scheme.selBg} ${scheme.selText}`}>
+              {evidence.textContent || evidence.description}
+            </div>
+          )
         )}
       </div>
       {/* Footer with enriched metadata */}

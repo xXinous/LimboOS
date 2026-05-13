@@ -4,7 +4,7 @@ import { X, Trophy, Music, MapPin, Search, User as UserIcon, Package, Shield, Cr
 import { updateCodinome, uploadProfilePhoto } from '../../store/firestore';
 import { ALL_ACHIEVEMENTS } from '../../data/achievements';
 import type { PlayerData } from '../../types/player';
-import type { Campaign } from '../../data/campaigns';
+import { campaigns, type Campaign } from '../../data/campaigns';
 import type { PlayerIntelCollection, IntelItem, AccessLevel } from '../../types/intel';
 import { ACCESS_LEVEL_LABELS } from '../../types/intel';
 import RetroSpinner from '../player/RetroSpinner';
@@ -33,11 +33,10 @@ const extractSpotifyEmbedUrl = (url: string) => {
 interface AgentDossierOverlayProps {
   onClose: () => void;
   playerData: PlayerData;
-  campaigns: Campaign[];
   intel: PlayerIntelCollection | null;
 }
 
-export const AgentDossierOverlay = ({ onClose, playerData, campaigns, intel }: AgentDossierOverlayProps) => {
+export const AgentDossierOverlay = ({ onClose, playerData, intel }: AgentDossierOverlayProps) => {
   const [activeTab, setActiveTab] = useState<DossierTab>('agente');
   const [selectedIntel, setSelectedIntel] = useState<IntelItem | null>(null);
   const [activeLevel, setActiveLevel] = useState<AccessLevel>(1);
@@ -233,7 +232,7 @@ export const AgentDossierOverlay = ({ onClose, playerData, campaigns, intel }: A
                 {selectedIntel.type === 'VISUAL' ? (
                   <div className="p-4 pt-8">
                     <div className="border border-primary/20 bg-black/40 overflow-hidden relative">
-                      <img src={selectedIntel.mediaUrl} alt={selectedIntel.title} className="w-full max-h-[50vh] object-contain opacity-80 group-hover:opacity-100 transition-opacity" />
+                      <img src={selectedIntel.mediaUrl} alt={selectedIntel.title} loading="lazy" decoding="async" className="w-full max-h-[50vh] object-contain opacity-80 group-hover:opacity-100 transition-opacity" />
                     </div>
                   </div>
                 ) : (

@@ -5,7 +5,11 @@ import './index.css';
 
 // Handle Vite chunk load errors after new deployments
 window.addEventListener('vite:preloadError', () => {
-  window.location.reload();
+  const reloaded = sessionStorage.getItem('vite_reload');
+  if (!reloaded) {
+    sessionStorage.setItem('vite_reload', '1');
+    window.location.reload();
+  }
 });
 
 // Fallback for native dynamic import failures
@@ -15,7 +19,11 @@ window.addEventListener('unhandledrejection', (event) => {
     msg.includes('Failed to fetch dynamically imported module') ||
     msg.includes('Importing a module script failed')
   ) {
-    window.location.reload();
+    const reloaded = sessionStorage.getItem('vite_reload');
+    if (!reloaded) {
+      sessionStorage.setItem('vite_reload', '1');
+      window.location.reload();
+    }
   }
 });
 

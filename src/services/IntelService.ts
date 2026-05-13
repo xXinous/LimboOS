@@ -4,6 +4,7 @@ import type { GalleryImage } from '../types/player';
 import { intelRegistry } from '../data/intel_registry';
 import { 
   fetchAudioTapeById, 
+  fetchAudioTapesByIds,
   fetchAllAudios,
   fetchAllGalleryImages,
   fetchQrRedirect, 
@@ -33,6 +34,21 @@ class IntelService {
 
   // --- Sincronização ---
 
+  private registerRemoteAudioFromFirebase(raw: Record<string, any>): IntelItem {
+    return intelRegistry.registerRemoteAudio({
+      id: raw.id,
+      title: raw.title,
+      artist: raw.artist,
+      npc: raw.npc,
+      chapter: raw.chapter,
+      description: raw.description,
+      url: raw.audioUrl || raw.url,
+      duration: raw.duration,
+      isSecret: raw.isSecret,
+      level: raw.level,
+    });
+  }
+
   /**
    * Sincroniza o registro local com o Firebase.
    * Útil para o painel administrativo ver todos os itens remotos.
@@ -44,19 +60,7 @@ class IntelService {
     ]);
 
     audios.forEach(audio => {
-      const a = audio as any;
-      intelRegistry.registerRemoteAudio({
-        id: a.id,
-        title: a.title,
-        artist: a.artist,
-        npc: a.npc,
-        chapter: a.chapter,
-        description: a.description,
-        url: a.audioUrl || a.url,
-        duration: a.duration,
-        isSecret: a.isSecret,
-        level: a.level,
-      });
+      this.registerRemoteAudioFromFirebase(audio);
     });
 
     gallery.forEach(img => {
@@ -96,19 +100,7 @@ class IntelService {
     const remoteTape = await fetchAudioTapeById(finalCode);
     if (remoteTape) {
       // Registra no registry para cache local
-    const remote = remoteTape as any;
-      return intelRegistry.registerRemoteAudio({
-        id: remote.id,
-        title: remote.title,
-        artist: remote.artist,
-        npc: remote.npc,
-        chapter: remote.chapter,
-        description: remote.description,
-        url: remote.audioUrl,
-        duration: remote.duration,
-        isSecret: remote.isSecret,
-        level: remote.level,
-      });
+      return this.registerRemoteAudioFromFirebase(remoteTape);
     }
 
     return null;
@@ -163,19 +155,7 @@ class IntelService {
     // Registra os novos itens remotos
     remoteTapesResults.forEach(remoteTape => {
       if (remoteTape) {
-        const r = remoteTape as any;
-        intelRegistry.registerRemoteAudio({
-          id: r.id,
-          title: r.title,
-          artist: r.artist,
-          npc: r.npc,
-          chapter: r.chapter,
-          description: r.description,
-          url: r.audioUrl,
-          duration: r.duration,
-          isSecret: r.isSecret,
-          level: r.level,
-        });
+        this.registerRemoteAudioFromFirebase(remoteTape);
       }
     });
 
@@ -240,25 +220,11 @@ class IntelService {
     const idsToFetch = ids.filter(id => !intelRegistry.get(id));
     
     if (idsToFetch.length > 0) {
-      const remoteTapesResults = await Promise.all(
-        idsToFetch.map(id => fetchAudioTapeById(id))
-      );
+      const remoteTapesResults = await fetchAudioTapesByIds(idsToFetch);
 
       remoteTapesResults.forEach(remoteTape => {
         if (remoteTape) {
-          const r = remoteTape as any;
-          intelRegistry.registerRemoteAudio({
-            id: r.id,
-            title: r.title,
-            artist: r.artist,
-            npc: r.npc,
-            chapter: r.chapter,
-            description: r.description,
-            url: r.audioUrl,
-            duration: r.duration,
-            isSecret: r.isSecret,
-            level: r.level,
-          });
+          this.registerRemoteAudioFromFirebase(remoteTape);
         }
       });
     }
