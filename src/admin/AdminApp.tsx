@@ -52,7 +52,7 @@ export default function App() {
     return <RetroLoading fullScreen message="Inicializando_Protocolos..." subMessage="Acessando Terminal Administrativo RM-84" />;
   }
 
-  if (!user) {
+  if (!user || user.email !== 'gm.mpg@runningman.local') {
     window.location.href = '/';
     return null;
   }

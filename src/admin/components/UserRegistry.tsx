@@ -125,27 +125,23 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
   };
 
   const refreshAgents = async () => {
-    const agents: {uid: string, char: CharacterData}[] = [];
-    for (const acc of accounts) {
-      const chars = await userService.fetchCharactersForUser(acc.uid);
-      chars.forEach(char => agents.push({ uid: acc.uid, char }));
-    }
-    setAllCharacters(agents);
+    // No-op: handled by real-time listener
   };
 
   useEffect(() => {
-    const unsubUsers = userService.subscribeToUsers(async (fetchedAccounts) => {
+    const unsubUsers = userService.subscribeToUsers((fetchedAccounts) => {
       setAccounts(fetchedAccounts);
-      
-      const agents: {uid: string, char: CharacterData}[] = [];
-      for (const acc of fetchedAccounts) {
-        const chars = await userService.fetchCharactersForUser(acc.uid);
-        chars.forEach(char => agents.push({ uid: acc.uid, char }));
-      }
-      setAllCharacters(agents);
     });
-    return () => unsubUsers();
-  }, [accounts.length]);
+
+    const unsubChars = userService.subscribeToAllCharacters((fetchedCharacters) => {
+      setAllCharacters(fetchedCharacters);
+    });
+
+    return () => {
+      unsubUsers();
+      unsubChars();
+    };
+  }, []);
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -383,9 +379,14 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
                           <span className={`material-symbols-outlined text-sm text-industrial-silver/30 transition-transform ${isExpanded ? 'rotate-90 text-primary' : ''}`}>
                             chevron_right
                           </span>
-                          <span className="font-display font-bold text-xs text-white uppercase tracking-wider">
-                            {acc.masterName || <span className="text-industrial-silver/20 italic text-[10px]">PENDENTE...</span>}
-                          </span>
+                          <div className="flex flex-col">
+                            <span className="font-display font-bold text-xs text-white uppercase tracking-wider">
+                              {acc.displayName || acc.masterName || <span className="text-industrial-silver/20 italic text-[10px]">PENDENTE...</span>}
+                            </span>
+                            {acc.displayName && (
+                              <span className="text-[9px] text-industrial-silver/30 font-mono uppercase tracking-tighter">ID: {acc.masterName}</span>
+                            )}
+                          </div>
                         </div>
                       </td>
                       <td className="p-6">

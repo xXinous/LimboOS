@@ -39,15 +39,26 @@ export default function GroupManager({ isAdmin }: GroupManagerProps) {
 
   useEffect(() => {
     const unsubGroups = groupService.subscribeToGroups(setGroups);
-    const unsubUsers = userService.subscribeToUsers(async (fetchedUsers) => {
-      setUsers(fetchedUsers);
-      const agents: {uid: string, char: CharacterData}[] = [];
-      for (const user of fetchedUsers) {
-        if (user.role === 'admin') continue;
-        const chars = await userService.fetchCharactersForUser(user.uid);
-        chars.forEach(c => agents.push({ uid: user.uid, char: c }));
-      }
-      setAllCharacters(agents);
+    let currentAccounts: any[] = [];
+    let currentChars: {uid: string, char: CharacterData}[] = [];
+
+    const updateAllCharacters = () => {
+      const filtered = currentChars.filter(c => {
+        const u = currentAccounts.find(acc => acc.uid === c.uid);
+        return !!u;
+      });
+      setAllCharacters(filtered);
+    };
+
+    const unsubUsers = userService.subscribeToUsers((fetchedUsers) => {
+      setUsers(fetchedUsers as unknown as UserData[]);
+      currentAccounts = fetchedUsers;
+      updateAllCharacters();
+    });
+
+    const unsubChars = userService.subscribeToAllCharacters((fetchedCharacters) => {
+      currentChars = fetchedCharacters;
+      updateAllCharacters();
     });
     
     const unsubCampaigns = onSnapshot(collection(db, 'campaigns'), (snap) => {
@@ -59,6 +70,7 @@ export default function GroupManager({ isAdmin }: GroupManagerProps) {
     return () => {
       unsubGroups();
       unsubUsers();
+      unsubChars();
       unsubCampaigns();
     };
   }, []);

@@ -11,7 +11,8 @@ import {
   where,
   getDoc,
   writeBatch,
-  onSnapshot
+  onSnapshot,
+  collectionGroup
 } from "firebase/firestore";
 import { initializeApp, deleteApp } from "firebase/app";
 import { getAuth, createUserWithEmailAndPassword } from "firebase/auth";
@@ -43,6 +44,22 @@ export class UserService {
         callback(users);
       },
       (err) => console.warn('[UserService] users listener error:', err)
+    );
+  }
+
+  public subscribeToAllCharacters(callback: (characters: {uid: string, char: CharacterData}[]) => void): () => void {
+    return onSnapshot(collectionGroup(db, "characters"),
+      (snapshot) => {
+        const characters: {uid: string, char: CharacterData}[] = [];
+        snapshot.forEach((doc) => {
+          const uid = doc.ref.parent.parent?.id;
+          if (uid) {
+            characters.push({ uid, char: { id: doc.id, ...doc.data() } as CharacterData });
+          }
+        });
+        callback(characters);
+      },
+      (err) => console.warn('[UserService] characters collectionGroup listener error:', err)
     );
   }
 

@@ -23,7 +23,10 @@ export async function loginOrCreate(
   masterId: string,
   password: string,
 ): Promise<LoginResult> {
-  const email = masterIdToEmail(masterId);
+  // Verifica se o input é um e-mail legado
+  const isLegacyEmail = masterId.includes('@') && masterId.includes('.');
+  const email = isLegacyEmail ? masterId.trim() : masterIdToEmail(masterId);
+  
   try {
     const { user } = await signInWithEmailAndPassword(auth, email, password);
     await updateLastLogin(user.uid);
@@ -39,7 +42,7 @@ export async function loginOrCreate(
     if (code === 'auth/user-not-found' || code === 'auth/invalid-credential') {
       try {
         const { user } = await createUserWithEmailAndPassword(auth, email, password);
-        await createUserDoc(user.uid, email);
+        await createUserDoc(user.uid, email, masterId);
         const account = await loadMasterAccount(user.uid);
         return { ok: true, account };
       } catch (createErr: unknown) {

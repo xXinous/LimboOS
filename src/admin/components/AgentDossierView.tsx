@@ -234,7 +234,7 @@ export default function AgentDossierView({ uid, character, masterAccount, onClos
                   
                   <div className="mt-2 flex items-center gap-2">
                     <span className="text-[10px] font-black text-primary uppercase tracking-widest bg-primary/10 px-2 py-0.5 rounded-sm">
-                      Mestre: {masterAccount?.masterName || masterAccount?.email}
+                      Mestre: {masterAccount?.displayName || masterAccount?.masterName || masterAccount?.email}
                     </span>
                     <p className="font-mono text-[9px] text-zinc-600 uppercase tracking-widest font-bold">
                       RM-{character.id} // {(masterAccount?.uid || "").slice(0,8)}

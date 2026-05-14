@@ -74,14 +74,14 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
                   <div className="space-y-6">
                     <div className="group">
                       <label className="block text-[10px] font-display font-bold uppercase tracking-[0.2em] mb-2 text-industrial-silver/60 group-focus-within:text-primary transition-colors">
-                        ID Mestre (Acesso à Conta)
+                        ID Mestre ou E-mail (Contas Antigas)
                       </label>
                       <div className="relative">
                         <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-industrial-silver/40 group-focus-within:text-primary transition-colors">
                           <Terminal size={16} />
                         </div>
                         <input type="text" required value={masterId} onChange={e => setMasterId(e.target.value)}
-                          placeholder="EX: RM-USER-01"
+                          placeholder="RM-USER-01 ou e-mail"
                           className="w-full bg-surface-container-lowest border-none py-4 pl-12 pr-4 text-white font-sans text-base tracking-wide focus:ring-0 placeholder:text-industrial-silver/20 outline-none" />
                         <div className="absolute bottom-0 left-0 h-0.5 w-0 bg-primary transition-all duration-300 group-focus-within:w-full" />
                       </div>

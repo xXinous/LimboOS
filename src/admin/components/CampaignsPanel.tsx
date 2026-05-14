@@ -62,18 +62,27 @@ export default function CampaignsPanel() {
       setGroups(list);
     });
 
-    const unsubUsers = onSnapshot(collection(db, 'users'), async (snap) => {
-      const list: UserData[] = [];
-      snap.forEach(d => list.push(d.data() as UserData));
-      setUsers(list);
-      
-      // Load all characters
-      try {
-        const chars = await userService.fetchAllCharactersWithAccounts();
-        setAllCharacters(chars.filter(c => c.account.role !== 'admin' && !c.character.archived));
-      } catch (err) {
-        console.error("Error fetching characters:", err);
-      }
+    let currentAccounts: MasterAccount[] = [];
+    let currentChars: {uid: string, char: CharacterData}[] = [];
+
+    const updateAllCharacters = () => {
+      const combined = currentChars.map(c => {
+        const acc = currentAccounts.find(a => a.uid === c.uid);
+        if (!acc) return null;
+        return { account: acc, character: c.char };
+      }).filter(Boolean) as {account: MasterAccount; character: CharacterData}[];
+      setAllCharacters(combined.filter(c => c.account.role !== 'admin' && !c.character.archived));
+    };
+
+    const unsubUsers = userService.subscribeToUsers((fetchedAccounts) => {
+      setUsers(fetchedAccounts as unknown as UserData[]);
+      currentAccounts = fetchedAccounts;
+      updateAllCharacters();
+    });
+
+    const unsubChars = userService.subscribeToAllCharacters((fetchedCharacters) => {
+      currentChars = fetchedCharacters;
+      updateAllCharacters();
     });
 
     return () => {
@@ -81,6 +90,7 @@ export default function CampaignsPanel() {
       unsubSettings();
       unsubGroups();
       unsubUsers();
+      unsubChars();
     };
   }, []);
 

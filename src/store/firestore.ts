@@ -53,10 +53,11 @@ export async function loadMasterAccount(uid: string): Promise<MasterAccount> {
   return snap.data() as MasterAccount;
 }
 
-export async function createUserDoc(uid: string, email: string): Promise<void> {
+export async function createUserDoc(uid: string, email: string, masterId: string): Promise<void> {
   await setDoc(doc(db, 'users', uid), {
     uid,
     email,
+    masterName: masterId,
     role: 'player',
     createdAt: serverTimestamp(),
     lastLogin: serverTimestamp(),

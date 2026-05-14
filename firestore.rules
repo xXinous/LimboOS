@@ -26,6 +26,9 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
     
+    match /{path=**}/characters/{characterId} {
+      allow read: if isAdmin();
+    }
     match /{path=**}/achievements/{achId} {
       allow read: if isAdmin();
     }

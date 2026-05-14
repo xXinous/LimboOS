@@ -12,6 +12,7 @@ export interface MasterAccount {
   uid: string;
   email: string;
   masterName?: string;
+  displayName?: string;
   role: 'player' | 'admin';
   createdAt: Timestamp | null;
   lastLogin?: Timestamp | null;

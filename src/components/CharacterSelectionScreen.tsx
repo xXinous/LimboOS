@@ -20,8 +20,8 @@ export default function CharacterSelectionScreen({ account, onSelect, onLogout }
   const [newCodinome, setNewCodinome] = useState('');
   const [creating, setCreating] = useState(false);
 
-  // Master Name Flow
-  const [showMasterNamePrompt, setShowMasterNamePrompt] = useState(!account.masterName);
+  // Master Name / Display Name Flow
+  const [showMasterNamePrompt, setShowMasterNamePrompt] = useState(!account.displayName);
   const [newMasterName, setNewMasterName] = useState('');
   const [savingMasterName, setSavingMasterName] = useState(false);
 
@@ -30,11 +30,11 @@ export default function CharacterSelectionScreen({ account, onSelect, onLogout }
     if (!newMasterName.trim() || savingMasterName) return;
     setSavingMasterName(true);
     try {
-      await userService.updateMasterAccount(account.uid, { masterName: newMasterName.trim() });
-      account.masterName = newMasterName.trim(); // Local update
+      await userService.updateMasterAccount(account.uid, { displayName: newMasterName.trim() });
+      account.displayName = newMasterName.trim(); // Local update
       setShowMasterNamePrompt(false);
     } catch (err) {
-      console.error("Failed to save master name:", err);
+      console.error("Failed to save display name:", err);
     } finally {
       setSavingMasterName(false);
     }
@@ -46,7 +46,20 @@ export default function CharacterSelectionScreen({ account, onSelect, onLogout }
 
   const loadCharacters = async () => {
     try {
-      const list = await fetchCharacters(account.uid);
+      let list = await fetchCharacters(account.uid);
+      
+      // Legacy Migration: If account has a masterName but NO characters,
+      // autonomously create the first character using the masterName.
+      if (list.length === 0 && account.masterName && account.masterName !== account.email) {
+        console.log("[Migration] Legacy account detected. Creating initial character...");
+        try {
+          const legacyChar = await createCharacter(account.uid, account.masterName);
+          list = [legacyChar];
+        } catch (migErr) {
+          console.error("Migration failed:", migErr);
+        }
+      }
+      
       setCharacters(list);
     } catch (err) {
       console.error(err);
@@ -87,7 +100,7 @@ export default function CharacterSelectionScreen({ account, onSelect, onLogout }
               Seleção de <span className="text-primary">Agente</span>
             </h1>
             <p className="text-[10px] font-display uppercase tracking-[0.2em] text-industrial-silver/50 mt-1">
-              Conta: {account.masterName || account.email} // Registros: {characters.length}
+              Operador: {account.displayName || account.masterName || account.email} // Registros: {characters.length}
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -218,13 +231,13 @@ export default function CharacterSelectionScreen({ account, onSelect, onLogout }
                 Identificação <span className="text-primary">Mestra</span>
               </h2>
               <p className="text-xs font-mono text-industrial-silver/70 mb-8 leading-relaxed">
-                Para facilitar o gerenciamento da rede, todos os operadores devem definir um <strong className="text-primary">Nome Geral</strong> para sua conta mestra. Este nome substituirá o uso do UID alfanumérico.
+                Para facilitar o gerenciamento da rede, todos os operadores devem definir um <strong className="text-primary">Nome Geral</strong> para sua conta mestra. Este nome será sua identidade visual no sistema.
               </p>
               
               <form onSubmit={handleSaveMasterName} className="space-y-6">
                 <div className="group">
                   <label className="block text-[10px] font-display font-bold uppercase tracking-[0.2em] mb-2 text-industrial-silver/60 group-focus-within:text-primary transition-colors">
-                    Nome Geral (Conta Mestra)
+                    Nome Geral de Exibição
                   </label>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-industrial-silver/40 group-focus-within:text-primary transition-colors">

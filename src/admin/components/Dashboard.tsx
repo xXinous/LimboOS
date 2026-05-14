@@ -36,6 +36,7 @@ import Screw from '../../components/player/Screw';
 export default function Dashboard({ user, onLogout }: DashboardProps) {
   const [isAdmin, setIsAdmin] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [mountedTabs, setMountedTabs] = useState<Set<string>>(new Set(['dashboard']));
   const [libraryTab, setLibraryTab] = useState<'acervo' | 'jukebox' | 'galeria' | 'qr'>('acervo');
   const [stats, setStats] = useState<Stats>({ totalUsers: 0, totalAudios: 0, totalPlays: 0 });
   const [sessionTime, setSessionTime] = useState(() => new Date().toISOString().substr(11, 8));
@@ -43,6 +44,10 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
   const [spotlightOpen, setSpotlightOpen] = useState(false);
   const [allAccounts, setAllAccounts] = useState<MasterAccount[]>([]);
   const [allCharacters, setAllCharacters] = useState<{uid: string, char: CharacterData}[]>([]);
+
+  useEffect(() => {
+    setMountedTabs(prev => new Set(prev).add(activeTab));
+  }, [activeTab]);
 
   useEffect(() => {
     const checkAdmin = async () => {
@@ -76,16 +81,16 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
   // Load accounts + characters for spotlight search
   useEffect(() => {
     if (!isAdmin) return;
-    const unsub = userService.subscribeToUsers(async (accs) => {
+    const unsubUsers = userService.subscribeToUsers((accs) => {
       setAllAccounts(accs);
-      const agents: {uid: string, char: CharacterData}[] = [];
-      for (const acc of accs) {
-        const chars = await userService.fetchCharactersForUser(acc.uid);
-        chars.forEach(char => agents.push({ uid: acc.uid, char }));
-      }
-      setAllCharacters(agents);
     });
-    return () => unsub();
+    const unsubChars = userService.subscribeToAllCharacters((chars) => {
+      setAllCharacters(chars);
+    });
+    return () => {
+      unsubUsers();
+      unsubChars();
+    };
   }, [isAdmin]);
 
   // Keyboard shortcuts: Cmd+K for spotlight, Cmd+1-7 for tabs
@@ -153,60 +158,82 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
                   </div>
                 </div>
               }>
-                {activeTab === 'dashboard' && (
-                  <div className="space-y-8">
-                    <AnalyticsPanel />
-                    <div className="border-t border-primary/10 pt-8">
-                      <div className="flex items-center gap-3 mb-6">
-                        <div className="h-px flex-1 bg-linear-to-r from-transparent to-primary/20" />
-                        <h3 className="text-industrial-silver/40 font-display text-[10px] uppercase font-bold tracking-[0.3em]">Log_Central_do_Nucleo</h3>
-                        <div className="h-px flex-1 bg-linear-to-l from-transparent to-primary/20" />
+                {mountedTabs.has('dashboard') && (
+                  <div className={activeTab === 'dashboard' ? 'block' : 'hidden'}>
+                    <div className="space-y-8">
+                      <AnalyticsPanel />
+                      <div className="border-t border-primary/10 pt-8">
+                        <div className="flex items-center gap-3 mb-6">
+                          <div className="h-px flex-1 bg-linear-to-r from-transparent to-primary/20" />
+                          <h3 className="text-industrial-silver/40 font-display text-[10px] uppercase font-bold tracking-[0.3em]">Log_Central_do_Nucleo</h3>
+                          <div className="h-px flex-1 bg-linear-to-l from-transparent to-primary/20" />
+                        </div>
+                        <SystemLogPanel />
                       </div>
-                      <SystemLogPanel />
                     </div>
                   </div>
                 )}
 
-                {activeTab === 'missions' && <CampaignsPanel />}
-                {activeTab === 'players' && <UserRegistry isAdmin={isAdmin} />}
-                {activeTab === 'squads' && <GroupManager isAdmin={isAdmin} />}
-
-                {activeTab === 'library' && (
-                  <div className="bg-surface-container-low border border-primary/20 overflow-hidden rounded-sm shadow-xl">
-                    {/* Navegação da Biblioteca */}
-                    <div className="flex flex-wrap border-b border-primary/10 bg-black/20">
-                      <LibrarySubTab label="Acervo" active={libraryTab === 'acervo'} onClick={() => setLibraryTab('acervo')} icon="album" />
-                      <LibrarySubTab label="Jukebox" active={libraryTab === 'jukebox'} onClick={() => setLibraryTab('jukebox')} icon="queue_music" />
-                      <LibrarySubTab label="Galeria" active={libraryTab === 'galeria'} onClick={() => setLibraryTab('galeria')} icon="photo_library" />
-                      <LibrarySubTab label="QR Codes" active={libraryTab === 'qr'} onClick={() => setLibraryTab('qr')} icon="qr_code" />
-                    </div>
-
-                    <div className="p-4 sm:p-8">
-                      {libraryTab === 'acervo' && <AudioBuffer user={user} isAdmin={isAdmin} />}
-                      {libraryTab === 'jukebox' && <JukeboxPanel />}
-                      {libraryTab === 'galeria' && <GalleryPanel />}
-                      {libraryTab === 'qr' && <RedirectsPanel />}
-                    </div>
+                {mountedTabs.has('missions') && (
+                  <div className={activeTab === 'missions' ? 'block' : 'hidden'}>
+                    <CampaignsPanel />
+                  </div>
+                )}
+                
+                {mountedTabs.has('players') && (
+                  <div className={activeTab === 'players' ? 'block' : 'hidden'}>
+                    <UserRegistry isAdmin={isAdmin} />
+                  </div>
+                )}
+                
+                {mountedTabs.has('squads') && (
+                  <div className={activeTab === 'squads' ? 'block' : 'hidden'}>
+                    <GroupManager isAdmin={isAdmin} />
                   </div>
                 )}
 
-                {activeTab === 'intel' && (
-                  <div className="space-y-8">
-                    <IntelCreatorPanel />
-                    <div className="border-t border-primary/10 pt-8">
-                      <div className="flex items-center gap-3 mb-6">
-                        <div className="h-px flex-1 bg-linear-to-r from-transparent to-primary/20" />
-                        <h3 className="text-industrial-silver/40 font-display text-[10px] uppercase font-bold tracking-[0.3em]">Catálogo_de_Conquistas</h3>
-                        <div className="h-px flex-1 bg-linear-to-l from-transparent to-primary/20" />
+                {mountedTabs.has('library') && (
+                  <div className={activeTab === 'library' ? 'block' : 'hidden'}>
+                    <div className="bg-surface-container-low border border-primary/20 overflow-hidden rounded-sm shadow-xl">
+                      {/* Navegação da Biblioteca */}
+                      <div className="flex flex-wrap border-b border-primary/10 bg-black/20">
+                        <LibrarySubTab label="Acervo" active={libraryTab === 'acervo'} onClick={() => setLibraryTab('acervo')} icon="album" />
+                        <LibrarySubTab label="Jukebox" active={libraryTab === 'jukebox'} onClick={() => setLibraryTab('jukebox')} icon="queue_music" />
+                        <LibrarySubTab label="Galeria" active={libraryTab === 'galeria'} onClick={() => setLibraryTab('galeria')} icon="photo_library" />
+                        <LibrarySubTab label="QR Codes" active={libraryTab === 'qr'} onClick={() => setLibraryTab('qr')} icon="qr_code" />
                       </div>
-                      <AchievementsPanel />
+
+                      <div className="p-4 sm:p-8">
+                        {libraryTab === 'acervo' && <AudioBuffer user={user} isAdmin={isAdmin} />}
+                        {libraryTab === 'jukebox' && <JukeboxPanel />}
+                        {libraryTab === 'galeria' && <GalleryPanel />}
+                        {libraryTab === 'qr' && <RedirectsPanel />}
+                      </div>
                     </div>
                   </div>
                 )}
 
-                {activeTab === 'systems' && (
-                  <div className="space-y-8">
-                    <TerminalPanel />
+                {mountedTabs.has('intel') && (
+                  <div className={activeTab === 'intel' ? 'block' : 'hidden'}>
+                    <div className="space-y-8">
+                      <IntelCreatorPanel />
+                      <div className="border-t border-primary/10 pt-8">
+                        <div className="flex items-center gap-3 mb-6">
+                          <div className="h-px flex-1 bg-linear-to-r from-transparent to-primary/20" />
+                          <h3 className="text-industrial-silver/40 font-display text-[10px] uppercase font-bold tracking-[0.3em]">Catálogo_de_Conquistas</h3>
+                          <div className="h-px flex-1 bg-linear-to-l from-transparent to-primary/20" />
+                        </div>
+                        <AchievementsPanel />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {mountedTabs.has('systems') && (
+                  <div className={activeTab === 'systems' ? 'block' : 'hidden'}>
+                    <div className="space-y-8">
+                      <TerminalPanel />
+                    </div>
                   </div>
                 )}
               </React.Suspense>
