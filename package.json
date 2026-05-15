@@ -1,5 +1,5 @@
 {
-  "name": "react-example",
+  "name": "limbo-os",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -9,9 +9,9 @@
     "preview": "vite preview",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
-    "deploy": "npm run build && firebase deploy --only hosting:main",
-    "deploy:beta": "npm run build && firebase deploy --only hosting:staging",
-    "deploy:full": "npm run build && firebase deploy"
+    "deploy": "npm run build && cd backend && firebase deploy --only hosting:main",
+    "deploy:beta": "npm run build && cd backend && firebase deploy --only hosting:staging",
+    "deploy:full": "npm run build && cd backend && firebase deploy"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.14",
