@@ -1,0 +1,6 @@
+[submodule "backend"]
+	path = backend
+	url = https://github.com/xXinous/LimboOS-backend.git
+[submodule "mobile"]
+	path = mobile
+	url = https://github.com/xXinous/LimboOS-mobile.git
