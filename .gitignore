@@ -8,3 +8,18 @@ coverage/
 !.env.example
 
 /src/generated/prisma
+
+# Arquivos de IA
+.gemini/
+conductor/
+query_local_model
+.cline/
+.cursorrules
+
+# Arquivos sensíveis/pessoais
+.vscode/
+.idea/
+.firebase/
+*.pem
+*.key
+*.cert
