@@ -1,13 +1,31 @@
+# Monorepo Globals
 node_modules/
-build/
 dist/
+build/
 coverage/
 .DS_Store
 *.log
 .env*
 !.env.example
 
-/src/generated/prisma
+# Web Specific
+web/node_modules/
+web/dist/
+
+# Mobile Specific (Flutter)
+mobile/.dart_tool/
+mobile/.flutter-plugins
+mobile/.flutter-plugins-dependencies
+mobile/.packages
+mobile/.pub-cache/
+mobile/.pub/
+mobile/build/
+mobile/ios/Flutter/.last_build_id
+mobile/android/app/debug
+mobile/android/app/profile
+mobile/android/app/release
+mobile/app.*.symbols
+mobile/app.*.map.json
 
 # Arquivos de IA
 .gemini/
