@@ -69,7 +69,43 @@ A Fase 4 foi concluída com sucesso, integrando todos os componentes principais 
 
 ---
 
-**Status Atual:** 🟢 Sistema Unificado Completo — Código Morto Removido
-**Próximo Passo Recomendado:** Testes de campo com QR codes reais para validar resolução dinâmica via `IntelService`.
+## ✅ O que foi feito (Fase 6 - Sistema Unificado de Intel v2.0)
+
+Esta fase consolidou a visão de "Intel" como o motor único de progressão e coleta.
+
+### 1. Inteligência de Tipos Automática
+- **`IntelCreatorPanel.tsx`**: Implementada detecção automática de `IntelType` (AUDIO, VISUAL, TEXT) com base na extensão do arquivo ao colar uma URL.
+- Suporta extensões de áudio (`.mp3`, `.wav`, etc.), imagem (`.jpg`, `.png`, etc.) e vídeo (`.mp4`, `.mov`, etc.).
+
+### 2. Gerador de QR Code Integrado
+- Novo modal de Assinatura Digital no Painel Admin permite gerar, copiar e baixar QR Codes para qualquer item do registro instantaneamente.
+- Utiliza a biblioteca `react-qr-code` já integrada ao projeto.
+
+### 3. Engine Multimídia Unificada
+- **`EvidenceReader.tsx`**: Agora é o visualizador mestre para todos os tipos de mídia.
+- Suporte nativo a **Vídeos** (`<video>` com controles) para itens do tipo VISUAL com extensões de vídeo.
+- Suporte a **Áudio** embutido, **Imagens** e **Textos** (incluindo renderização de glitch para textos corrompidos).
+
+### 4. Limpeza e Migração
+- **Script de Migração**: Adicionado `migrateToUnifiedIntel` para mover dados de `tapes` e `gallery` para a nova coleção unificada `intel`.
+- **Botão de Gatilho**: Adicionado ao `SystemLogPanel` para execução controlada pelo administrador.
+- **PlayerSyncService**: Unificado para escutar todas as fontes e consolidar o inventário em `unlockedIntelIds`.
+
+---
+
+## 🔜 Próximos Passos
+
+### 1. Finalização da Migração
+- Rodar o script de migração via Painel Admin para todos os usuários ativos.
+- Após validar a migração, remover permanentemente os listeners de `tapes` e `gallery` no `PlayerSyncService`.
+
+### 2. Painéis Admin Secundários
+- Migrar o `JukeboxPanel` e `GalleryPanel` para utilizarem o `IntelService` em vez dos serviços legados de áudio/galeria individuais.
+- Remover o `AudioBuffer.tsx` legando após garantir que todos os áudios estão no `IntelRegistry`.
+
+---
+
+**Status Atual:** 🟢 Sistema Unificado v2.0 Operacional — Multimídia Total
+**Nota:** O sistema de "Dicas" foi removido do plano conforme solicitado, mantendo o foco em descobertas puras via scanner.
 
 *Relatório atualizado em 04 de Maio de 2026.*

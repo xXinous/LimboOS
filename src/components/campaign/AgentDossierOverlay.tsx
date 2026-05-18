@@ -5,8 +5,9 @@ import { updateCodinome, uploadProfilePhoto } from '../../store/firestore';
 import { ALL_ACHIEVEMENTS } from '../../data/achievements';
 import type { PlayerData } from '../../types/player';
 import { campaigns, type Campaign } from '../../data/campaigns';
-import type { PlayerIntelCollection, IntelItem, AccessLevel } from '../../types/intel';
+import type { AccessLevel } from '../../types/intel';
 import { ACCESS_LEVEL_LABELS } from '../../types/intel';
+import { IntelManager, IntelBase, VisualIntel, AudioIntel, TextIntel } from '../../services/IntelEngine';
 import RetroSpinner from '../player/RetroSpinner';
 
 const STATUS_CONFIG = {
@@ -33,12 +34,12 @@ const extractSpotifyEmbedUrl = (url: string) => {
 interface AgentDossierOverlayProps {
   onClose: () => void;
   playerData: PlayerData;
-  intel: PlayerIntelCollection | null;
+  intelManager: IntelManager | null;
 }
 
-export const AgentDossierOverlay = ({ onClose, playerData, intel }: AgentDossierOverlayProps) => {
+export const AgentDossierOverlay = ({ onClose, playerData, intelManager }: AgentDossierOverlayProps) => {
   const [activeTab, setActiveTab] = useState<DossierTab>('agente');
-  const [selectedIntel, setSelectedIntel] = useState<IntelItem | null>(null);
+  const [selectedIntel, setSelectedIntel] = useState<IntelBase | null>(null);
   const [activeLevel, setActiveLevel] = useState<AccessLevel>(1);
   const [isEditingName, setIsEditingName] = useState(false);
   const [editName, setEditName] = useState(playerData.character.codinome);
@@ -111,7 +112,11 @@ export const AgentDossierOverlay = ({ onClose, playerData, intel }: AgentDossier
       </header>
 
       <div className="flex border-b border-primary/10 bg-black/20 shrink-0 relative z-20">
-        {[ { val: intel?.counts.total || 0, lab: 'Total Intel' }, { val: stats.earnedIds.size, lab: 'Medalhas' }, { val: intel?.counts.visual || 0, lab: 'Evidências' } ].map((s, i) => (
+        {[ 
+          { val: intelManager?.getAll().length || 0, lab: 'Total Intel' }, 
+          { val: stats.earnedIds.size, lab: 'Medalhas' }, 
+          { val: intelManager?.getByType('VISUAL').length || 0, lab: 'Evidências' } 
+        ].map((s, i) => (
           <div key={i} className="flex-1 flex flex-col items-center py-3 border-r border-primary/10 last:border-r-0">
             <span className="text-primary font-display font-bold text-xl leading-none">{s.val}</span>
             <span className="text-[9px] text-industrial-silver/40 uppercase tracking-[0.2em] font-bold mt-1">{s.lab}</span>
@@ -174,18 +179,18 @@ export const AgentDossierOverlay = ({ onClose, playerData, intel }: AgentDossier
               </div>
               
               <div className="space-y-3">
-                {!intel || intel.byLevel[activeLevel].length === 0 ? (
+                {!intelManager || intelManager.getByLevel(activeLevel).length === 0 ? (
                   <div className="bg-surface-container-low border border-primary/5 p-10 text-center opacity-20 font-display text-[10px] uppercase tracking-[0.3em] flex flex-col items-center gap-4">
                     <Radio size={32} />
                     Nenhum registro encontrado
                   </div>
                 ) : (
-                  intel.byLevel[activeLevel].map((item, i) => (
+                  intelManager.getByLevel(activeLevel).map((item, i) => (
                     <motion.div key={item.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.03 }} 
-                      onClick={() => (item.type === 'VISUAL' || item.type === 'TEXT') && setSelectedIntel(item)} 
-                      className={`bg-surface-container-low border border-primary/10 p-4 flex items-center gap-4 transition-all group ${(item.type === 'VISUAL' || item.type === 'TEXT') ? 'cursor-pointer hover:border-primary/40 active:scale-[0.99]' : ''}`}>
+                      onClick={() => (item instanceof VisualIntel || item instanceof TextIntel) && setSelectedIntel(item)} 
+                      className={`bg-surface-container-low border border-primary/10 p-4 flex items-center gap-4 transition-all group ${(item instanceof VisualIntel || item instanceof TextIntel) ? 'cursor-pointer hover:border-primary/40 active:scale-[0.99]' : ''}`}>
                       <div className="w-10 h-10 border border-primary/10 bg-black/40 flex items-center justify-center text-primary group-hover:border-primary/30 transition-colors">
-                        {item.type === 'AUDIO' ? <Radio size={18} /> : item.type === 'VISUAL' ? <Camera size={18} /> : <Radio size={18} />}
+                        <span className="text-lg">{item.getTypeIcon()}</span>
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="text-[11px] font-display font-bold text-white group-hover:text-primary transition-colors truncate uppercase tracking-wider">{item.title}</p>
@@ -229,7 +234,7 @@ export const AgentDossierOverlay = ({ onClose, playerData, intel }: AgentDossier
             <motion.div initial={{ scale: 0.9, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }} className="relative max-w-sm w-full" onClick={e => e.stopPropagation()}>
               <div className="bg-surface-container-low border-2 border-primary/30 shadow-2xl overflow-hidden relative">
                 <div className="absolute -top-3 left-6 bg-primary px-2 py-0.5 text-[10px] font-display font-bold text-black tracking-widest uppercase z-10">Arquivo_Desbloqueado</div>
-                {selectedIntel.type === 'VISUAL' ? (
+                {selectedIntel instanceof VisualIntel ? (
                   <div className="p-4 pt-8">
                     <div className="border border-primary/20 bg-black/40 overflow-hidden relative">
                       <img src={selectedIntel.mediaUrl} alt={selectedIntel.title} loading="lazy" decoding="async" className="w-full max-h-[50vh] object-contain opacity-80 group-hover:opacity-100 transition-opacity" />
@@ -238,7 +243,7 @@ export const AgentDossierOverlay = ({ onClose, playerData, intel }: AgentDossier
                 ) : (
                   <div className="p-6 pt-10 font-mono text-[11px] text-primary/80 max-h-[60vh] overflow-y-auto custom-scrollbar leading-relaxed">
                     <p className="border-b border-primary/20 pb-3 mb-4 uppercase font-bold text-white tracking-widest">{selectedIntel.title}</p>
-                    <p className="whitespace-pre-wrap">{selectedIntel.textContent || selectedIntel.description}</p>
+                    <p className="whitespace-pre-wrap">{selectedIntel instanceof TextIntel ? selectedIntel.content : selectedIntel.description}</p>
                   </div>
                 )}
                 <div className="p-6 bg-black/40 border-t border-primary/10">

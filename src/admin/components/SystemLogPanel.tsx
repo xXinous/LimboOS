@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { collection, onSnapshot, query, orderBy, limit, getDocs, writeBatch, Timestamp } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useModal } from './ConfirmModal';
+import { migrateToUnifiedIntel } from '../../store/migration';
 
 interface LogEntry {
   id: string;
@@ -149,6 +150,7 @@ export default function SystemLogPanel() {
   const [filterCategory, setFilterCategory] = useState('');
   const [filterUser, setFilterUser] = useState('');
   const [searchText, setSearchText] = useState('');
+  const [isMigrating, setIsMigrating] = useState(false);
   const { showConfirm, showAlert, modal } = useModal();
 
   useEffect(() => {
@@ -211,6 +213,30 @@ export default function SystemLogPanel() {
     }
   };
 
+  const handleMigrateIntel = async () => {
+    const ok = await showConfirm(
+      'Migração de Sistema', 
+      'Isso consolidará todas as fitas e imagens dos usuários na nova subcoleção "intel". Esta ação é segura mas deve ser feita apenas uma vez.', 
+      'Iniciar Migração'
+    );
+    if (!ok) return;
+
+    setIsMigrating(true);
+    try {
+      const result = await migrateToUnifiedIntel((msg) => console.log(msg));
+      if (result.success) {
+        await showAlert('Sucesso', `Migração concluída! ${result.migratedCount} agentes foram atualizados.`);
+      } else {
+        await showAlert('Erro', 'Ocorreu um erro durante a migração. Verifique o console.');
+      }
+    } catch (err) {
+      console.error(err);
+      await showAlert('Erro Crítico', 'Falha na comunicação com o servidor.');
+    } finally {
+      setIsMigrating(false);
+    }
+  };
+
   const handleExportJSON = () => {
     const data = filtered.map(e => ({
       timestamp: e.timestamp?.toDate?.()?.toISOString?.() || null,
@@ -261,6 +287,20 @@ export default function SystemLogPanel() {
             <span className="material-symbols-outlined text-base">download</span>
             Exportar JSON
           </button>
+
+          <button
+            onClick={handleMigrateIntel}
+            disabled={isMigrating}
+            className={`px-6 py-2 text-[10px] font-display font-bold uppercase tracking-widest border transition-all flex items-center gap-2 rounded-sm shadow-lg ${
+              isMigrating
+                ? 'bg-primary/20 text-primary border-primary/20'
+                : 'bg-primary/5 text-primary border-primary/10 hover:bg-primary/20'
+            }`}
+          >
+            <span className="material-symbols-outlined text-base">upgrade</span>
+            {isMigrating ? 'MIGRANDO...' : 'Migrar Intel (v2)'}
+          </button>
+
           <button
             onClick={handleClearLogs}
             disabled={isClearing}

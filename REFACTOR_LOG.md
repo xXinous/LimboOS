@@ -25,6 +25,11 @@ Este documento resume todas as intervenções técnicas, correções de bugs e n
 *   **Path Guards:** Adicionadas proteções contra IDs nulos/undefined em chamadas do Firebase, evitando o erro crítico de `.indexOf` na biblioteca interna.
 *   **Safe UI:** Adicionadas verificações de existência (`?.`) em todas as operações de manipulação de strings (`slice`, `split`) na interface.
 
+## 6. Unificação de Intel (Fase 6)
+*   **Migration Script:** Desenvolvido `migrateToUnifiedIntel` em `src/store/migration.ts` para consolidar fitas e galeria em uma subcoleção única `intel`.
+*   **PlayerSyncService:** Refatorado para escutar a nova coleção `intel` simultaneamente às legadas, garantindo transição transparente.
+*   **Tipagem Unificada:** Adicionado `unlockedIntelIds` ao `PlayerData` para acesso centralizado ao progresso.
+
 ## 5. Painel Administrativo
 *   **Navegação Hierárquica:** O `UserRegistry` agora permite expandir usuários para gerenciar seus agentes individualmente.
 *   **Ações de GM:**

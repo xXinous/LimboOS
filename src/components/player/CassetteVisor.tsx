@@ -2,7 +2,7 @@ import React from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { Camera } from 'lucide-react';
 const QrScanner = React.lazy(() => import('../QrScanner'));
-import type { IntelItem } from '../../types/intel';
+import { IntelBase, AudioIntel } from '../../services/IntelEngine';
 import type { WalkmanStatus } from '../../types/player';
 import Screw from './Screw';
 import RetroSpinner from './RetroSpinner';
@@ -15,7 +15,7 @@ export default React.memo(function CassetteVisor({
   onCancelScan, 
   onQrDetected
 }: {
-  currentIntel: IntelItem | null; 
+  currentIntel: IntelBase | null; 
   status: WalkmanStatus;
   onEject: () => void; 
   onScanClick: () => void;
@@ -42,11 +42,12 @@ export default React.memo(function CassetteVisor({
       
             <div className="mt-4 w-[280px] h-[130px] bg-[#f4f1ea] rounded-md shadow-sm relative flex flex-col p-3 border-t-12 border-orange-600 transition-transform group-hover:scale-[1.01]">
               <div className="text-[8px] font-bold flex justify-center gap-4 text-gray-500 mb-2 border-b border-gray-300/50 pb-1">
-                <span>{currentIntel.metadata?.chapter}</span><span>{currentIntel.metadata?.npc || currentIntel.metadata?.artist}</span>
+                <span>{currentIntel.metadata?.chapter}</span>
+                <span>{currentIntel instanceof AudioIntel ? currentIntel.metadata.artist : currentIntel.metadata?.npc}</span>
               </div>
               <div className="flex-1 flex flex-col text-center px-2">
                 <div className="text-[13px] font-black uppercase tracking-tight text-gray-800 truncate leading-tight">{currentIntel.title}</div>
-                <div className="text-[10px] font-bold text-gray-600 truncate mt-0.5">{currentIntel.metadata?.artist}</div>
+                <div className="text-[10px] font-bold text-gray-600 truncate mt-0.5">{currentIntel instanceof AudioIntel ? currentIntel.metadata.artist : currentIntel.metadata?.npc}</div>
               </div>
               <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 w-[180px] h-[50px] bg-[#222] rounded-t-lg border-t-2 border-l-2 border-r-2 border-[#111]" />
               <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 text-white text-[10px] font-bold px-3 py-1 rounded-full backdrop-blur-sm">CLIQUE PARA EJETAR</div>

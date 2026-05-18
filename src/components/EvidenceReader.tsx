@@ -1,10 +1,9 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { motion } from 'motion/react';
-import type { IntelItem } from '../types/intel';
-import { ACCESS_LEVEL_LABELS } from '../types/intel';
+import { IntelBase, VisualIntel, TextIntel, AudioIntel, MetaIntel } from '../services/IntelEngine';
 
 interface EvidenceReaderProps {
-  evidence: IntelItem;
+  evidence: IntelBase;
   onClose: () => void;
 }
 
@@ -171,19 +170,17 @@ function CorruptedTextRenderer({ text }: { text: string }) {
  * - META   → Exibe ícone e descrição de conquista/flag
  */
 export default function EvidenceReader({ evidence, onClose }: EvidenceReaderProps) {
-  const isVisual = evidence.type === 'VISUAL';
-  const isText = evidence.type === 'TEXT';
-  const isAudio = evidence.type === 'AUDIO';
-  const isMeta = evidence.type === 'META';
-  const levelLabel = ACCESS_LEVEL_LABELS[evidence.level];
-
-  // Detect if mediaUrl is a video
-  const isVideo = isVisual && evidence.mediaUrl && /\.(mp4|webm|ogg|mov)$/i.test(evidence.mediaUrl);
-
-  // Detect corrupted text content
-  const isCorrupted = isText && isCorruptedText(evidence.textContent || evidence.description || '');
+  const isVisual = evidence instanceof VisualIntel;
+  const isText = evidence instanceof TextIntel;
+  const isAudio = evidence instanceof AudioIntel;
+  const isMeta = evidence instanceof MetaIntel;
+  
+  const levelLabel = evidence.getFormattedLevel();
+  const details = evidence.getDetails();
 
   // Color scheme per type — corrupted text gets a red/danger scheme
+  const isCorrupted = isText && (evidence as TextIntel).isCorrupted();
+  
   const scheme = isVisual
     ? { bg: 'bg-[#0a0a0f]', text: 'text-cyan-400', border: 'border-cyan-400', accent: 'cyan', selBg: 'selection:bg-cyan-400', selText: 'selection:text-[#0a0a0f]', scrollThumb: '#22d3ee' }
     : isMeta
@@ -193,8 +190,6 @@ export default function EvidenceReader({ evidence, onClose }: EvidenceReaderProp
         : isCorrupted
           ? { bg: 'bg-[#0a0000]', text: 'text-red-500', border: 'border-red-500', accent: 'red', selBg: 'selection:bg-red-500', selText: 'selection:text-black', scrollThumb: '#ef4444' }
           : { bg: 'bg-[#0a0a0a]', text: 'text-[#00ff00]', border: 'border-[#00ff00]', accent: 'green', selBg: 'selection:bg-[#00ff00]', selText: 'selection:text-[#0a0a0a]', scrollThumb: '#00ff00' };
-
-  const typeIcons: Record<string, string> = { AUDIO: '📼', VISUAL: '📷', TEXT: '💾', META: '🏆' };
 
   return (
     <motion.div 
@@ -214,17 +209,17 @@ export default function EvidenceReader({ evidence, onClose }: EvidenceReaderProp
       {/* Header */}
       <div className={`flex items-center justify-between border-b ${scheme.border}/30 pb-4 mb-4 shrink-0`}>
         <div className="flex items-center gap-3">
-          <span className="text-2xl">{typeIcons[evidence.type] || '📄'}</span>
+          <span className="text-2xl">{evidence.getTypeIcon()}</span>
           <div>
             <h2 className="text-sm font-bold uppercase tracking-widest">{evidence.title}</h2>
             <p className="text-[10px] opacity-70 italic">
               {isVisual 
-                ? `Categoria: ${evidence.metadata?.visualCategory || 'Intel'}` 
+                ? `Categoria: ${details.category || 'Intel'}` 
                 : isAudio
-                  ? `Artista: ${evidence.metadata?.artist || 'Desconhecido'}`
+                  ? `Artista: ${details.artist || 'Desconhecido'}`
                   : isMeta
-                    ? `Conquista: ${evidence.metadata?.unlockCondition || 'Sistema'}`
-                    : `Recuperado por: ${evidence.metadata?.artist || 'Desconhecido'}`
+                    ? `Conquista: ${details.condition || 'Sistema'}`
+                    : `Recuperado por: ${details.npc || 'Desconhecido'}`
               }
             </p>
           </div>
@@ -254,18 +249,18 @@ export default function EvidenceReader({ evidence, onClose }: EvidenceReaderProp
         `}</style>
 
         {/* VISUAL: Video or Image */}
-        {isVisual && (evidence.mediaUrl || evidence.metadata?.imageUrl) ? (
+        {isVisual && details.url ? (
           <div className="flex flex-col items-center py-4 gap-4">
-            {isVideo ? (
+            {details.isVideo ? (
               <video
-                src={evidence.mediaUrl}
+                src={details.url}
                 controls
                 className="w-full max-h-[50vh] rounded-lg border border-cyan-500/30 bg-black"
                 playsInline
               />
             ) : (
               <img
-                src={evidence.mediaUrl || evidence.metadata?.imageUrl}
+                src={details.url}
                 alt={evidence.title}
                 className="w-full max-h-[50vh] object-contain rounded-lg border border-cyan-500/30"
               />
@@ -276,18 +271,18 @@ export default function EvidenceReader({ evidence, onClose }: EvidenceReaderProp
               </div>
             )}
           </div>
-        ) : isAudio && evidence.mediaUrl ? (
+        ) : isAudio && details.source ? (
           /* AUDIO: Embedded player */
           <div className="flex flex-col items-center py-8 gap-6">
             <div className="w-24 h-24 rounded-2xl bg-amber-400/10 border-2 border-amber-400/30 flex items-center justify-center text-5xl animate-pulse">
               📼
             </div>
             <div className="w-full max-w-sm">
-              <audio src={evidence.mediaUrl} controls className="w-full" preload="metadata" />
+              <audio src={details.source} controls className="w-full" preload="metadata" />
             </div>
-            {evidence.metadata?.duration && (
+            {details.duration && (
               <p className="text-[10px] opacity-50 uppercase">
-                Duração: {Math.floor(evidence.metadata.duration / 60)}:{String(evidence.metadata.duration % 60).padStart(2, '0')}
+                Duração: {Math.floor(details.duration / 60)}:{String(details.duration % 60).padStart(2, '0')}
               </p>
             )}
             {evidence.description && (
@@ -300,34 +295,34 @@ export default function EvidenceReader({ evidence, onClose }: EvidenceReaderProp
           /* META: Achievement/flag display */
           <div className="flex flex-col items-center py-8 gap-4 text-center">
             <div className="text-6xl">
-              {evidence.metadata?.icon || '🏆'}
+              {details.icon || '🏆'}
             </div>
             <h3 className="text-lg font-bold uppercase tracking-widest">{evidence.title}</h3>
             <p className={`text-sm leading-relaxed max-w-xs opacity-80 ${scheme.selBg} ${scheme.selText}`}>
               {evidence.description}
             </p>
-            {evidence.metadata?.hint && (
+            {details.hint && (
               <div className="mt-4 p-3 border border-purple-400/30 rounded-lg text-[11px] opacity-60">
-                <span className="font-bold uppercase">Dica: </span>{evidence.metadata.hint}
+                <span className="font-bold uppercase">Dica: </span>{details.hint}
               </div>
             )}
           </div>
         ) : (
           /* TEXT: Terminal-style text content — with corrupted rendering for damaged files */
-          isCorruptedText(evidence.textContent || evidence.description || '') ? (
-            <CorruptedTextRenderer text={evidence.textContent || evidence.description || ''} />
+          isCorrupted ? (
+            <CorruptedTextRenderer text={details.body || ''} />
           ) : (
             <div className={`text-sm leading-relaxed whitespace-pre-wrap py-4 ${scheme.selBg} ${scheme.selText}`}>
-              {evidence.textContent || evidence.description}
+              {details.body}
             </div>
           )
         )}
       </div>
       {/* Footer with enriched metadata */}
       <div className={`mt-4 pt-4 border-t ${scheme.border}/30 text-[9px] opacity-50 flex justify-between uppercase`}>
-        <span>Setor: {evidence.metadata?.chapter || 'Desconhecido'}</span>
+        <span>Setor: {evidence.metadata.chapter || 'Desconhecido'}</span>
         <span>Nível: {levelLabel}</span>
-        <span>{evidence.metadata?.npc ? `NPC: ${evidence.metadata.npc}` : 'Checksum: OK'}</span>
+        <span>{details.npc ? `NPC: ${details.npc}` : 'Checksum: OK'}</span>
       </div>
     </motion.div>
   );

@@ -1,28 +1,8 @@
 import { AnimatePresence, motion } from 'motion/react';
 import { activityLogger } from '../../services/ActivityLogger';
-import type { IntelItem } from '../../types/intel';
+import type { IntelBase } from '../../services/IntelEngine';
 import type { DisplayMode } from '../../types/player';
 import React from 'react';
-
-const typeOrder = (item: IntelItem) => {
-  switch (item.type) {
-    case 'AUDIO': return 0;
-    case 'TEXT': return 1;
-    case 'VISUAL': return 2;
-    case 'META': return 3;
-    default: return 99;
-  }
-};
-
-const typeLabel = (item: IntelItem) => {
-  switch (item.type) {
-    case 'AUDIO': return '📼 Áudio';
-    case 'TEXT': return '💾 Textos';
-    case 'VISUAL': return '📷 Imagens';
-    case 'META': return '🏆 Conquistas';
-    default: return '❓ Desconhecido';
-  }
-};
 
 export default React.memo(function TapeLibrary({ 
   intelItems, 
@@ -31,16 +11,16 @@ export default React.memo(function TapeLibrary({
   displayMode, 
   onIntelSelect 
 }: {
-  intelItems: IntelItem[]; 
+  intelItems: IntelBase[]; 
   currentIntelId: string | null; 
   isPlaying: boolean; 
   displayMode: DisplayMode;
-  onIntelSelect: (intel: IntelItem) => void;
+  onIntelSelect: (intel: IntelBase) => void;
 }) {
   const sorted = React.useMemo(() => {
     if (displayMode === 'title') return [...intelItems].sort((a, b) => a.title.localeCompare(b.title));
     if (displayMode === 'chapter') return [...intelItems].sort((a, b) => (a.metadata?.chapter || '').localeCompare(b.metadata?.chapter || ''));
-    if (displayMode === 'type') return [...intelItems].sort((a, b) => typeOrder(a) - typeOrder(b) || a.title.localeCompare(b.title));
+    if (displayMode === 'type') return [...intelItems].sort((a, b) => a.getTypeOrder() - b.getTypeOrder() || a.title.localeCompare(b.title));
     return intelItems;
   }, [intelItems, displayMode]);
 
@@ -67,12 +47,12 @@ export default React.memo(function TapeLibrary({
           ) : (
             <AnimatePresence mode="popLayout">
               {sorted.map((item, idx) => {
-                const showGroupHeader = displayMode === 'type' && (idx === 0 || typeOrder(sorted[idx - 1]) !== typeOrder(item));
+                const showGroupHeader = displayMode === 'type' && (idx === 0 || sorted[idx - 1].type !== item.type);
                 return (
                   <React.Fragment key={item.id}>
                     {showGroupHeader && (
                       <div className="px-3 py-1.5 bg-[#111] border-b border-[#333] sticky top-0 z-10">
-                        <span className="text-[9px] text-orange-500/80 font-bold uppercase tracking-widest">{typeLabel(item)}</span>
+                        <span className="text-[9px] text-orange-500/80 font-bold uppercase tracking-widest">{item.getTypeLabel()}</span>
                       </div>
                     )}
                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -96,7 +76,7 @@ export default React.memo(function TapeLibrary({
                           item.type === 'META' ? 'bg-yellow-600/30 border-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.3)]' :
                           'bg-[#222] border-[#333]'
                         }`}>
-                          {item.type === 'TEXT' ? '💾' : item.type === 'VISUAL' ? '📷' : item.type === 'META' ? '🏆' : '📼'}
+                          {item.getTypeIcon()}
                         </div>
                       </div>
                     </motion.div>

@@ -62,6 +62,7 @@ export interface PlayerData extends MasterAccount {
   unlockedTapeIds: string[];
   achievementIds: string[];
   unlockedGalleryIds: string[];
+  unlockedIntelIds: string[]; // Unified IDs from 'intel', 'tapes', and 'gallery'
   stats: PlayerStats;
 }
 

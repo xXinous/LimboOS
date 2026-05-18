@@ -26,18 +26,21 @@ export class PlayerSyncService {
     this.stopAll();
     if (!uid || !characterId) return;
 
-    // 1. Intel Listener — Unified: reads both 'tapes' and 'gallery' subcollections
-    //    and merges their IDs into a single intel update.
-    //    Note: Firestore still uses 'tapes' and 'gallery' collections for backward
-    //    compatibility. A future migration can merge them into a single 'intel' collection.
+    // 1. Intel Listener — Unified: reads 'tapes', 'gallery' AND the new 'intel' subcollection.
+    //    Note: 'tapes' and 'gallery' are kept for backward compatibility during migration.
 
     let latestTapeIds: string[] = [];
     let latestGalleryIds: string[] = [];
+    let latestIntelIds: string[] = [];
 
     const emitIntelUpdate = () => {
+      // Merge all IDs, ensuring uniqueness
+      const allUnifiedIds = Array.from(new Set([...latestTapeIds, ...latestGalleryIds, ...latestIntelIds])).sort();
+
       onPlayerDataUpdate({
         unlockedTapeIds: latestTapeIds,
         unlockedGalleryIds: latestGalleryIds,
+        unlockedIntelIds: allUnifiedIds, // New property for unified access
       });
     };
 
@@ -55,6 +58,14 @@ export class PlayerSyncService {
         emitIntelUpdate();
       },
       (error) => console.warn('[PlayerSyncService] Intel/gallery error:', error)
+    );
+
+    const unsubIntel = onSnapshot(collection(db, 'users', uid, 'characters', characterId, 'intel'),
+      (snapshot) => {
+        latestIntelIds = snapshot.docs.map((d) => d.id).sort();
+        emitIntelUpdate();
+      },
+      (error) => console.warn('[PlayerSyncService] Intel/unified error:', error)
     );
 
     // 2. Character Doc Listener (Character-specific flags)
@@ -111,7 +122,7 @@ export class PlayerSyncService {
       (error) => console.warn('[PlayerSyncService] Limbo error:', error)
     );
 
-    this.unsubs.push(unsubTapes, unsubGallery, unsubChar, unsubUser, unsubLimbo);
+    this.unsubs.push(unsubTapes, unsubGallery, unsubIntel, unsubChar, unsubUser, unsubLimbo);
   }
 
   public stopAll() {

@@ -1,109 +1,75 @@
-# Plano de Refatoração: Sistema Unificado de Intel (v1.0)
+# Plano de Refatoração: Sistema Unificado de Intel e Dicas (v2.0)
 
-Este documento detalha a estratégia para unificar os colecionáveis do Running Man (Fitas, Galeria, Documentos e Conquistas) em um sistema coeso de **"Intel" (Inteligência)**.
+Este documento detalha a estratégia para unificar COMPLETAMENTE todos os colecionáveis, itens e dicas do Running Man em um sistema único de **"Intel" (Inteligência)**, eliminando redundâncias de sistemas legados de "Fitas", "Galeria" e "Dicas".
 
 ## 1. Visão Geral e Objetivos
-Atualmente, o sistema de progressão está fragmentado em múltiplos tipos de dados e serviços redundantes. O objetivo é criar uma arquitetura onde qualquer item coletável seja tratado como uma "Peça de Inteligência".
+Qualquer arquivo (Áudio, Vídeo, Imagem ou Texto) agora é tratado como uma **"Peça de Inteligência" (IntelItem)**. O sistema deve ser capaz de resolver qualquer um desses formatos a partir de um único fluxo de QR Code.
 
-- **Navegação:** Acesso instantâneo a qualquer evidência.
-- **Manutenção:** Lógica de desbloqueio única.
-- **RPG Feel:** Categorização por Nível de Sigilo em vez de tipos técnicos.
+- **Unificação Total:** Fim da distinção técnica entre "Fita" e "Dica". Tudo é Intel.
+- **Suporte Multimídia:** Engine única para renderizar `.mp3`, `.mp4`, `.jpg`, `.png` e `.txt`.
+- **QR First:** Todo item no registro mestre é elegível para geração de QR Code.
+- **Redundância Zero:** Remoção total de subcoleções separadas no Firestore em favor de um inventário único.
 
-## 2. Nova Arquitetura de Dados (Proposta)
+## 2. Arquitetura de Dados Unificada
 
-### Entidade Central: `Intel`
+### Entidade Central: `IntelItem`
 ```typescript
 export type IntelType = 'AUDIO' | 'VISUAL' | 'TEXT' | 'META';
-export type AccessLevel = 1 | 2 | 3 | 4; // Restrito, Confidencial, Sigiloso, Top Secret
+export type AccessLevel = 1 | 2 | 3 | 4;
 
 export interface IntelItem {
-  id: string;
-  type: IntelType;
-  level: AccessLevel;
-  title: string;
-  description: string;
-  campaignId?: string;
+  id: string;          // ID único (ex: intel_mission_01)
+  type: IntelType;     // Tipo de mídia
+  level: AccessLevel;  // Nível de acesso (1-4)
+  title: string;       // Nome da prova/item
+  description: string; // Descrição ou análise do agente
   
-  // Dados específicos por tipo (opcionais)
-  mediaUrl?: string;     // URL da fita ou imagem
-  textContent?: string;  // Conteúdo de disquete ou documento
-  metadata?: IntelMetadata; // Dados extras (npc, local, stats, etc)
+  // Conteúdo Dinâmico
+  mediaUrl?: string;     // URL para Áudio, Vídeo ou Imagem
+  textContent?: string;  // Texto puro ou dados criptografados
+  
+  metadata: {
+    chapter?: string;    // Capítulo/Missão vinculada
+    npc?: string;        // NPC relacionado
+    hint?: string;       // Dica de como encontrar (se ainda não coletado)
+    isSecret?: boolean;  // Se deve aparecer como [RESTRITO] na lista
+    visualCategory?: string; // 'PHOTO', 'DOCUMENT', 'VIDEO', 'GADGET'
+  }
 }
 ```
 
-## 3. Estratégia de Categorização
+## 3. Fluxo de QR Code e Resolução
+O `IntelService` será o único ponto de entrada para QR Codes:
+1. **Leitura:** O scanner lê um código (ID do IntelItem).
+2. **Resolução:** O serviço busca no `IntelRegistry` (local) ou Firestore (remoto).
+3. **Identificação de Tipo:**
+   - Se `AUDIO` → Carrega no Walkman.
+   - Se `VISUAL` (Imagem/Vídeo) → Abre no `EvidenceReader`.
+   - Se `TEXT` → Abre no Terminal de Dados.
+4. **Persistência:** O ID é salvo na coleção única `unlockedIntel` do Agente.
 
-Em vez de pastas técnicas, os itens serão organizados por seu papel na narrativa:
+## 4. Plano de Execução (Fase 6: Unificação de Arquivos e Dicas)
 
-| Nível | Nome (RPG) | Exemplos de Conteúdo |
-| :--- | :--- | :--- |
-| **Nível 1** | **RESTRITO** | Briefings, Fotos de Locais, Fitas Introdutórias. |
-| **Nível 2** | **CONFIDENCIAL** | Dossiês de NPCs, Mapas, Diários de Áudio. |
-| **Nível 3** | **SIGILOSO** | Provas de Crimes, Interceptações, Disquetes Corrompidos. |
-| **Nível 4** | **TOP SECRET** | Conquistas Raras, Easter Eggs, Revelações Finais. |
+### 6.1. Consolidação de Tipos e Registro
+- [ ] Revisar `src/data/intel_registry.ts` para garantir que todos os itens legados (incluindo dicas soltas) estejam lá.
+- [ ] Adicionar suporte explícito a Vídeo no metadado `visualCategory`.
 
-## 4. Plano de Execução (Roadmap)
+### 6.2. Engine de Renderização Multimídia
+- [ ] Atualizar `EvidenceReader.tsx` para garantir detecção automática de `.mp4`/`.mov` e renderizar tag `<video>`.
+- [ ] Implementar visualização de "Dica" para itens não coletados (o item aparece na lista mas com conteúdo bloqueado e apenas a `hint` visível).
 
-### Fase 1: Fundação (Tipos e Registro) ✅ COMPLETO
-- [x] Criar `src/types/intel.ts` com as novas interfaces.
-- [x] Criar um `src/data/intel_registry.ts` que servirá como o "Master Database" unificado.
-- [x] Mapear as fitas (`tapes.ts`) e imagens (`galleryImages`) atuais para o novo formato.
-- [x] Funções de conversão bidirecional: `intelToLegacyTape()` e `legacyTapeToIntel()`.
+### 6.3. Limpeza de Redundância (Critical)
+- [ ] **Firestore:** Migrar subcoleções `tapes` e `gallery` para a nova subcoleção unificada `intel`.
+- [ ] **Componentes:** Remover definitivamente qualquer lógica que trate "Fitas" como algo diferente de "Imagens".
+- [ ] **Admin:** Atualizar o `IntelCreatorPanel` para suportar upload de qualquer tipo de arquivo para o Firebase Storage, gerando o `IntelItem` automaticamente.
 
-### Fase 2: Lógica de Negócio (Serviços) ✅ COMPLETO
-- [x] Implementar o `IntelService` (`src/services/IntelService.ts`):
-    - `resolve(code)`: Resolve QR/código → IntelItem (com redirect + registry + Firebase).
-    - `unlock(playerData, id)`: Lógica única para salvar no Firestore.
-    - `getCollection(playerData)`: Retorna todo o inventário do jogador já formatado.
-    - `resolveAll(ids)`: Resolve lista de IDs para IntelItems.
-- [x] Atualizar `AnalyticsTracker` para usar `IntelRegistry` na avaliação de achievements.
-- [x] Documentar `PlayerSyncService` sobre migração futura dos listeners.
+### 6.4. Sistema de Geração de QR
+- [ ] Criar utilitário no Admin para gerar QR Codes em massa a partir do `IntelRegistry`.
 
-### Fase 3: Interface (UX) ✅ COMPLETO
-- [x] Refatorar `Player.tsx`: estado principal agora usa `IntelItem` (`currentIntel`, `ownedIntel`).
-- [x] Eliminar o hack de conversão `Gallery → Tape` no `Player.tsx`.
-- [x] Refatorar `EvidenceReader.tsx` para aceitar `IntelItem` com badge de Access Level.
-- [x] Manter compatibilidade com componentes legados via `intelToLegacyTape()`.
-
-### Fase 4: Migração e Limpeza (FUTURA)
-- [ ] Criar script de migração (se necessário) para converter os IDs atuais no Firebase.
-- [ ] Migrar `TapeLibrary.tsx` para aceitar `IntelItem[]` diretamente (remover conversão legacy).
-- [ ] Migrar `AgentDossierOverlay.tsx` para aceitar `IntelItem[]` em vez de `Tape[]`.
-- [ ] Migrar `CassetteVisor.tsx` para aceitar `IntelItem` em vez de `Tape`.
-- [ ] Unificar listeners do `PlayerSyncService` em um único listener `intel`.
-- [ ] Migrar painéis Admin (GalleryPanel, InventoryManager, etc.)
-- [ ] Remover `TapeManager.ts` (totalmente absorvido pelo IntelService).
-- [ ] Apagar tipos e serviços obsoletos quando todos os consumidores estiverem migrados.
-
-## 5. Benefícios Esperados
-1. **Consistência:** O jogador entende que tudo o que ele faz no jogo contribui para o seu "Nível de Inteligência".
-2. **Performance:** Menos listeners do Firebase e menos transformações de dados em runtime.
-3. **Escalabilidade:** Adicionar um novo tipo de coletável (ex: vídeo ou pista 3D) se torna trivial.
-
-## 6. Arquivos Criados/Modificados
-
-### Novos
-| Arquivo | Descrição |
-|:---|:---|
-| `src/types/intel.ts` | Tipos centrais: IntelItem, IntelType, AccessLevel, conversores |
-| `src/data/intel_registry.ts` | Registro mestre com itens locais + incorporação de remotos |
-| `src/services/IntelService.ts` | Serviço unificado: resolve, unlock, getCollection |
-
-### Modificados
-| Arquivo | Mudança |
-|:---|:---|
-| `src/Player.tsx` | Estado usa IntelItem; removido hack Gallery→Tape; usa IntelService |
-| `src/components/EvidenceReader.tsx` | Aceita IntelItem com badge de Access Level |
-| `src/services/AnalyticsTracker.ts` | Resolve via IntelRegistry para achievements |
-| `src/services/PlayerSyncService.ts` | Documentação da migração futura |
-
-### Preservados (compatibilidade retroativa)
-| Arquivo | Status |
-|:---|:---|
-| `src/data/tapes.ts` | Mantido — usado pelo admin e legacy |
-| `src/services/TapeManager.ts` | Mantido — será removido na Fase 4 |
-| `src/data/achievements.ts` | Mantido — regras de achievement inalteradas |
-| `src/store/firestore.ts` | Mantido — funções legacy preservadas |
+## 5. Benefícios
+1. **Arquitetura Limpa:** Um único `Array<IntelItem>` governa todo o progresso do jogador.
+2. **Flexibilidade:** Você pode transformar um áudio em uma dica de texto apenas mudando o `type` no registro.
+3. **Escalabilidade:** Suporte para novos formatos (como modelos 3D ou logs de sensor) sem criar novos serviços.
 
 ---
 *Documento gerado para persistência de contexto. Última atualização: Maio 2026.*

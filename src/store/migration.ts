@@ -92,6 +92,84 @@ export async function migrateLegacyUser(uid: string): Promise<string | null> {
   return characterId;
 }
 
+/**
+ * MIGRATION V2: UNIFIED INTEL
+ * Consolidates 'tapes' and 'gallery' subcollections into a single 'intel' subcollection
+ * for all characters across the database.
+ */
+export async function migrateToUnifiedIntel(onProgress?: (msg: string) => void): Promise<{ success: boolean; migratedCount: number }> {
+  const log = (msg: string) => {
+    console.log(`[MIGRATION_INTEL] ${msg}`);
+    if (onProgress) onProgress(msg);
+  };
+
+  log('Iniciando migração para Sistema Unificado de Intel...');
+  let migratedCount = 0;
+
+  try {
+    // 1. Fetch all users
+    const usersSnap = await getDocs(collection(db, 'users'));
+    log(`Encontrados ${usersSnap.size} usuários.`);
+
+    for (const userDoc of usersSnap.docs) {
+      const uid = userDoc.id;
+      // 2. Fetch all characters for this user
+      const charactersSnap = await getDocs(collection(db, 'users', uid, 'characters'));
+      
+      for (const charDoc of charactersSnap.docs) {
+        const charId = charDoc.id;
+        const codinome = charDoc.data().codinome || 'Unknown';
+        
+        log(`Processando Agente: ${codinome} (${charId})`);
+
+        // 3. Migrate Tapes -> Intel
+        const tapesSnap = await getDocs(collection(db, 'users', uid, 'characters', charId, 'tapes'));
+        if (!tapesSnap.empty) {
+          const batch = writeBatch(db);
+          tapesSnap.forEach(d => {
+            const data = d.data();
+            batch.set(doc(db, 'users', uid, 'characters', charId, 'intel', d.id), {
+              ...data,
+              migratedFrom: 'tapes',
+              type: 'AUDIO', // Explicitly marking type during migration
+              updatedAt: serverTimestamp()
+            });
+          });
+          await batch.commit();
+          log(`  - ${tapesSnap.size} fitas migradas.`);
+        }
+
+        // 4. Migrate Gallery -> Intel
+        const gallerySnap = await getDocs(collection(db, 'users', uid, 'characters', charId, 'gallery'));
+        if (!gallerySnap.empty) {
+          const batch = writeBatch(db);
+          gallerySnap.forEach(d => {
+            const data = d.data();
+            batch.set(doc(db, 'users', uid, 'characters', charId, 'intel', d.id), {
+              ...data,
+              migratedFrom: 'gallery',
+              type: 'VISUAL', // Explicitly marking type during migration
+              updatedAt: serverTimestamp()
+            });
+          });
+          await batch.commit();
+          log(`  - ${gallerySnap.size} itens de galeria migrados.`);
+        }
+
+        if (!tapesSnap.empty || !gallerySnap.empty) {
+          migratedCount++;
+        }
+      }
+    }
+
+    log(`Migração concluída com sucesso! ${migratedCount} personagens atualizados.`);
+    return { success: true, migratedCount };
+  } catch (error: any) {
+    log(`ERRO CRÍTICO NA MIGRAÇÃO: ${error.message}`);
+    return { success: false, migratedCount };
+  }
+}
+
 export async function needsMigration(uid: string): Promise<boolean> {
   const userRef = doc(db, 'users', uid);
   const userSnap = await getDoc(userRef);

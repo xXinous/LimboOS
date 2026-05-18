@@ -25,7 +25,8 @@ import { audioEngine } from './services/AudioEngine';
 import { analyticsTracker } from './services/AnalyticsTracker';
 import { activityLogger } from './services/ActivityLogger';
 import { intelService } from './services/IntelService';
-import { playerSyncService } from './services/PlayerSyncService';
+import { PlayerSyncService, playerSyncService } from './services/PlayerSyncService';
+import { IntelManager } from './services/IntelEngine';
 import { onAuthStateChanged, logout } from './store/profile';
 import type { MasterAccount, CharacterData, PlayerData, PlayerStats, LimboGlobalState, GalleryImage } from './types/player';
 import { 
@@ -49,15 +50,21 @@ export default function Player() {
   // Unified Intel Collection State
   const [intelCollection, setIntelCollection] = useState<PlayerIntelCollection | null>(null);
   
+  // OOP Intel Manager Engine
+  const intelManager = useMemo(() => {
+    if (!intelCollection?.items) return null;
+    return new IntelManager(intelCollection.items);
+  }, [intelCollection]);
+
   // State Machine: Centralized status
   const [walkmanStatus, setWalkmanStatus] = useState<WalkmanStatus>('IDLE');
-  const [currentIntel, setCurrentIntel] = useState<IntelItem | null>(null);
+  const [currentIntel, setCurrentIntel] = useState<IntelBase | null>(null);
   const [volume, setVolume] = useState(80);
   const [displayMode, setDisplayMode] = useState<DisplayMode>('default');
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [scanTimes, setScanTimes] = useState<number[]>([]);
   const [limboStatus, setLimboStatus] = useState<LimboGlobalState>({ seized: false });
-  const [activeEvidence, setActiveEvidence] = useState<IntelItem | null>(null);
+  const [activeEvidence, setActiveEvidence] = useState<IntelBase | null>(null);
   const [galleryImages, setGalleryImages] = useState<GalleryImage[]>([]);
   
   const hasPlayedCurrentTape = useRef(false);
@@ -193,7 +200,7 @@ useEffect(() => {
   }, []);
 
   useEffect(() => {
-    if (currentIntel?.type === 'AUDIO' && currentIntel.mediaUrl) {
+    if (currentIntel instanceof AudioIntel && currentIntel.mediaUrl) {
       audioEngine.loadTrack(currentIntel.mediaUrl);
       analyticsTracker.pausePlayback();
     } else if (!currentIntel) {
@@ -207,7 +214,7 @@ useEffect(() => {
     if (walkmanStatus === 'PLAYING') {
       hasPlayedCurrentTape.current = true;
       audioEngine.play();
-      if (currentIntel) analyticsTracker.startPlayback(currentIntel);
+      if (currentIntel) analyticsTracker.startPlayback(currentIntel as any); // Cast for legacy analytics
     } else if (walkmanStatus === 'REWINDING') {
       audioEngine.stop();
       analyticsTracker.pausePlayback();
@@ -229,10 +236,12 @@ useEffect(() => {
     setWalkmanStatus('IDLE');
     
     try {
-      const intel = await intelService.resolve(code);
-      if (!intel) return addToast({ type: 'error', title: 'Código Desconhecido', subtitle: code, icon: '❌' });
+      const rawIntel = await intelService.resolve(code);
+      if (!rawIntel) return addToast({ type: 'error', title: 'Código Desconhecido', subtitle: code, icon: '❌' });
       
+      const intel = IntelFactory.getInstance().create(rawIntel);
       const { alreadyOwned, updatedIds } = await intelService.unlock(currentPD, intel.id);
+      
       const now = Date.now();
       const recentScans = [...scanTimes.filter(t => now - t < 300000), now];
       setScanTimes(recentScans);
@@ -241,17 +250,21 @@ useEffect(() => {
       
       hasPlayedCurrentTape.current = false;
       setWalkmanStatus('LOADING');
-      timerRef.current = setTimeout(() => { setCurrentIntel(intel); setWalkmanStatus('LOADED'); addToast({ type: 'tape', title: alreadyOwned ? 'Intel Inserida' : 'Intel Desbloqueada!', subtitle: intel.title, icon: '📼' }); }, 400);
+      timerRef.current = setTimeout(() => { 
+        setCurrentIntel(intel); 
+        setWalkmanStatus('LOADED'); 
+        addToast({ type: 'tape', title: alreadyOwned ? 'Intel Inserida' : 'Intel Desbloqueada!', subtitle: intel.title, icon: '📼' }); 
+      }, 400);
       activityLogger.logAction(alreadyOwned ? 'tape_insert' : 'tape_unlock', `${alreadyOwned ? 'Inseriu' : 'Desbloqueou'}: ${intel.title}`, { tapeId: intel.id });
     } catch (err) { addToast({ type: 'error', title: 'Erro QR', subtitle: 'Tente dnv', icon: '⚠️' }); }
   }, [localStats, scanTimes, addToast]);
 
-  const handleIntelSelect = useCallback((intel: IntelItem) => {
+  const handleIntelSelect = useCallback((intel: IntelBase) => {
     if (!playerDataRef.current) return;
-    if (intel.type === 'VISUAL' || intel.type === 'TEXT') {
+    if (intel instanceof VisualIntel || intel instanceof TextIntel || intel instanceof MetaIntel) {
       setActiveEvidence(intel);
       activityLogger.logAction(intel.type === 'VISUAL' ? 'pista_open' : 'evidence_open', `Abriu: ${intel.title}`, { intelId: intel.id });
-    } else if (intel.type === 'AUDIO') {
+    } else if (intel instanceof AudioIntel) {
       if (intel.id === currentIntel?.id) return;
       if (!hasPlayedCurrentTape.current && currentIntel) analyticsTracker.incrementStat('ejectWithoutPlay');
       hasPlayedCurrentTape.current = false;
@@ -350,7 +363,7 @@ useEffect(() => {
           <motion.div key="agentDossier" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full h-full flex items-center justify-center p-0 sm:p-4">
             <div className="w-full h-full max-w-[520px] rounded-none sm:rounded-[20px] shadow-[0_35px_100px_rgba(0,0,0,0.9)] border-0 sm:border-2 border-primary/20 relative flex flex-col mx-auto overflow-hidden bg-surface">
               <React.Suspense fallback={<RetroLoading message="ABRINDO DOSSIÊ..." />}>
-                <AgentDossierOverlay onClose={() => setScreen('campaignSelection')} playerData={playerData} intel={intelCollection} />
+                <AgentDossierOverlay onClose={() => setScreen('campaignSelection')} playerData={playerData} intelManager={intelManager} />
               </React.Suspense>
             </div>
           </motion.div>
@@ -364,7 +377,7 @@ useEffect(() => {
           <motion.div key="player" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} className="relative w-full max-w-sm h-full max-h-[750px] bg-surface-container-high rounded-[32px] border-8 border-[#1a1a1a] shadow-2xl flex flex-col p-3 sm:p-4 overflow-hidden z-10">
             <Screw className="top-4 left-4" /><Screw className="top-4 right-4 -rotate-90" /><Screw className="bottom-4 left-4 -rotate-90" /><Screw className="bottom-4 right-4" />
             <CassetteVisor currentIntel={currentIntel} status={walkmanStatus} onEject={handleEject} onScanClick={handleScanClick} onCancelScan={handleCancelScan} onQrDetected={handleQrDetected} />
-            <TapeLibrary intelItems={intelCollection?.items || EMPTY_ARRAY} currentIntelId={currentIntel?.id ?? null} isPlaying={isPlaying} displayMode={displayMode} onIntelSelect={handleIntelSelect} />
+            <TapeLibrary intelItems={intelManager?.getAll() || EMPTY_ARRAY} currentIntelId={currentIntel?.id ?? null} isPlaying={isPlaying} displayMode={displayMode} onIntelSelect={handleIntelSelect} />
             <SideControls volume={volume} setVolume={setVolume} onModeChange={handleModeChange} onProfileOpen={handleProfileOpen} onCharacterSwitch={handleCharacterSwitch} />
             <BottomControls status={walkmanStatus} setIsPlaying={handleSetIsPlaying} hasTape={!!currentIntel} onRewind={handleRewind} hasTerminalAccess={playerData.hasTerminalAccess} onTerminalOpen={handleTerminalOpen} hasMacAccess={playerData.hasMacAccess} onMacOpen={handleMacOpen} />
           </motion.div>

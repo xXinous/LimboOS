@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import QRCode from 'react-qr-code';
 import { intelRegistry, type EvidenceIntelAdmin } from '../../data/intel_registry';
 import { intelService } from '../../services/IntelService';
 import type { IntelItem, IntelType, AccessLevel, VisualCategory } from '../../types/intel';
@@ -43,6 +44,16 @@ const EMPTY_ITEM: Omit<IntelItem, 'id'> = {
   },
 };
 
+const detectTypeFromUrl = (url: string): IntelType => {
+  const cleanUrl = url.split('?')[0]; // Remove query params
+  const ext = cleanUrl.split('.').pop()?.toLowerCase();
+  if (!ext) return 'TEXT';
+  if (['mp3', 'wav', 'ogg', 'm4a', 'flac'].includes(ext)) return 'AUDIO';
+  if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'mp4', 'webm', 'mov'].includes(ext)) return 'VISUAL';
+  if (['txt'].includes(ext)) return 'TEXT';
+  return 'TEXT';
+};
+
 export default function IntelCreatorPanel() {
   const [allItems, setAllItems] = useState<IntelItem[]>(() => intelRegistry.getAll());
   const [search, setSearch] = useState('');
@@ -53,6 +64,7 @@ export default function IntelCreatorPanel() {
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [showExport, setShowExport] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [qrCodeModal, setQrCodeModal] = useState<IntelItem | null>(null);
 
   const refreshItems = useCallback(() => {
     setAllItems(intelRegistry.getAll());
@@ -162,7 +174,15 @@ export default function IntelCreatorPanel() {
 
   const exportJSON = useMemo(() => JSON.stringify(intelRegistry.getAll(), null, 2), [showExport, allItems]);
 
-  const updateField = (field: string, value: any) => setFormData(prev => ({ ...prev, [field]: value }));
+  const updateField = (field: string, value: any) => {
+    setFormData(prev => {
+      const newData = { ...prev, [field]: value };
+      if (field === 'mediaUrl' && value) {
+        newData.type = detectTypeFromUrl(value);
+      }
+      return newData;
+    });
+  };
   const updateMeta = (field: string, value: any) => setFormData(prev => ({ ...prev, metadata: { ...prev.metadata, [field]: value } }));
 
   const typeStats = useMemo(() => {
@@ -170,6 +190,72 @@ export default function IntelCreatorPanel() {
     allItems.forEach(item => { stats[item.type]++; stats.total++; });
     return stats;
   }, [allItems]);
+
+  // QR Code Helpers
+  const getQrCodeSvgDataUri = () => {
+    const container = document.getElementById("qr-code-container-intel");
+    if (!container) return null;
+    const svgElement = container.querySelector("svg");
+    if (!svgElement) return null;
+    const svgData = new XMLSerializer().serializeToString(svgElement);
+    return "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svgData)));
+  };
+
+  const handleDownloadQrCode = () => {
+    const dataUri = getQrCodeSvgDataUri();
+    if (!dataUri) return;
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      const padding = 20;
+      canvas.width = img.width + padding * 2;
+      canvas.height = img.height + padding * 2;
+      const ctx = canvas.getContext("2d");
+      if (ctx) {
+        ctx.fillStyle = "white";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, padding, padding);
+        const pngFile = canvas.toDataURL("image/png");
+        const downloadLink = document.createElement("a");
+        downloadLink.download = `qrcode_${qrCodeModal?.id || 'intel'}.png`;
+        downloadLink.href = pngFile;
+        downloadLink.click();
+      }
+    };
+    img.src = dataUri;
+  };
+
+  const handleCopyQrCode = () => {
+    const dataUri = getQrCodeSvgDataUri();
+    if (!dataUri) return;
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      const padding = 20;
+      canvas.width = img.width + padding * 2;
+      canvas.height = img.height + padding * 2;
+      const ctx = canvas.getContext("2d");
+      if (ctx) {
+        ctx.fillStyle = "white";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, padding, padding);
+        canvas.toBlob(async (blob) => {
+          if (blob) {
+            try {
+              await navigator.clipboard.write([
+                new ClipboardItem({ 'image/png': blob })
+              ]);
+              setFeedback({ type: 'success', text: '✓ QR Code copiado para a área de transferência!' });
+            } catch (err) {
+              console.error('Failed to copy', err);
+              setFeedback({ type: 'error', text: 'Falha ao copiar QR Code. Verifique as permissões.' });
+            }
+          }
+        }, 'image/png');
+      }
+    };
+    img.src = dataUri;
+  };
 
   return (
     <section className="space-y-8 font-sans">
@@ -303,22 +389,79 @@ export default function IntelCreatorPanel() {
                    </span>
                 </div>
 
-                <div className="text-right border-t border-white/5 lg:border-none pt-4 lg:pt-0">
+                <div className="text-right border-t border-white/5 lg:border-none pt-4 lg:pt-0 flex items-center justify-end gap-2">
+                  <button
+                    onClick={() => setQrCodeModal(item)}
+                    className="p-2.5 text-industrial-silver/30 hover:text-primary hover:bg-primary/10 rounded-sm transition-all material-symbols-outlined text-xl"
+                    title="Gerar QR Code"
+                  >
+                    qr_code_2
+                  </button>
                   <button
                     onClick={() => handleEditItem(item)}
-                    className="w-full lg:w-auto p-2.5 text-industrial-silver/30 hover:text-primary hover:bg-primary/10 rounded-sm transition-all material-symbols-outlined text-xl"
+                    className="p-2.5 text-industrial-silver/30 hover:text-primary hover:bg-primary/10 rounded-sm transition-all material-symbols-outlined text-xl"
                     title="Editar Registro"
                   >
                     edit_note
                   </button>
                 </div>
-              </div>
-            ))
-          )}
-        </div>
-      </div>
+                </div>
+                ))
+                )}
+                </div>
+                </div>
 
-      {/* Editor Modal */}
+                {qrCodeModal && (
+                <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/95 p-4 backdrop-blur-md">
+                <div className="bg-surface-container-low border border-primary/30 p-8 w-full max-w-sm rounded-sm shadow-2xl flex flex-col items-center relative">
+                <div className="absolute -top-3 left-6 bg-primary px-2 py-0.5 text-[10px] font-display font-bold text-black tracking-widest uppercase">
+                ASSINATURA-DIGITAL-INTEL
+                </div>
+
+                <h3 className="font-display font-bold text-xl mb-8 text-white uppercase tracking-widest text-center mt-2">
+                Gerador de <span className="text-primary">QR Code</span>
+                </h3>
+
+                <div id="qr-code-container-intel" className="bg-white p-6 rounded-sm mb-8 shadow-inner ring-4 ring-primary/20">
+                <QRCode value={qrCodeModal.id} size={200} />
+                </div>
+
+                <div className="w-full bg-black/40 p-3 rounded-sm border border-primary/10 mb-8 text-center">
+                <p className="text-[9px] font-display font-bold text-industrial-silver/40 uppercase tracking-[0.2em] mb-1">Identificador Único</p>
+                <p className="font-mono text-[10px] text-primary tracking-widest break-all font-bold">
+                {qrCodeModal.id}
+                </p>
+                </div>
+
+                <div className="flex gap-3 mb-6 w-full">
+                <button
+                onClick={handleCopyQrCode}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-3 text-[10px] font-display font-bold border border-primary/20 text-industrial-silver/60 hover:text-primary hover:bg-primary/5 transition-all rounded-sm uppercase tracking-widest"
+                >
+                <span className="material-symbols-outlined text-base">content_copy</span>
+                Copiar
+                </button>
+                <button
+                onClick={handleDownloadQrCode}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-3 text-[10px] font-display font-bold border border-primary/20 text-industrial-silver/60 hover:text-primary hover:bg-primary/5 transition-all rounded-sm uppercase tracking-widest"
+                >
+                <span className="material-symbols-outlined text-base">download</span>
+                Salvar
+                </button>
+                </div>
+
+                <button
+                onClick={() => setQrCodeModal(null)}
+                className="px-10 py-4 text-[11px] font-display font-bold text-industrial-silver/40 hover:text-white transition-all w-full border-t border-primary/5 uppercase tracking-[0.3em]"
+                >
+                Fechar Terminal
+                </button>
+                </div>
+                </div>
+                )}
+
+                {/* Editor Modal */}
+
       {showEditor && (
         <div className="fixed inset-0 z-100 flex items-center justify-center bg-black/90 p-4 backdrop-blur-md">
           <div className="bg-surface-container-low border border-primary/30 w-full max-w-2xl rounded-sm shadow-2xl flex flex-col max-h-[90vh] relative">
