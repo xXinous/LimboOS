@@ -6,6 +6,8 @@ import { intelService } from '../../services/IntelService';
 import type { IntelItem, IntelType, AccessLevel, VisualCategory } from '../../types/intel';
 import { ACCESS_LEVEL_LABELS } from '../../types/intel';
 import Screw from '../../components/player/Screw';
+import MediaSelectorModal from './MediaSelectorModal';
+import { MediaAsset } from '../../types/media';
 
 /**
  * IntelCreatorPanel — Interface administrativa para criar e gerenciar 
@@ -65,6 +67,7 @@ export default function IntelCreatorPanel() {
   const [showExport, setShowExport] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [qrCodeModal, setQrCodeModal] = useState<IntelItem | null>(null);
+  const [isMediaSelectorOpen, setIsMediaSelectorOpen] = useState(false);
 
   const refreshItems = useCallback(() => {
     setAllItems(intelRegistry.getAll());
@@ -95,12 +98,21 @@ export default function IntelCreatorPanel() {
       return matchesType && matchesSearch;
     });
   }, [allItems, search, filterType]);
-
   const handleNewItem = () => {
     setEditingItem(null);
-    setFormData({ id: `intel_${Date.now()}`, ...EMPTY_ITEM });
+    setFormData({ id: `item-${Date.now()}`, ...EMPTY_ITEM });
     setShowEditor(true);
     setFeedback(null);
+  };
+
+  const handleMediaSelect = (asset: MediaAsset) => {
+    const detectedType = detectTypeFromUrl(asset.url);
+    setFormData(prev => ({ 
+      ...prev, 
+      mediaUrl: asset.url,
+      type: detectedType,
+      title: prev.title || asset.metadata.title || asset.filename
+    }));
   };
 
   const handleEditItem = (item: IntelItem) => {
@@ -301,6 +313,11 @@ export default function IntelCreatorPanel() {
       </div>
 
       {/* Feedback */}
+      <MediaSelectorModal 
+        isOpen={isMediaSelectorOpen}
+        onClose={() => setIsMediaSelectorOpen(false)}
+        onSelect={handleMediaSelect}
+      />
       {feedback && (
         <div className={`p-4 border text-[11px] font-display font-bold uppercase tracking-[0.2em] rounded-sm shadow-lg animate-in slide-in-from-top-4 ${feedback.type === 'success' ? 'border-emerald-500/30 text-emerald-400 bg-emerald-500/5' : 'border-red-500/30 text-red-400 bg-red-500/5'}`}>
           <div className="flex items-center gap-3">
@@ -579,12 +596,22 @@ export default function IntelCreatorPanel() {
                   <label className="text-[9px] font-display font-bold text-industrial-silver/40 uppercase tracking-[0.2em] mb-2 block group-focus-within:text-primary transition-colors">
                     Vetor de Mídia (URL {formData.type === 'AUDIO' ? 'Áudio' : 'Imagem'})
                   </label>
-                  <input
-                    value={formData.mediaUrl || ''}
-                    onChange={e => updateField('mediaUrl', e.target.value)}
-                    className="w-full bg-surface-container-lowest border-none py-4 px-4 text-white font-mono text-sm tracking-widest outline-none transition-all"
-                    placeholder="https://servidor.remoto/arquivo"
-                  />
+                  <div className="flex gap-2">
+                    <input
+                      value={formData.mediaUrl || ''}
+                      onChange={e => updateField('mediaUrl', e.target.value)}
+                      className="flex-1 bg-surface-container-lowest border-none py-4 px-4 text-white font-mono text-sm tracking-widest outline-none transition-all"
+                      placeholder="https://servidor.remoto/arquivo"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setIsMediaSelectorOpen(true)}
+                      className="bg-primary/10 border border-primary/30 text-primary px-4 hover:bg-primary hover:text-black transition-all rounded-sm flex items-center justify-center gap-2 font-display font-bold text-[9px] uppercase tracking-widest"
+                    >
+                      <span className="material-symbols-outlined text-base">perm_media</span>
+                      BIBLIOTECA
+                    </button>
+                  </div>
                   <div className="h-0.5 w-0 bg-primary transition-all duration-300 group-focus-within:w-full" />
                 </div>
               )}

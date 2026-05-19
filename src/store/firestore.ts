@@ -117,17 +117,32 @@ export async function loadPlayerData(uid: string, characterId: string): Promise<
     achievementIds: achievementsSnap.docs.map((d) => d.id),
     stats,
     unlockedGalleryIds: [], // Populated asynchronously by PlayerSyncService
+    unlockedIntelIds: [], // Unified IDs from 'intel', 'tapes', and 'gallery'
   };
 }
 
 // --- Character Progress ---
 
-export async function firestoreUnlockTape(uid: string, characterId: string, tapeId: string, campaignId?: string): Promise<void> {
-  await setDoc(doc(db, 'users', uid, 'characters', characterId, 'tapes', tapeId), {
-    tapeId,
+/**
+ * @deprecated Renamed to firestoreUnlockIntel. Kept as alias for backward compatibility.
+ */
+export const firestoreUnlockTape = firestoreUnlockIntel;
+
+export async function firestoreUnlockIntel(uid: string, characterId: string, intelId: string, campaignId?: string): Promise<void> {
+  const unlockData = {
+    tapeId: intelId, // Legacy field kept for backward compat
+    intelId,
     unlockedAt: serverTimestamp(),
     campaignId: campaignId || null
-  });
+  };
+  // Dual-write: legacy 'tapes' subcollection + new unified 'intel' subcollection
+  await Promise.all([
+    setDoc(doc(db, 'users', uid, 'characters', characterId, 'tapes', intelId), unlockData),
+    setDoc(doc(db, 'users', uid, 'characters', characterId, 'intel', intelId), {
+      ...unlockData,
+      type: 'AUDIO', // Default type; will be overridden by IntelService with proper type
+    }, { merge: true }),
+  ]);
 }
 
 export async function firestoreGrantAchievements(uid: string, characterId: string, achievementIds: string[]): Promise<void> {
@@ -348,13 +363,26 @@ export async function deleteQrRedirect(sourceId: string): Promise<void> {
   await deleteDoc(doc(db, 'qrRedirects', sourceId));
 }
 
+/**
+ * Fetches gallery images for a player character.
+ * Reads from both legacy 'gallery' subcollection AND unified 'intel' subcollection.
+ */
 export async function fetchPlayerGalleryImages(uid: string, characterId: string): Promise<GalleryImage[]> {
+  // Try unified 'intel' subcollection first (post-migration)
+  const intelSnap = await getDocs(collection(db, 'users', uid, 'characters', characterId, 'intel'));
+  const visualIntelIds = intelSnap.docs
+    .filter(d => d.data().type === 'VISUAL' || d.data().migratedFrom === 'gallery')
+    .map(d => d.id);
+
+  // Also check legacy 'gallery' subcollection for backward compat
   const grantSnap = await getDocs(collection(db, 'users', uid, 'characters', characterId, 'gallery'));
-  const imageIds = grantSnap.docs.map(d => d.id);
+  const legacyImageIds = grantSnap.docs.map(d => d.id);
+
+  // Merge and deduplicate
+  const imageIds = Array.from(new Set([...visualIntelIds, ...legacyImageIds]));
   if (imageIds.length === 0) return [];
   
   const images: GalleryImage[] = [];
-  // Firestore 'in' queries support up to 30 items per query
   for (let i = 0; i < imageIds.length; i += 30) {
     const chunk = imageIds.slice(i, i + 30);
     const { where } = await import('firebase/firestore');
@@ -365,84 +393,6 @@ export async function fetchPlayerGalleryImages(uid: string, characterId: string)
     });
   }
   return images;
-}
-
-export async function grantGalleryImage(uid: string, characterIdOrImageId: string, imageId?: string): Promise<void> {
-  if (imageId) {
-    // Character-scoped grant: grantGalleryImage(uid, characterId, imageId)
-    await setDoc(doc(db, 'users', uid, 'characters', characterIdOrImageId, 'gallery', imageId), { imageId, unlockedAt: serverTimestamp() });
-  } else {
-    // Admin global grant: grantGalleryImage(uid, imageId) — stores in galleryGrants collection
-    await setDoc(doc(db, 'galleryGrants', `${uid}_${characterIdOrImageId}`), {
-      uid,
-      imageId: characterIdOrImageId,
-      grantedAt: serverTimestamp(),
-    });
-  }
-}
-
-// --- Admin Gallery Functions ---
-
-export async function uploadGalleryImage(
-  file: File,
-  category: GalleryCategory,
-  title: string,
-  description: string,
-  createdBy: string,
-  level: number
-): Promise<GalleryImage> {
-  const imageId = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  const storageRef = ref(storage, `gallery/${imageId}`);
-  await uploadBytes(storageRef, file);
-  const imageUrl = await getDownloadURL(storageRef);
-  const data = {
-    category,
-    title,
-    description,
-    imageUrl,
-    level,
-    createdAt: serverTimestamp(),
-    createdBy,
-  };
-  await setDoc(doc(db, 'gallery', imageId), data);
-  return { id: imageId, ...data } as unknown as GalleryImage;
-}
-
-export async function updateGalleryImage(imageId: string, updates: Partial<GalleryImage>): Promise<void> {
-  await setDoc(doc(db, 'gallery', imageId), updates, { merge: true });
-}
-
-export async function deleteGalleryImage(imageId: string): Promise<void> {
-  try {
-    const storageRef = ref(storage, `gallery/${imageId}`);
-    await deleteObject(storageRef);
-  } catch {
-    // File may not exist in storage, continue with doc deletion
-  }
-  await deleteDoc(doc(db, 'gallery', imageId));
-}
-
-export async function revokeGalleryImage(uid: string, imageId: string): Promise<void> {
-  await deleteDoc(doc(db, 'galleryGrants', `${uid}_${imageId}`));
-}
-
-export async function grantGalleryImageToMultiple(uids: string[], imageId: string): Promise<void> {
-  const batch = writeBatch(db);
-  uids.forEach(uid => {
-    batch.set(doc(db, 'galleryGrants', `${uid}_${imageId}`), {
-      uid,
-      imageId,
-      grantedAt: serverTimestamp(),
-    });
-  });
-  await batch.commit();
-}
-
-export async function fetchUserGalleryGrants(imageId: string): Promise<string[]> {
-  const snap = await getDocs(collection(db, 'galleryGrants'));
-  return snap.docs
-    .filter(d => d.data().imageId === imageId)
-    .map(d => d.data().uid as string);
 }
 
 // Re-export types used by admin panels

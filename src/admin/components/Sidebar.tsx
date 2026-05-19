@@ -28,8 +28,8 @@ export default function Sidebar({ activeTab, setActiveTab, isCollapsed, onToggle
     {
       title: "Conteúdo",
       items: [
-        { id: 'library', label: 'Biblioteca', icon: 'library_music' },
-        { id: 'intel', label: 'Intel Registry', icon: 'hub' },
+        { id: 'media', label: 'Central de Mídia', icon: 'cloud_upload' },
+        { id: 'intel', label: 'Acervo de Intel', icon: 'hub' },
       ]
     },
     {

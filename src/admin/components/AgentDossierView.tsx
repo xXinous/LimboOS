@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { format } from 'date-fns';
 import { motion } from 'motion/react';
@@ -13,7 +13,6 @@ import BulkInventoryModal from './BulkInventoryModal';
 import { useModal } from './ConfirmModal';
 import Screw from '../../components/player/Screw';
 import { ALL_ACHIEVEMENTS } from '../../data/achievements';
-import { onSnapshot } from 'firebase/firestore';
 
 interface AgentDossierViewProps {
   uid: string;
@@ -40,22 +39,22 @@ export default function AgentDossierView({ uid, character, masterAccount, onClos
   const [allAccounts, setAllAccounts] = useState<MasterAccount[]>([]);
   const [transferTarget, setTransferTarget] = useState<string>('');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [allAudios, setAllAudios] = useState<any[]>([]);
   const [showAchievementSelect, setShowAchievementSelect] = useState(false);
+
+  // Use unified intelRegistry instead of direct Firestore listener
+  const allAudios = useMemo(() => 
+    intelRegistry.getAll().map(item => ({
+      id: item.id,
+      originalName: item.title || item.id,
+      title: item.title,
+      artist: item.metadata?.artist,
+    })),
+  []);
 
   const { showConfirm, modal } = useModal();
 
   useEffect(() => {
     loadDetails();
-    const unsub = onSnapshot(collection(db, 'audios'), (snap) => {
-      const list: any[] = [];
-      snap.forEach((d) => {
-        const data = d.data();
-        list.push({ id: d.id, originalName: data.originalName || d.id, title: data.title, artist: data.artist });
-      });
-      setAllAudios(list);
-    });
-    return () => unsub();
   }, [uid, character.id]);
 
   const loadDetails = async () => {

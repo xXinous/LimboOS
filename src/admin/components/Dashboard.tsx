@@ -9,16 +9,15 @@ import Sidebar from './Sidebar';
 import Header from './Header';
 const UserRegistry = React.lazy(() => import('./UserRegistry'));
 const GroupManager = React.lazy(() => import('./GroupManager'));
-const AudioBuffer = React.lazy(() => import('./AudioBuffer'));
 const AnalyticsPanel = React.lazy(() => import('./AnalyticsPanel'));
 const AchievementsPanel = React.lazy(() => import('./AchievementsPanel'));
 const TerminalPanel = React.lazy(() => import('./TerminalPanel'));
 const SystemLogPanel = React.lazy(() => import('./SystemLogPanel'));
 const RedirectsPanel = React.lazy(() => import('./RedirectsPanel'));
-const GalleryPanel = React.lazy(() => import('./GalleryPanel'));
 const JukeboxPanel = React.lazy(() => import('./JukeboxPanel'));
 const CampaignsPanel = React.lazy(() => import('./CampaignsPanel'));
 const IntelCreatorPanel = React.lazy(() => import('./IntelCreatorPanel'));
+const MediaLibraryPanel = React.lazy(() => import('./MediaLibraryPanel'));
 
 interface DashboardProps {
   user: User | null;
@@ -37,7 +36,7 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
   const [isAdmin, setIsAdmin] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [mountedTabs, setMountedTabs] = useState<Set<string>>(new Set(['dashboard']));
-  const [libraryTab, setLibraryTab] = useState<'acervo' | 'jukebox' | 'galeria' | 'qr'>('acervo');
+  const [intelTab, setIntelTab] = useState<'catalogo' | 'jukebox' | 'qr' | 'conquistas'>('catalogo');
   const [stats, setStats] = useState<Stats>({ totalUsers: 0, totalAudios: 0, totalPlays: 0 });
   const [sessionTime, setSessionTime] = useState(() => new Date().toISOString().substr(11, 8));
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -69,7 +68,7 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
     unsubs.push(onSnapshot(collection(db, 'users'), (snap) => {
       setStats(prev => ({ ...prev, totalUsers: snap.size }));
     }));
-    unsubs.push(onSnapshot(collection(db, 'audios'), (snap) => {
+    unsubs.push(onSnapshot(collection(db, 'intel_items'), (snap) => {
       setStats(prev => ({ ...prev, totalAudios: snap.size }));
     }));
     unsubs.push(onSnapshot(collection(db, 'playEvents'), (snap) => {
@@ -93,15 +92,15 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
     };
   }, [isAdmin]);
 
-  // Keyboard shortcuts: Cmd+K for spotlight, Cmd+1-7 for tabs
+  // Keyboard shortcuts: Cmd+K for spotlight, Cmd+1-8 for tabs
   useEffect(() => {
-    const tabOrder = ['dashboard', 'missions', 'players', 'squads', 'library', 'intel', 'systems'];
+    const tabOrder = ['dashboard', 'missions', 'players', 'squads', 'media', 'intel', 'systems'];
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
         setSpotlightOpen(prev => !prev);
       }
-      if ((e.metaKey || e.ctrlKey) && e.key >= '1' && e.key <= '7') {
+      if ((e.metaKey || e.ctrlKey) && e.key >= '1' && e.key <= '8') {
         e.preventDefault();
         const idx = parseInt(e.key) - 1;
         if (tabOrder[idx]) setActiveTab(tabOrder[idx]);
@@ -192,38 +191,28 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
                   </div>
                 )}
 
-                {mountedTabs.has('library') && (
-                  <div className={activeTab === 'library' ? 'block' : 'hidden'}>
-                    <div className="bg-surface-container-low border border-primary/20 overflow-hidden rounded-sm shadow-xl">
-                      {/* Navegação da Biblioteca */}
-                      <div className="flex flex-wrap border-b border-primary/10 bg-black/20">
-                        <LibrarySubTab label="Acervo" active={libraryTab === 'acervo'} onClick={() => setLibraryTab('acervo')} icon="album" />
-                        <LibrarySubTab label="Jukebox" active={libraryTab === 'jukebox'} onClick={() => setLibraryTab('jukebox')} icon="queue_music" />
-                        <LibrarySubTab label="Galeria" active={libraryTab === 'galeria'} onClick={() => setLibraryTab('galeria')} icon="photo_library" />
-                        <LibrarySubTab label="QR Codes" active={libraryTab === 'qr'} onClick={() => setLibraryTab('qr')} icon="qr_code" />
-                      </div>
-
-                      <div className="p-4 sm:p-8">
-                        {libraryTab === 'acervo' && <AudioBuffer user={user} isAdmin={isAdmin} />}
-                        {libraryTab === 'jukebox' && <JukeboxPanel />}
-                        {libraryTab === 'galeria' && <GalleryPanel />}
-                        {libraryTab === 'qr' && <RedirectsPanel />}
-                      </div>
-                    </div>
+                {mountedTabs.has('media') && (
+                  <div className={activeTab === 'media' ? 'block' : 'hidden'}>
+                    <MediaLibraryPanel />
                   </div>
                 )}
 
                 {mountedTabs.has('intel') && (
                   <div className={activeTab === 'intel' ? 'block' : 'hidden'}>
-                    <div className="space-y-8">
-                      <IntelCreatorPanel />
-                      <div className="border-t border-primary/10 pt-8">
-                        <div className="flex items-center gap-3 mb-6">
-                          <div className="h-px flex-1 bg-linear-to-r from-transparent to-primary/20" />
-                          <h3 className="text-industrial-silver/40 font-display text-[10px] uppercase font-bold tracking-[0.3em]">Catálogo_de_Conquistas</h3>
-                          <div className="h-px flex-1 bg-linear-to-l from-transparent to-primary/20" />
-                        </div>
-                        <AchievementsPanel />
+                    <div className="bg-surface-container-low border border-primary/20 overflow-hidden rounded-sm shadow-xl">
+                      {/* Navegação do Acervo de Intel */}
+                      <div className="flex flex-wrap border-b border-primary/10 bg-black/20">
+                        <IntelSubTab label="Catálogo" active={intelTab === 'catalogo'} onClick={() => setIntelTab('catalogo')} icon="hub" />
+                        <IntelSubTab label="Jukebox" active={intelTab === 'jukebox'} onClick={() => setIntelTab('jukebox')} icon="queue_music" />
+                        <IntelSubTab label="QR & Links" active={intelTab === 'qr'} onClick={() => setIntelTab('qr')} icon="qr_code" />
+                        <IntelSubTab label="Conquistas" active={intelTab === 'conquistas'} onClick={() => setIntelTab('conquistas')} icon="emoji_events" />
+                      </div>
+
+                      <div className="p-4 sm:p-8">
+                        {intelTab === 'catalogo' && <IntelCreatorPanel />}
+                        {intelTab === 'jukebox' && <JukeboxPanel />}
+                        {intelTab === 'qr' && <RedirectsPanel />}
+                        {intelTab === 'conquistas' && <AchievementsPanel />}
                       </div>
                     </div>
                   </div>
@@ -286,7 +275,7 @@ function StatCard({ label, value, icon, color }: { label: string, value: number,
   );
 }
 
-function LibrarySubTab({ label, active, onClick, icon }: { label: string, active: boolean, onClick: () => void, icon: string }) {
+function IntelSubTab({ label, active, onClick, icon }: { label: string, active: boolean, onClick: () => void, icon: string }) {
   return (
     <button 
       onClick={onClick}

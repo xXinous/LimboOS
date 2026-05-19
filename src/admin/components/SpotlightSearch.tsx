@@ -182,8 +182,7 @@ export function buildSearchItems(
     { id: 'missions', label: 'Missões', icon: 'map' },
     { id: 'players', label: 'Agentes', icon: 'group' },
     { id: 'inventory', label: 'Inventário', icon: 'inventory_2' },
-    { id: 'library', label: 'Biblioteca', icon: 'library_music' },
-    { id: 'intel', label: 'Intel Registry', icon: 'hub' },
+    { id: 'intel', label: 'Acervo de Intel', icon: 'hub' },
     { id: 'systems', label: 'Acessos', icon: 'settings_input_component' },
   ];
   tabs.forEach((t) => {

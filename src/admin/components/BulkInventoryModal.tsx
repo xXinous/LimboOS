@@ -1,24 +1,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { db } from '../../lib/firebase';
-import { collection, onSnapshot } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'motion/react';
 import { intelRegistry } from '../../data/intel_registry';
 import { userService } from '../../services/UserService';
 import { activityLogger } from '../../services/ActivityLogger';
 import { CharacterData } from '../../types/player';
 import Screw from '../../components/player/Screw';
+import type { IntelItem } from '../../types/intel';
 
-export interface AudioData {
-  id: string;
-  originalName: string;
-  title?: string;
-  artist?: string;
-  chapter?: string;
-  duration?: number;
-  isSecret?: boolean;
-}
-
-export type AddTabType = 'audio' | 'evidence';
+export type AddTabType = 'all' | 'audio' | 'visual' | 'text' | 'meta';
 
 interface BulkInventoryModalProps {
   uid?: string;
@@ -31,32 +20,11 @@ interface BulkInventoryModalProps {
 }
 
 export default function BulkInventoryModal({ uid, character, title, existingItemIds = new Set(), onClose, onSuccess, onExecuteBulk }: BulkInventoryModalProps) {
-  const [allAudios, setAllAudios] = useState<AudioData[]>([]);
-  const [addTab, setAddTab] = useState<AddTabType>('audio');
+  const [addTab, setAddTab] = useState<AddTabType>('all');
   const [addSearch, setAddSearch] = useState('');
   const [selectedToAdd, setSelectedToAdd] = useState<Set<string>>(new Set());
   const [addLoading, setAddLoading] = useState(false);
   const [addFeedback, setAddFeedback] = useState<string | null>(null);
-
-  useEffect(() => {
-    const unsub = onSnapshot(collection(db, 'audios'), (snap) => {
-      const list: AudioData[] = [];
-      snap.forEach((d) => {
-        const data = d.data();
-        list.push({
-          id: d.id,
-          originalName: data.originalName || d.id,
-          title: data.title,
-          artist: data.artist,
-          chapter: data.chapter,
-          duration: data.duration,
-          isSecret: data.isSecret,
-        });
-      });
-      setAllAudios(list);
-    });
-    return () => unsub();
-  }, []);
 
   const executeAddItems = async () => {
     if (selectedToAdd.size === 0) return;
@@ -84,9 +52,19 @@ export default function BulkInventoryModal({ uid, character, title, existingItem
     }
   };
 
-  const filteredAudiosForAdd = useMemo(() => allAudios.filter(a => (a.title || a.originalName || '').toLowerCase().includes(addSearch.toLowerCase())), [allAudios, addSearch]);
-  const allRegistryIntel = useMemo(() => intelRegistry.getAll(), []);
-  const filteredEvidenceForAdd = useMemo(() => allRegistryIntel.filter(i => (i.title || '').toLowerCase().includes(addSearch.toLowerCase()) || (i.id || '').toLowerCase().includes(addSearch.toLowerCase())), [allRegistryIntel, addSearch]);
+  // Unified registry: all items from intelRegistry
+  const allIntelItems = useMemo(() => intelRegistry.getAll(), []);
+  const filteredItems = useMemo(() => {
+    let items = allIntelItems;
+    if (addTab !== 'all') {
+      const typeMap: Record<string, string> = { audio: 'AUDIO', visual: 'VISUAL', text: 'TEXT', meta: 'META' };
+      items = items.filter(i => i.type === typeMap[addTab]);
+    }
+    return items.filter(i => 
+      (i.title || '').toLowerCase().includes(addSearch.toLowerCase()) || 
+      (i.id || '').toLowerCase().includes(addSearch.toLowerCase())
+    );
+  }, [allIntelItems, addSearch, addTab]);
 
   return (
     <div className="fixed inset-0 z-[120] flex justify-end bg-black/80 backdrop-blur-sm" onClick={() => { if (!addLoading) onClose(); }}>
@@ -103,8 +81,12 @@ export default function BulkInventoryModal({ uid, character, title, existingItem
         </div>
         
         <div className="flex border-b-2 border-[#1a1a1a] bg-black/20 relative z-10 shrink-0">
-          <button onClick={() => setAddTab('audio')} className={`flex-1 py-4 text-[11px] font-black uppercase tracking-[0.2em] transition-all ${addTab === 'audio' ? 'text-primary bg-primary/10 border-b-2 border-primary' : 'text-zinc-600 hover:text-zinc-400'}`}>Arquivos Áudio</button>
-          <button onClick={() => setAddTab('evidence')} className={`flex-1 py-4 text-[11px] font-black uppercase tracking-[0.2em] transition-all ${addTab === 'evidence' ? 'text-primary bg-primary/10 border-b-2 border-primary' : 'text-zinc-600 hover:text-zinc-400'}`}>Registros Intel</button>
+          {(['all', 'audio', 'visual', 'text', 'meta'] as AddTabType[]).map(tab => {
+            const labels: Record<AddTabType, string> = { all: 'Todos', audio: '📼 Áudio', visual: '📷 Visual', text: '💾 Texto', meta: '🏆 Meta' };
+            return (
+              <button key={tab} onClick={() => setAddTab(tab)} className={`flex-1 py-4 text-[10px] font-black uppercase tracking-[0.15em] transition-all ${addTab === tab ? 'text-primary bg-primary/10 border-b-2 border-primary' : 'text-zinc-600 hover:text-zinc-400'}`}>{labels[tab]}</button>
+            );
+          })}
         </div>
         
         <div className="p-6 border-b-2 border-[#1a1a1a] bg-black/40 relative z-10 shrink-0">
@@ -116,7 +98,7 @@ export default function BulkInventoryModal({ uid, character, title, existingItem
         
         <div className="flex-1 overflow-y-auto p-6 custom-scrollbar bg-black/10 relative z-10">
           <div className="grid grid-cols-1 gap-2">
-            {(addTab === 'audio' ? filteredAudiosForAdd : filteredEvidenceForAdd).map((item: any) => {
+            {filteredItems.map((item: any) => {
               const id = item.id;
               const alreadyHas = existingItemIds.has(id);
               const isSelected = selectedToAdd.has(id);

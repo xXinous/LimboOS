@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import Screw from '../../components/player/Screw';
-import { db, storage } from '../../lib/firebase';
+import { db } from '../../lib/firebase';
 import {
   collection,
   onSnapshot,
@@ -12,7 +12,6 @@ import {
   updateDoc,
   writeBatch
 } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { Campaign, campaigns as initialCampaigns } from '../../data/campaigns';
 import { Group, UserData, MasterAccount, CharacterData } from '../../types/player';
 import { activityLogger } from '../../services/ActivityLogger';
@@ -20,6 +19,8 @@ import { useModal } from './ConfirmModal';
 import { intelRegistry } from '../../data/intel_registry';
 import { userService } from '../../services/UserService';
 import CampaignInventoryModal from './CampaignInventoryModal';
+import MediaSelectorModal from './MediaSelectorModal';
+import { MediaAsset } from '../../types/media';
 
 export default function CampaignsPanel() {
   const { showAlert, showConfirm, modal } = useModal();
@@ -31,8 +32,7 @@ export default function CampaignsPanel() {
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [editingCampaign, setEditingCampaign] = useState<Partial<Campaign> | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isMediaSelectorOpen, setIsMediaSelectorOpen] = useState(false);
 
   const [showItemsModal, setShowItemsModal] = useState(false);
   const [itemSearch, setItemSearch] = useState('');
@@ -178,36 +178,22 @@ export default function CampaignsPanel() {
 
   const allRegistryIntel = intelRegistry.getAll();
 
-  const handleFileUpload = async (file: File) => {
-    if (!editingCampaign?.id) return;
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
-    if (!allowedTypes.includes(file.type)) {
-      showAlert('Formato Inválido', 'Apenas imagens JPG, PNG, WebP e GIF são aceitas.');
-      return;
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      showAlert('Arquivo Grande', 'O arquivo deve ter no máximo 5MB.');
-      return;
-    }
-    setIsUploading(true);
-    try {
-      const ext = file.name.split('.').pop() || 'jpg';
-      const storageRef = ref(storage, `campaigns/covers/${editingCampaign.id}_${Date.now()}.${ext}`);
-      await uploadBytes(storageRef, file);
-      const url = await getDownloadURL(storageRef);
-      setEditingCampaign(prev => ({ ...prev, imageUrl: url }));
-      activityLogger.logAdmin('gm.mpg', 'campaign_cover_uploaded', `Cover uploaded for: ${editingCampaign.id}`);
-    } catch (error) {
-      console.error('Erro no upload:', error);
-      showAlert('Erro', 'Não foi possível enviar a imagem.');
-    } finally {
-      setIsUploading(false);
-    }
+  const handleMediaSelect = (asset: MediaAsset) => {
+    if (!editingCampaign) return;
+    setEditingCampaign({ ...editingCampaign, imageUrl: asset.url });
   };
 
   return (
     <div className="space-y-8 font-sans">
       {modal}
+      
+      <MediaSelectorModal 
+        isOpen={isMediaSelectorOpen}
+        onClose={() => setIsMediaSelectorOpen(false)}
+        onSelect={handleMediaSelect}
+        title="Selecionar Capa da Missão"
+        allowedTypes={['image']}
+      />
       
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
@@ -487,36 +473,15 @@ export default function CampaignsPanel() {
                       </div>
                     )}
 
-                    {/* Upload area */}
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/jpeg,image/png,image/webp,image/gif"
-                      className="hidden"
-                      onChange={e => {
-                        const file = e.target.files?.[0];
-                        if (file) handleFileUpload(file);
-                        e.target.value = '';
-                      }}
-                    />
+                    {/* Media Library Selector */}
                     <button
                       type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      disabled={isUploading}
-                      className="w-full border-2 border-dashed border-primary/15 hover:border-primary/40 bg-surface-container-lowest/50 hover:bg-primary/5 rounded-sm py-5 flex flex-col items-center gap-2 transition-all group/upload cursor-pointer disabled:opacity-40 disabled:cursor-wait"
+                      onClick={() => setIsMediaSelectorOpen(true)}
+                      className="w-full border-2 border-dashed border-primary/15 hover:border-primary/40 bg-surface-container-lowest/50 hover:bg-primary/5 rounded-sm py-8 flex flex-col items-center gap-2 transition-all group/upload cursor-pointer"
                     >
-                      {isUploading ? (
-                        <>
-                          <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                          <span className="text-[10px] font-display font-bold text-primary/60 uppercase tracking-widest">Enviando...</span>
-                        </>
-                      ) : (
-                        <>
-                          <span className="material-symbols-outlined text-2xl text-industrial-silver/20 group-hover/upload:text-primary/60 transition-colors">cloud_upload</span>
-                          <span className="text-[10px] font-display font-bold text-industrial-silver/30 group-hover/upload:text-primary/50 uppercase tracking-widest transition-colors">Enviar Imagem</span>
-                          <span className="text-[8px] font-display text-industrial-silver/15 uppercase tracking-wider">JPG, PNG, WebP, GIF • Max 5MB</span>
-                        </>
-                      )}
+                      <span className="material-symbols-outlined text-3xl text-industrial-silver/20 group-hover/upload:text-primary/60 transition-colors">perm_media</span>
+                      <span className="text-[10px] font-display font-bold text-industrial-silver/30 group-hover/upload:text-primary/50 uppercase tracking-widest transition-colors">Selecionar da Central de Mídia</span>
+                      <span className="text-[8px] font-display text-industrial-silver/15 uppercase tracking-wider">Acessar acervo global de imagens</span>
                     </button>
 
                     {/* URL fallback */}

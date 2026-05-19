@@ -202,3 +202,73 @@ export async function needsMigration(uid: string): Promise<boolean> {
 
   return false;
 }
+
+/**
+ * MIGRATION V2-B: PER-USER SILENT INTEL MIGRATION
+ * Runs automatically on login. Consolidates 'tapes' and 'gallery' subcollections 
+ * into a single 'intel' subcollection for all characters of a specific user.
+ * Marks user doc with intelMigrated flag to prevent re-processing.
+ */
+export async function needsIntelMigration(uid: string): Promise<boolean> {
+  const userRef = doc(db, 'users', uid);
+  const userSnap = await getDoc(userRef);
+  if (!userSnap.exists()) return false;
+  return !userSnap.data().intelMigrated;
+}
+
+export async function migrateUserToUnifiedIntel(uid: string): Promise<void> {
+  console.log(`[MIGRATION_INTEL_V2] Iniciando migração silenciosa para uid: ${uid}`);
+  
+  try {
+    const charactersSnap = await getDocs(collection(db, 'users', uid, 'characters'));
+    
+    for (const charDoc of charactersSnap.docs) {
+      const charId = charDoc.id;
+      
+      // 1. Migrate Tapes -> Intel
+      const tapesSnap = await getDocs(collection(db, 'users', uid, 'characters', charId, 'tapes'));
+      if (!tapesSnap.empty) {
+        const batch = writeBatch(db);
+        tapesSnap.forEach(d => {
+          const intelRef = doc(db, 'users', uid, 'characters', charId, 'intel', d.id);
+          batch.set(intelRef, {
+            ...d.data(),
+            migratedFrom: 'tapes',
+            type: 'AUDIO',
+            updatedAt: serverTimestamp()
+          }, { merge: true }); // merge to avoid overwriting if already migrated
+        });
+        await batch.commit();
+        console.log(`[MIGRATION_INTEL_V2] ${tapesSnap.size} tapes migradas para intel (char: ${charId})`);
+      }
+      
+      // 2. Migrate Gallery -> Intel
+      const gallerySnap = await getDocs(collection(db, 'users', uid, 'characters', charId, 'gallery'));
+      if (!gallerySnap.empty) {
+        const batch = writeBatch(db);
+        gallerySnap.forEach(d => {
+          const intelRef = doc(db, 'users', uid, 'characters', charId, 'intel', d.id);
+          batch.set(intelRef, {
+            ...d.data(),
+            migratedFrom: 'gallery',
+            type: 'VISUAL',
+            updatedAt: serverTimestamp()
+          }, { merge: true });
+        });
+        await batch.commit();
+        console.log(`[MIGRATION_INTEL_V2] ${gallerySnap.size} gallery items migrados para intel (char: ${charId})`);
+      }
+    }
+    
+    // 3. Mark user as migrated
+    await setDoc(doc(db, 'users', uid), { 
+      intelMigrated: true, 
+      intelMigratedAt: serverTimestamp() 
+    }, { merge: true });
+    
+    console.log(`[MIGRATION_INTEL_V2] Migração concluída para uid: ${uid}`);
+  } catch (error: any) {
+    console.error(`[MIGRATION_INTEL_V2] Erro na migração: ${error.message}`);
+    // Non-blocking: don't throw, user can still use the app with legacy listeners
+  }
+}

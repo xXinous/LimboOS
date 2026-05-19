@@ -4,7 +4,9 @@ import {
   collection, onSnapshot, doc, deleteDoc, addDoc, updateDoc,
   serverTimestamp, query, orderBy, getDocs, writeBatch
 } from 'firebase/firestore';
-import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
+import { ref, deleteObject } from 'firebase/storage';
+import MediaSelectorModal from './MediaSelectorModal';
+import { MediaAsset } from '../../types/media';
 import { useModal } from './ConfirmModal';
 import Screw from '../../components/player/Screw';
 
@@ -43,13 +45,12 @@ export default function JukeboxPanel() {
   const [isLooping, setIsLooping] = useState(false);
   const [linkInput, setLinkInput] = useState('');
   const [titleInput, setTitleInput] = useState('');
-  const [isUploading, setIsUploading] = useState(false);
+  const [isMediaSelectorOpen, setIsMediaSelectorOpen] = useState(false);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const ytPlayerRef = useRef<any>(null);
   const ytContainerRef = useRef<HTMLDivElement>(null);
   const ytApiReady = useRef(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const { showAlert, showConfirm, modal } = useModal();
 
   const currentTrack = currentIndex >= 0 && currentIndex < tracks.length ? tracks[currentIndex] : null;
@@ -188,35 +189,22 @@ export default function JukeboxPanel() {
     setTitleInput('');
   };
 
-  /* ── Upload audio file ───────────────────────────────── */
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 50 * 1024 * 1024) {
-      await showAlert('Arquivo Grande', 'Máximo 50MB.');
-      return;
-    }
-    setIsUploading(true);
+  /* ── Media Selector handler ──────────────────────────── */
+  const handleMediaSelect = async (asset: MediaAsset) => {
     try {
-      const storageRef = ref(storage, `jukebox/${Date.now()}_${file.name}`);
-      await uploadBytesResumable(storageRef, file);
-      const downloadURL = await getDownloadURL(storageRef);
       const maxOrder = tracks.length > 0 ? Math.max(...tracks.map(t => t.order)) + 1 : 0;
       await addDoc(collection(db, 'jukeboxTracks'), {
         type: 'audio',
-        title: titleInput.trim() || file.name.replace(/\.[^/.]+$/, ''),
-        url: downloadURL,
-        storagePath: storageRef.fullPath,
+        title: titleInput.trim() || asset.metadata.title || asset.filename,
+        url: asset.url,
+        storagePath: asset.storagePath,
         order: maxOrder,
         createdAt: serverTimestamp(),
       });
       setTitleInput('');
     } catch (err) {
       console.error(err);
-      await showAlert('Erro', 'Falha no upload do áudio.');
-    } finally {
-      setIsUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
+      await showAlert('Erro', 'Falha ao adicionar áudio à jukebox.');
     }
   };
 
@@ -272,6 +260,14 @@ export default function JukeboxPanel() {
     <section className="space-y-6 font-chakra">
       {modal}
       <audio ref={audioRef} preload="auto" className="hidden" />
+
+      <MediaSelectorModal 
+        isOpen={isMediaSelectorOpen}
+        onClose={() => setIsMediaSelectorOpen(false)}
+        onSelect={handleMediaSelect}
+        title="Selecionar Áudio para Jukebox"
+        allowedTypes={['audio']}
+      />
 
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -377,11 +373,10 @@ export default function JukeboxPanel() {
         </div>
 
         <div className="flex justify-center">
-          <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept="audio/*" className="hidden" />
-          <button onClick={() => fileInputRef.current?.click()} disabled={isUploading}
-            className="flex items-center gap-3 px-10 py-3.5 bg-primary/10 text-primary border-2 border-primary/20 text-[10px] font-black tracking-widest hover:bg-primary/20 transition-all rounded-sm active:scale-95 glow-orange disabled:opacity-10">
-            <span className="material-symbols-outlined text-sm">{isUploading ? 'sync' : 'upload_file'}</span>
-            {isUploading ? 'TRANSMITINDO_DADOS...' : 'UPLOAD_DE_ÁUDIO_LOCAL'}
+          <button onClick={() => setIsMediaSelectorOpen(true)}
+            className="flex items-center gap-3 px-10 py-3.5 bg-primary/10 text-primary border-2 border-primary/20 text-[10px] font-black tracking-widest hover:bg-primary/20 transition-all rounded-sm active:scale-95 glow-orange">
+            <span className="material-symbols-outlined text-sm">perm_media</span>
+            ADICIONAR_DO_ACERVO_DE_MÍDIA
           </button>
         </div>
       </div>

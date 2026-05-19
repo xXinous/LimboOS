@@ -155,6 +155,12 @@ export class UserService {
     await Promise.all(tapesSnap.docs.map((d) => deleteDoc(d.ref)));
     const achSnap = await getDocs(collection(db, "users", uid, "characters", characterId, "achievements"));
     await Promise.all(achSnap.docs.map((d) => deleteDoc(d.ref)));
+    // Clean unified intel subcollection
+    const intelSnap = await getDocs(collection(db, "users", uid, "characters", characterId, "intel"));
+    await Promise.all(intelSnap.docs.map((d) => deleteDoc(d.ref)));
+    // Clean legacy gallery subcollection
+    const gallerySnap = await getDocs(collection(db, "users", uid, "characters", characterId, "gallery"));
+    await Promise.all(gallerySnap.docs.map((d) => deleteDoc(d.ref)));
     await deleteDoc(doc(db, "users", uid, "characters", characterId));
   }
 
@@ -163,14 +169,24 @@ export class UserService {
   }
 
   public async removeUserIntel(uid: string, characterId: string, intelId: string): Promise<void> {
-    await deleteDoc(doc(db, "users", uid, "characters", characterId, "tapes", intelId));
+    // Dual-delete: remove from both legacy and unified subcollections
+    await Promise.all([
+      deleteDoc(doc(db, "users", uid, "characters", characterId, "tapes", intelId)),
+      deleteDoc(doc(db, "users", uid, "characters", characterId, "intel", intelId)),
+    ]);
   }
 
   public async addUserIntel(uid: string, characterId: string, intelId: string): Promise<void> {
-    await setDoc(doc(db, "users", uid, "characters", characterId, "tapes", intelId), {
+    const unlockData = {
       tapeId: intelId,
+      intelId,
       unlockedAt: serverTimestamp(),
-    });
+    };
+    // Dual-write: write to both legacy and unified subcollections
+    await Promise.all([
+      setDoc(doc(db, "users", uid, "characters", characterId, "tapes", intelId), unlockData),
+      setDoc(doc(db, "users", uid, "characters", characterId, "intel", intelId), unlockData, { merge: true }),
+    ]);
   }
 
   public async grantUserAchievement(uid: string, characterId: string, achievementId: string): Promise<void> {
@@ -269,7 +285,7 @@ export class UserService {
     if (!charSnap.exists()) throw new Error('Character not found');
     await setDoc(doc(db, "users", toUid, "characters", characterId), charSnap.data());
 
-    // 2. Copy tapes subcollection
+    // 2. Copy tapes subcollection (legacy)
     const tapesSnap = await getDocs(collection(db, "users", fromUid, "characters", characterId, "tapes"));
     const batch1 = writeBatch(db);
     tapesSnap.docs.forEach(d => {
@@ -277,7 +293,15 @@ export class UserService {
     });
     if (tapesSnap.docs.length > 0) await batch1.commit();
 
-    // 3. Copy achievements subcollection
+    // 3. Copy unified intel subcollection
+    const intelSnap = await getDocs(collection(db, "users", fromUid, "characters", characterId, "intel"));
+    const batchIntel = writeBatch(db);
+    intelSnap.docs.forEach(d => {
+      batchIntel.set(doc(db, "users", toUid, "characters", characterId, "intel", d.id), d.data());
+    });
+    if (intelSnap.docs.length > 0) await batchIntel.commit();
+
+    // 4. Copy achievements subcollection
     const achSnap = await getDocs(collection(db, "users", fromUid, "characters", characterId, "achievements"));
     const batch2 = writeBatch(db);
     achSnap.docs.forEach(d => {
@@ -285,13 +309,13 @@ export class UserService {
     });
     if (achSnap.docs.length > 0) await batch2.commit();
 
-    // 4. Copy stats
+    // 5. Copy stats
     const statsSnap = await getDoc(doc(db, "users", fromUid, "characters", characterId, "stats", "main"));
     if (statsSnap.exists()) {
       await setDoc(doc(db, "users", toUid, "characters", characterId, "stats", "main"), statsSnap.data());
     }
 
-    // 5. Delete from source
+    // 6. Delete from source (now also cleans intel subcollection)
     await this.deleteCharacter(fromUid, characterId);
   }
 

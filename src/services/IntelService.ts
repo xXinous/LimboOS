@@ -110,13 +110,10 @@ class IntelService {
 
   /**
    * Desbloqueia um IntelItem para o jogador.
-   * Lógica unificada que substitui firestoreUnlockTape para todos os tipos.
+   * Ponto de entrada unificado para todos os tipos de Intel (AUDIO, VISUAL, TEXT, META).
    * 
    * Nota: Achievements usam firestoreGrantAchievements (lógica separada de avaliação).
-   * Gallery images usam grantGalleryImage (admin-controlled).
-   * Tapes usam firestoreUnlockTape.
-   * 
-   * Esta função é o ponto de entrada unificado.
+   * Todos os outros tipos passam por aqui via firestoreUnlockIntel (dual-write tapes+intel).
    */
   public async unlock(
     playerData: PlayerData,

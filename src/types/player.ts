@@ -59,10 +59,13 @@ export interface PlayerStats {
 export interface PlayerData extends MasterAccount {
   activeCharacterId: string;
   character: CharacterData;
+  /** @deprecated Use unlockedIntelIds. Kept for backward compatibility during migration. */
   unlockedTapeIds: string[];
   achievementIds: string[];
+  /** @deprecated Use unlockedIntelIds. Kept for backward compatibility during migration. */
   unlockedGalleryIds: string[];
-  unlockedIntelIds: string[]; // Unified IDs from 'intel', 'tapes', and 'gallery'
+  /** Unified IDs from 'intel' subcollection (post-migration). Merges tapes + gallery + intel. */
+  unlockedIntelIds: string[];
   stats: PlayerStats;
 }
 
