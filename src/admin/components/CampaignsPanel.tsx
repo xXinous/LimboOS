@@ -328,7 +328,7 @@ export default function CampaignsPanel() {
                     >
                       <option value="">Ligar Agente...</option>
                       {allCharacters.filter(c => c.character.campaignId !== campaign.id && !groups.some(g => g.campaignId === campaign.id && g.characterSlots?.some(s => s.characterId === c.character.id))).map(c => (
-                        <option key={c.character.id} value={`${c.account.uid}|${c.character.id}`}>{c.character.codinome} ({c.account.masterName || c.account.email})</option>
+                        <option key={`${c.account.uid}_${c.character.id}`} value={`${c.account.uid}|${c.character.id}`}>{c.character.codinome} ({c.account.masterName || c.account.email})</option>
                       ))}
                     </select>
                   </div>
@@ -341,7 +341,7 @@ export default function CampaignsPanel() {
                     </span>
                   ))}
                   {allCharacters.filter(c => c.character.campaignId === campaign.id).map(c => (
-                    <span key={c.character.id} className="text-[9px] font-display font-bold bg-white/5 text-industrial-silver/40 border border-white/5 px-3 py-1 rounded-sm uppercase tracking-wider">
+                    <span key={`${c.account.uid}_${c.character.id}`} className="text-[9px] font-display font-bold bg-white/5 text-industrial-silver/40 border border-white/5 px-3 py-1 rounded-sm uppercase tracking-wider">
                       AGT: {c.character.codinome}
                     </span>
                   ))}

@@ -45,7 +45,7 @@ export default function CampaignInventoryModal({ campaign, groups, allCharacters
           campaignId: d.data().campaignId
         })).filter(t => !t.campaignId || t.campaignId === campaign.id);
         
-        inventories[item.character.id] = tapes;
+        inventories[`${item.account.uid}_${item.character.id}`] = tapes;
       } catch (err) {
         console.error("Error loading inventory for char", item.character.id, err);
       }
@@ -122,9 +122,10 @@ export default function CampaignInventoryModal({ campaign, groups, allCharacters
               )}
 
               {campaignCharacters.map(({ account, character }) => {
-                const tapes = characterInventories[character.id] || [];
+                const compositeKey = `${account.uid}_${character.id}`;
+                const tapes = characterInventories[compositeKey] || [];
                 return (
-                  <div key={character.id} className="bg-black/40 border border-white/5 rounded-sm p-6 group hover:border-primary/20 transition-all shadow-inner">
+                  <div key={compositeKey} className="bg-black/40 border border-white/5 rounded-sm p-6 group hover:border-primary/20 transition-all shadow-inner">
                     <div className="flex justify-between items-center mb-6 border-b border-white/5 pb-4">
                        <div className="flex items-center gap-4">
                           <div className={`w-10 h-10 rounded-sm bg-black border border-[#1a1a1a] flex items-center justify-center font-black text-sm ${character.agentStatus === 'vivo' ? 'text-emerald-500' : 'text-red-500'}`}>
@@ -192,13 +193,14 @@ export default function CampaignInventoryModal({ campaign, groups, allCharacters
       </div>
 
       {showGrantModal && (() => {
-        const char = allCharacters.find(c => c.character.id === showGrantModal.charId)?.character;
+        const char = allCharacters.find(c => c.character.id === showGrantModal.charId && c.account.uid === showGrantModal.uid)?.character;
         if (!char) return null;
+        const compositeKey = `${showGrantModal.uid}_${showGrantModal.charId}`;
         return (
           <BulkInventoryModal 
             uid={showGrantModal.uid}
             character={char}
-            existingItemIds={new Set(characterInventories[char.id]?.map(t => t.id) || [])}
+            existingItemIds={new Set(characterInventories[compositeKey]?.map(t => t.id) || [])}
             onClose={() => setShowGrantModal(null)}
             onSuccess={loadInventories}
             onExecuteBulk={handleExecuteBulk}

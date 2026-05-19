@@ -178,14 +178,14 @@ export default function GroupManager({ isAdmin }: GroupManagerProps) {
 
   const toggleCharacter = (uid: string, characterId: string) => {
     setSelectedCharacters(prev => {
-      const exists = prev.find(c => c.characterId === characterId);
-      if (exists) return prev.filter(c => c.characterId !== characterId);
+      const exists = prev.find(c => c.uid === uid && c.characterId === characterId);
+      if (exists) return prev.filter(c => !(c.uid === uid && c.characterId === characterId));
       return [...prev, { uid, characterId }];
     });
   };
 
-  const isSelected = (characterId: string) => {
-    return selectedCharacters.some(c => c.characterId === characterId);
+  const isSelected = (uid: string, characterId: string) => {
+    return selectedCharacters.some(c => c.uid === uid && c.characterId === characterId);
   };
 
   const filteredCharacters = allCharacters.filter(c => showArchived || !c.char.archived);
@@ -282,11 +282,11 @@ export default function GroupManager({ isAdmin }: GroupManagerProps) {
                 </div>
                 <div className="bg-black/60 border-2 border-[#1a1a1a] h-72 overflow-y-auto p-3 space-y-2 custom-scrollbar rounded-sm">
                   {filteredCharacters.map(item => {
-                    const isSel = isSelected(item.char.id);
+                    const isSel = isSelected(item.uid, item.char.id);
                     const user = users.find(u => u.uid === item.uid);
                     return (
                       <button
-                        key={item.char.id}
+                        key={`${item.uid}_${item.char.id}`}
                         type="button"
                         onClick={() => toggleCharacter(item.uid, item.char.id)}
                         className={`w-full flex items-center justify-between p-3 text-left transition-all border-2 rounded-sm group ${
@@ -380,10 +380,10 @@ export default function GroupManager({ isAdmin }: GroupManagerProps) {
                 
                 <div className="flex flex-wrap gap-3 pt-2">
                   {(group.characterSlots || []).map(slot => {
-                    const item = allCharacters.find(c => c.char.id === slot.characterId);
+                    const item = allCharacters.find(c => c.uid === slot.uid && c.char.id === slot.characterId);
                     if (!item) return null;
                     return (
-                      <div key={slot.characterId} className="flex items-center gap-2 bg-black/40 border border-white/5 px-2 py-1.5 rounded-sm min-w-[120px]">
+                      <div key={`${slot.uid}_${slot.characterId}`} className="flex items-center gap-2 bg-black/40 border border-white/5 px-2 py-1.5 rounded-sm min-w-[120px]">
                          <div className={`w-2 h-2 rounded-full ${item.char.agentStatus === 'vivo' ? 'bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.5)]' : item.char.agentStatus === 'morto' ? 'bg-red-500' : 'bg-yellow-500'}`} />
                          <div className="min-w-0">
                            <p className="font-black text-[9px] text-zinc-300 uppercase truncate">{item.char.codinome}</p>
