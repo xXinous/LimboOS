@@ -22,6 +22,8 @@ export interface MasterAccount {
   hasMacAccess?: boolean;
   suspended?: boolean;
   notes?: string;
+  intelMigrated?: boolean;
+  intelMigratedAt?: Timestamp | null;
 }
 
 // --- Database Models: Character (Agent) ---
@@ -42,6 +44,7 @@ export interface CharacterData {
   forceMacOpen?: boolean;
   spotifyPlaylistUrl?: string;
   agentId?: string; // Generated RM-XXXX ID
+  unlockedCampaigns?: string[]; // IDs das campanhas desbloqueadas para este personagem
 }
 
 export interface PlayerStats {
@@ -95,7 +98,8 @@ export interface Group {
   description?: string;
   playerUids: string[];           // Legacy: account-level membership
   characterSlots?: GroupCharacterSlot[]; // New: character-level membership
-  campaignId?: string;
+  campaignId?: string;            // Legacy: Active campaign ID (deprecated in favor of unlockedCampaigns if multiple are allowed)
+  unlockedCampaigns?: string[];   // IDs das campanhas desbloqueadas para este grupo
   sessions: string[]; // Lista de datas das sessões
   createdAt: Timestamp;
   updatedAt: Timestamp;

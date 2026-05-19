@@ -29,36 +29,15 @@ export class PlayerSyncService {
     // 1. Intel Listener — Unified: reads 'tapes', 'gallery' AND the new 'intel' subcollection.
     //    Note: 'tapes' and 'gallery' are kept for backward compatibility during migration.
 
-    let latestTapeIds: string[] = [];
-    let latestGalleryIds: string[] = [];
     let latestIntelIds: string[] = [];
 
     const emitIntelUpdate = () => {
-      // Merge all IDs, ensuring uniqueness
-      const allUnifiedIds = Array.from(new Set([...latestTapeIds, ...latestGalleryIds, ...latestIntelIds])).sort();
-
       onPlayerDataUpdate({
-        unlockedTapeIds: latestTapeIds,
-        unlockedGalleryIds: latestGalleryIds,
-        unlockedIntelIds: allUnifiedIds, // New property for unified access
+        unlockedTapeIds: [], // Deprecated
+        unlockedGalleryIds: [], // Deprecated
+        unlockedIntelIds: latestIntelIds,
       });
     };
-
-    const unsubTapes = onSnapshot(collection(db, 'users', uid, 'characters', characterId, 'tapes'), 
-      (snapshot) => {
-        latestTapeIds = snapshot.docs.map((d) => d.id).sort();
-        emitIntelUpdate();
-      },
-      (error) => console.warn('[PlayerSyncService] Intel/tapes error:', error)
-    );
-
-    const unsubGallery = onSnapshot(collection(db, 'users', uid, 'characters', characterId, 'gallery'),
-      (snapshot) => {
-        latestGalleryIds = snapshot.docs.map((d) => d.id).sort();
-        emitIntelUpdate();
-      },
-      (error) => console.warn('[PlayerSyncService] Intel/gallery error:', error)
-    );
 
     const unsubIntel = onSnapshot(collection(db, 'users', uid, 'characters', characterId, 'intel'),
       (snapshot) => {
@@ -122,7 +101,7 @@ export class PlayerSyncService {
       (error) => console.warn('[PlayerSyncService] Limbo error:', error)
     );
 
-    this.unsubs.push(unsubTapes, unsubGallery, unsubIntel, unsubChar, unsubUser, unsubLimbo);
+    this.unsubs.push(unsubIntel, unsubChar, unsubUser, unsubLimbo);
   }
 
   public stopAll() {

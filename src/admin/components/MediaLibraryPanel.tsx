@@ -25,11 +25,11 @@ export default function MediaLibraryPanel({ onSelect, selectionMode = false, all
 
   useEffect(() => {
     const unsub = mediaService.subscribeToMedia(
-      filter === 'all' ? undefined : filter,
       (newAssets) => {
         setAssets(newAssets);
         setLoading(false);
-      }
+      },
+      filter === 'all' ? undefined : filter
     );
     return () => unsub();
   }, [filter]);

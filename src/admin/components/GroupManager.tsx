@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { format } from 'date-fns';
 import { Group, UserData, CharacterData, GroupCharacterSlot } from '../../types/player';
 import { Campaign } from '../../data/campaigns';
 import { groupService } from '../../services/GroupService';
@@ -8,9 +7,7 @@ import { activityLogger } from '../../services/ActivityLogger';
 import { db } from '../../lib/firebase';
 import { collection, onSnapshot, Timestamp } from 'firebase/firestore';
 import { useModal } from './ConfirmModal';
-import Screw from '../../components/player/Screw';
 import BulkInventoryModal from './BulkInventoryModal';
-import RetroSpinner from '../../components/player/RetroSpinner';
 
 interface GroupManagerProps {
   isAdmin: boolean;
@@ -31,6 +28,7 @@ export default function GroupManager({ isAdmin }: GroupManagerProps) {
   const [selectedCampaign, setSelectedCampaign] = useState("");
   const [sessionDate, setSessionDate] = useState("");
   const [sessions, setSessions] = useState<string[]>([]);
+  const [unlockedCampaigns, setUnlockedCampaigns] = useState<string[]>([]);
   const [showArchived, setShowArchived] = useState(false);
 
   // Intel Grant State
@@ -86,7 +84,7 @@ export default function GroupManager({ isAdmin }: GroupManagerProps) {
         joinedAt: Timestamp.now()
       }));
 
-      await groupService.createGroup(groupName, slots, sessions, selectedCampaign || undefined);
+      await groupService.createGroup(groupName, slots, sessions, selectedCampaign || undefined, unlockedCampaigns);
       activityLogger.logAdmin('gm.mpg', 'group_created', `Grupo criado: ${groupName}`, { players: selectedCharacters.length });
       resetForm();
     } catch (error) {
@@ -109,6 +107,7 @@ export default function GroupManager({ isAdmin }: GroupManagerProps) {
         name: groupName,
         characterSlots: newSlots,
         campaignId: selectedCampaign || undefined,
+        unlockedCampaigns: unlockedCampaigns,
         sessions: sessions
       });
       activityLogger.logAdmin('gm.mpg', 'group_updated', `Grupo atualizado: ${groupName}`);
@@ -132,10 +131,8 @@ export default function GroupManager({ isAdmin }: GroupManagerProps) {
   const handleGrantIntelToGroup = async (groupId: string, intelIds: Set<string>, aliveOnly: boolean) => {
     setGrantLoading(true);
     try {
-      let totalCount = 0;
       for (const intelId of intelIds) {
-        const count = await groupService.grantIntelToGroup(groupId, intelId, aliveOnly);
-        totalCount += count;
+        await groupService.grantIntelToGroup(groupId, intelId, aliveOnly);
       }
       activityLogger.logAdmin('gm.mpg', 'group_intel_granted', `${intelIds.size} Intels concedidas a agentes do esquadrão ${groupId}`);
       setShowGrantModal(null);
@@ -155,6 +152,7 @@ export default function GroupManager({ isAdmin }: GroupManagerProps) {
     setSelectedCampaign("");
     setSessions([]);
     setSessionDate("");
+    setUnlockedCampaigns([]);
   };
 
   const startEdit = (group: Group) => {
@@ -163,17 +161,24 @@ export default function GroupManager({ isAdmin }: GroupManagerProps) {
     setSelectedCharacters(group.characterSlots ? group.characterSlots.map(s => ({ uid: s.uid, characterId: s.characterId })) : []);
     setSelectedCampaign(group.campaignId || "");
     setSessions(group.sessions || []);
+    setUnlockedCampaigns(group.unlockedCampaigns || []);
     setIsCreating(true);
   };
 
   const addSession = () => {
     if (!sessionDate || sessions.includes(sessionDate)) return;
-    setSessions([...sessions, sessionDate].sort());
+    setSessions([...sessions, sessionDate]);
     setSessionDate("");
   };
 
   const removeSession = (date: string) => {
     setSessions(sessions.filter(s => s !== date));
+  };
+
+  const toggleCampaignUnlock = (id: string) => {
+    setUnlockedCampaigns(prev => 
+      prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id]
+    );
   };
 
   const toggleCharacter = (uid: string, characterId: string) => {
@@ -240,6 +245,25 @@ export default function GroupManager({ isAdmin }: GroupManagerProps) {
                       <option key={c.id} value={c.id}>{c.name.toUpperCase()}</option>
                     ))}
                   </select>
+                </div>
+
+                <div>
+                  <label className="block font-black text-[10px] text-zinc-500 mb-3 uppercase tracking-widest">Missões_Desbloqueadas_para_Seleção</label>
+                  <div className="bg-black/40 border border-[#1a1a1a] p-3 rounded-sm space-y-2 max-h-40 overflow-y-auto custom-scrollbar">
+                    {campaigns.map(c => (
+                      <button 
+                        key={c.id}
+                        type="button"
+                        onClick={() => toggleCampaignUnlock(c.id)}
+                        className={`w-full flex items-center justify-between p-2 rounded-sm text-[9px] font-black uppercase tracking-widest transition-all ${
+                          unlockedCampaigns.includes(c.id) ? 'bg-primary/20 text-primary border border-primary/30' : 'bg-transparent text-zinc-600 border border-transparent hover:bg-white/5'
+                        }`}
+                      >
+                        {c.name}
+                        {unlockedCampaigns.includes(c.id) && <span className="material-symbols-outlined text-xs">check_circle</span>}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 <div className="pt-4 border-t border-white/5">
@@ -334,68 +358,94 @@ export default function GroupManager({ isAdmin }: GroupManagerProps) {
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {groups.map(group => (
-            <div key={group.id} className="bg-[#1a1a1a] border-4 border-[#1a1a1a] p-6 group hover:border-primary/20 transition-all rounded-xl shadow-xl relative overflow-hidden active:scale-[0.99]">
-              <div className="absolute top-0 right-0 w-12 h-12 bg-primary/5 rotate-45 translate-x-6 -translate-y-6 border-b border-primary/10" />
-              <div className="flex justify-between items-start mb-6">
-                <div>
-                  <h4 className="font-black text-white text-base uppercase tracking-tighter group-hover:text-primary transition-colors">{group.name}</h4>
-                  <div className="flex flex-wrap items-center gap-3 mt-2">
-                    <div className="flex items-center gap-1.5 bg-black/40 px-2 py-0.5 rounded-sm border border-white/5 shadow-inner">
-                       <div className="w-1 h-1 bg-primary rounded-full animate-pulse" />
-                       <p className="text-[8px] font-black text-zinc-500 uppercase tracking-widest">
-                         {(group.characterSlots || []).length} AGENTES
-                       </p>
-                    </div>
-                    {group.campaignId && (
-                      <span className="text-[8px] font-black bg-primary/10 text-primary border border-primary/20 px-2 py-0.5 rounded-sm uppercase tracking-widest flex items-center gap-1">
-                        <span className="material-symbols-outlined text-[10px]">hub</span>
-                        {campaigns.find(c => c.id === group.campaignId)?.name || group.campaignId}
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all translate-x-2 group-hover:translate-x-0">
-                  <button onClick={() => setShowGrantModal(group.id)} className="w-8 h-8 flex items-center justify-center bg-black/60 border border-white/10 rounded-sm text-primary hover:bg-primary hover:text-black transition-all active:scale-90" title="Transferência de Evidências em Lote">
-                    <span className="material-symbols-outlined text-sm">wifi_tethering</span>
-                  </button>
-                  <button onClick={() => startEdit(group)} className="w-8 h-8 flex items-center justify-center bg-black/60 border border-white/10 rounded-sm text-zinc-600 hover:text-emerald-400 transition-all active:scale-90">
-                    <span className="material-symbols-outlined text-sm">edit</span>
-                  </button>
-                  <button onClick={() => handleDeleteGroup(group.id)} className="w-8 h-8 flex items-center justify-center bg-black/60 border border-white/10 rounded-sm text-zinc-600 hover:text-red-500 transition-all active:scale-90">
-                    <span className="material-symbols-outlined text-sm">delete</span>
-                  </button>
-                </div>
-              </div>
+          {groups.map(group => {
+            const slots = group.characterSlots || [];
+            const statuses = slots.map(slot => {
+              const item = allCharacters.find(c => c.uid === slot.uid && c.char.id === slot.characterId);
+              return item?.char.agentStatus || 'desaparecido';
+            });
+            const aliveCount = statuses.filter(s => s === 'vivo').length;
+            const deadCount = statuses.filter(s => s === 'morto').length;
+            const missingCount = statuses.filter(s => s === 'desaparecido').length;
 
-              <div className="space-y-6">
-                <div className="flex flex-wrap gap-1.5">
-                  {group.sessions?.slice(0, 4).map(date => (
-                    <span key={date} className="text-[8px] font-mono bg-black text-zinc-600 px-2 py-1 rounded-sm border border-white/5 font-bold tracking-widest uppercase shadow-sm">
-                      {date}
-                    </span>
-                  ))}
-                  {group.sessions?.length > 4 && <span className="text-[8px] font-black text-zinc-800 self-center">+{group.sessions.length - 4}</span>}
-                </div>
-                
-                <div className="flex flex-wrap gap-3 pt-2">
-                  {(group.characterSlots || []).map(slot => {
-                    const item = allCharacters.find(c => c.uid === slot.uid && c.char.id === slot.characterId);
-                    if (!item) return null;
-                    return (
-                      <div key={`${slot.uid}_${slot.characterId}`} className="flex items-center gap-2 bg-black/40 border border-white/5 px-2 py-1.5 rounded-sm min-w-[120px]">
-                         <div className={`w-2 h-2 rounded-full ${item.char.agentStatus === 'vivo' ? 'bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.5)]' : item.char.agentStatus === 'morto' ? 'bg-red-500' : 'bg-yellow-500'}`} />
-                         <div className="min-w-0">
-                           <p className="font-black text-[9px] text-zinc-300 uppercase truncate">{item.char.codinome}</p>
-                           <p className="font-mono text-[8px] text-zinc-600 truncate">{users.find(u => u.uid === slot.uid)?.displayName || '???'}</p>
+            return (
+              <div key={group.id} className="bg-[#1a1a1a] border-4 border-[#1a1a1a] p-6 group hover:border-primary/20 transition-all rounded-xl shadow-xl relative overflow-hidden active:scale-[0.99]">
+                <div className="absolute top-0 right-0 w-12 h-12 bg-primary/5 rotate-45 translate-x-6 -translate-y-6 border-b border-primary/10" />
+                <div className="flex justify-between items-start mb-6">
+                  <div>
+                    <h4 className="font-black text-white text-base uppercase tracking-tighter group-hover:text-primary transition-colors">{group.name}</h4>
+                    <div className="flex flex-wrap items-center gap-3 mt-2">
+                      <div className="flex items-center gap-1.5 bg-black/40 px-2 py-1 rounded-sm border border-white/5 shadow-inner">
+                         <div className="flex gap-1.5">
+                            <span className="flex items-center gap-1 text-[8px] font-black text-emerald-500">🟩 {aliveCount}</span>
+                            <span className="flex items-center gap-1 text-[8px] font-black text-yellow-500">🟨 {missingCount}</span>
+                            <span className="flex items-center gap-1 text-[8px] font-black text-red-500">🟥 {deadCount}</span>
                          </div>
                       </div>
-                    );
-                  })}
+                      <div className="flex items-center gap-1.5 bg-black/40 px-2 py-0.5 rounded-sm border border-white/5 shadow-inner">
+                         <div className="w-1 h-1 bg-primary rounded-full animate-pulse" />
+                         <p className="text-[8px] font-black text-zinc-500 uppercase tracking-widest">
+                           {slots.length} AGENTES
+                         </p>
+                      </div>
+                      {group.campaignId && (
+                        <span className="text-[8px] font-black bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 px-2 py-1 rounded-sm uppercase tracking-widest flex items-center gap-1">
+                          <span className="material-symbols-outlined text-[10px]">rocket_launch</span>
+                          {campaigns.find(c => c.id === group.campaignId)?.name || group.campaignId}
+                        </span>
+                      )}
+                      {group.unlockedCampaigns && group.unlockedCampaigns.length > 0 && (
+                        <div className="flex items-center gap-1.5 bg-black/40 px-2 py-1 rounded-sm border border-white/5">
+                          <span className="material-symbols-outlined text-[10px] text-zinc-500">vpn_key</span>
+                          <p className="text-[8px] font-black text-zinc-500 uppercase tracking-widest">
+                            {group.unlockedCampaigns.length} MISSÕES
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all translate-x-2 group-hover:translate-x-0">
+                    <button onClick={() => setShowGrantModal(group.id)} className="w-8 h-8 flex items-center justify-center bg-black/60 border border-white/10 rounded-sm text-primary hover:bg-primary hover:text-black transition-all active:scale-90" title="Transferência de Evidências em Lote">
+                      <span className="material-symbols-outlined text-sm">wifi_tethering</span>
+                    </button>
+                    <button onClick={() => startEdit(group)} className="w-8 h-8 flex items-center justify-center bg-black/60 border border-white/10 rounded-sm text-zinc-600 hover:text-emerald-400 transition-all active:scale-90">
+                      <span className="material-symbols-outlined text-sm">edit</span>
+                    </button>
+                    <button onClick={() => handleDeleteGroup(group.id)} className="w-8 h-8 flex items-center justify-center bg-black/60 border border-white/10 rounded-sm text-zinc-600 hover:text-red-500 transition-all active:scale-90">
+                      <span className="material-symbols-outlined text-sm">delete</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-6">
+                  <div className="flex flex-wrap gap-1.5">
+                    {group.sessions?.slice(0, 4).map(date => (
+                      <span key={date} className="text-[8px] font-mono bg-black text-zinc-600 px-2 py-1 rounded-sm border border-white/5 font-bold tracking-widest uppercase shadow-sm">
+                        {date}
+                      </span>
+                    ))}
+                    {group.sessions?.length > 4 && <span className="text-[8px] font-black text-zinc-800 self-center">+{group.sessions.length - 4}</span>}
+                  </div>
+                  
+                  <div className="flex flex-wrap gap-3 pt-2">
+                    {(group.characterSlots || []).map(slot => {
+                      const item = allCharacters.find(c => c.uid === slot.uid && c.char.id === slot.characterId);
+                      if (!item) return null;
+                      return (
+                        <div key={`${slot.uid}_${slot.characterId}`} className="flex items-center gap-2 bg-black/40 border border-white/5 px-2 py-1.5 rounded-sm min-w-[120px]">
+                           <div className={`w-2 h-2 rounded-full ${item.char.agentStatus === 'vivo' ? 'bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.5)]' : item.char.agentStatus === 'morto' ? 'bg-red-500' : 'bg-yellow-500'}`} />
+                           <div className="min-w-0">
+                             <p className="font-black text-[9px] text-zinc-300 uppercase truncate">{item.char.codinome}</p>
+                             <p className="font-mono text-[8px] text-zinc-600 truncate">{users.find(u => u.uid === slot.uid)?.displayName || '???'}</p>
+                           </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
           {groups.length === 0 && (
             <div className="col-span-full py-24 text-center border-4 border-dashed border-[#1a1a1a] rounded-2xl opacity-20 flex flex-col items-center justify-center">
               <span className="material-symbols-outlined text-6xl text-zinc-800 mb-4">groups_2</span>

@@ -157,7 +157,7 @@ class IntelService {
     });
 
     // Agora todos os itens (locais + novos remotos) devem estar no registry
-    const resolvedItems: IntelItem[] = playerData.unlockedTapeIds
+    let resolvedItems: IntelItem[] = playerData.unlockedTapeIds
       .map(id => intelRegistry.get(id))
       .filter((item): item is IntelItem => !!item);
 
@@ -167,7 +167,14 @@ class IntelService {
       resolvedItems.push(visualIntel);
     }
 
-    // 3. Monta estrutura organizada
+    // 3. ISOLAMENTO DE INVENTÁRIO (INSTÂNCIAS)
+    // Filtra apenas itens da campanha ativa ou itens globais (sem campaignId)
+    const activeCampaignId = playerData.character.campaignId;
+    resolvedItems = resolvedItems.filter(item => 
+      !item.campaignId || item.campaignId === activeCampaignId
+    );
+
+    // 4. Monta estrutura organizada
     const byType: Record<IntelType, IntelItem[]> = {
       AUDIO: [],
       VISUAL: [],

@@ -106,7 +106,7 @@ class MediaService {
   /**
    * Subscribe to media assets
    */
-  subscribeToMedia(type?: MediaType, callback: (assets: MediaAsset[]) => void) {
+  subscribeToMedia(callback: (assets: MediaAsset[]) => void, type?: MediaType) {
     let q = query(collection(db, this.collectionName), orderBy('uploadedAt', 'desc'));
     
     if (type) {

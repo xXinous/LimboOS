@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { collection, onSnapshot, query, orderBy, limit, getDocs, writeBatch, Timestamp } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useModal } from './ConfirmModal';
-import { migrateToUnifiedIntel } from '../../store/migration';
+import { migrateToUnifiedIntel, runGlobalSystemMigration } from '../../store/migration';
 
 interface LogEntry {
   id: string;
@@ -215,17 +215,17 @@ export default function SystemLogPanel() {
 
   const handleMigrateIntel = async () => {
     const ok = await showConfirm(
-      'Migração de Sistema', 
-      'Isso consolidará todas as fitas e imagens dos usuários na nova subcoleção "intel". Esta ação é segura mas deve ser feita apenas uma vez.', 
-      'Iniciar Migração'
+      'Migração Global do Sistema', 
+      'Isso consolidará dados legacy e migradas fitas/imagens para todos os usuários inativos. Esta ação é segura.', 
+      'Iniciar Migração Global'
     );
     if (!ok) return;
 
     setIsMigrating(true);
     try {
-      const result = await migrateToUnifiedIntel((msg) => console.log(msg));
+      const result = await runGlobalSystemMigration((msg) => console.log(msg));
       if (result.success) {
-        await showAlert('Sucesso', `Migração concluída! ${result.migratedCount} agentes foram atualizados.`);
+        await showAlert('Sucesso', `Migração concluída! ${result.usersProcessed} usuários foram processados.`);
       } else {
         await showAlert('Erro', 'Ocorreu um erro durante a migração. Verifique o console.');
       }

@@ -16,6 +16,7 @@ export interface MediaAsset {
   metadata: {
     title?: string;
     description?: string;
+    artist?: string;      // Artist/Creator
     duration?: number; // for audio/video
     width?: number;    // for images
     height?: number;   // for images

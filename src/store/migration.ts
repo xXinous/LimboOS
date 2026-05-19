@@ -272,3 +272,48 @@ export async function migrateUserToUnifiedIntel(uid: string): Promise<void> {
     // Non-blocking: don't throw, user can still use the app with legacy listeners
   }
 }
+
+export async function runGlobalSystemMigration(onProgress?: (msg: string) => void): Promise<{ success: boolean; usersProcessed: number }> {
+  const log = (msg: string) => {
+    console.log(`[GLOBAL_MIGRATION] ${msg}`);
+    if (onProgress) onProgress(msg);
+  };
+
+  log('Iniciando migração global do sistema...');
+  let usersProcessed = 0;
+
+  try {
+    const usersSnap = await getDocs(collection(db, 'users'));
+    log(`Encontrados ${usersSnap.size} usuários para verificar.`);
+
+    for (const userDoc of usersSnap.docs) {
+      const uid = userDoc.id;
+      let migrated = false;
+
+      // 1. Run Legacy V1 Migration if needed
+      if (await needsMigration(uid)) {
+        log(`[V1] Executando migração legacy para: ${uid}`);
+        await migrateLegacyUser(uid);
+        migrated = true;
+      }
+
+      // 2. Run V2 Intel Migration if needed
+      if (await needsIntelMigration(uid)) {
+        log(`[V2] Executando migração de intel para: ${uid}`);
+        await migrateUserToUnifiedIntel(uid);
+        migrated = true;
+      }
+
+      if (migrated) {
+        usersProcessed++;
+      }
+    }
+
+    log(`Migração global concluída! ${usersProcessed} usuários precisavam de migração e foram processados.`);
+    return { success: true, usersProcessed };
+  } catch (error: any) {
+    log(`ERRO CRÍTICO NA MIGRAÇÃO GLOBAL: ${error.message}`);
+    return { success: false, usersProcessed };
+  }
+}
+

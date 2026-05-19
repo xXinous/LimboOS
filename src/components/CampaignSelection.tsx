@@ -3,7 +3,8 @@ import { AnimatePresence, motion, useMotionValue, useSpring, animate } from 'mot
 import { Menu, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Campaign } from '../data/campaigns';
 import { campaignService } from '../services/CampaignService';
-import type { PlayerData } from '../types/player';
+import { groupService } from '../services/GroupService';
+import type { PlayerData, Group } from '../types/player';
 
 import { Barcode, AnalogLogo } from './campaign/Common';
 import { CassetteCard } from './campaign/CassetteCard';
@@ -50,11 +51,46 @@ export default function CampaignSelection({
   }, []);
 
   useEffect(() => {
-    return campaignService.subscribeToActiveCampaigns(list => {
-      setCampaigns(list);
-      setLoading(false);
-    });
-  }, []);
+    let isMounted = true;
+    
+    const fetchVisibleCampaigns = async () => {
+      if (!playerData) return;
+
+      try {
+        // 1. Get groups for this character
+        const playerGroups = await groupService.getGroupsForCharacter(playerData.activeCharacterId);
+        
+        // 2. Collect all unlocked IDs
+        const unlockedIds = new Set<string>([
+          ...(playerData.character.unlockedCampaigns || []),
+          ...playerGroups.flatMap(g => g.unlockedCampaigns || [])
+        ]);
+
+        // 3. Subscribe to all active campaigns and filter them
+        return campaignService.subscribeToActiveCampaigns(list => {
+          if (!isMounted) return;
+          
+          // Se for admin, vê tudo. Se não, filtra pelos IDs desbloqueados.
+          const visible = playerData.role === 'admin' 
+            ? list 
+            : list.filter(c => unlockedIds.has(c.id));
+            
+          setCampaigns(visible);
+          setLoading(false);
+        });
+      } catch (error) {
+        console.error("Erro ao carregar campanhas visíveis:", error);
+        setLoading(false);
+      }
+    };
+
+    const unsubPromise = fetchVisibleCampaigns();
+    
+    return () => {
+      isMounted = false;
+      unsubPromise.then(unsub => unsub?.());
+    };
+  }, [playerData]);
 
   // Ensure `x` stays perfectly aligned if the container is resized (e.g. mobile URL bar hiding)
   const prevStepRef = useRef(metrics.step);

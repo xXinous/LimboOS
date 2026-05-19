@@ -41,7 +41,7 @@ export class GroupService {
     });
   }
 
-  public async createGroup(name: string, characterSlots: GroupCharacterSlot[], sessions: string[], campaignId?: string): Promise<string> {
+  public async createGroup(name: string, characterSlots: GroupCharacterSlot[], sessions: string[], campaignId?: string, unlockedCampaigns?: string[]): Promise<string> {
     const groupRef = doc(collection(db, 'groups'));
     const now = Timestamp.now();
     
@@ -54,6 +54,7 @@ export class GroupService {
       playerUids,
       characterSlots,
       campaignId: campaignId || undefined,
+      unlockedCampaigns: unlockedCampaigns || [],
       sessions,
       createdAt: now,
       updatedAt: now
@@ -133,6 +134,17 @@ export class GroupService {
       playerUids: newUids,
       updatedAt: serverTimestamp()
     });
+  }
+
+  /**
+   * Get all groups that a specific character belongs to.
+   */
+  public async getGroupsForCharacter(characterId: string): Promise<Group[]> {
+    const q = query(collection(db, 'groups'));
+    const snap = await getDocs(q);
+    return snap.docs
+      .map(doc => ({ id: doc.id, ...doc.data() } as Group))
+      .filter(g => g.characterSlots?.some(slot => slot.characterId === characterId));
   }
 
   /**

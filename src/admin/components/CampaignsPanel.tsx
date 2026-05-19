@@ -10,7 +10,9 @@ import {
   deleteDoc,
   serverTimestamp,
   updateDoc,
-  writeBatch
+  writeBatch,
+  arrayUnion,
+  arrayRemove
 } from 'firebase/firestore';
 import { Campaign, campaigns as initialCampaigns } from '../../data/campaigns';
 import { Group, UserData, MasterAccount, CharacterData } from '../../types/player';
@@ -149,22 +151,45 @@ export default function CampaignsPanel() {
     }
   };
 
+  const handleUnlockForGroup = async (groupId: string, campaignId: string, unlock: boolean) => {
+    try {
+      await updateDoc(doc(db, 'groups', groupId), {
+        unlockedCampaigns: unlock ? arrayUnion(campaignId) : arrayRemove(campaignId)
+      });
+      showAlert("Sucesso", unlock ? "Missão desbloqueada para o grupo." : "Acesso removido.");
+    } catch (err) {
+      console.error(err);
+      showAlert("Erro", "Falha ao gerenciar acesso.");
+    }
+  };
+
   const handleAssignGroup = async (groupId: string, campaignId: string) => {
     try {
       await updateDoc(doc(db, 'groups', groupId), { campaignId });
-      showAlert("Sucesso", "Esquadrão atribuído com sucesso.");
+      showAlert("Sucesso", "Esquadrão enviado para a missão (Ativa).");
     } catch (err) {
       console.error(err);
       showAlert("Erro", "Falha na atribuição.");
     }
   };
 
+  const handleUnlockForCharacter = async (uid: string, charId: string, campaignId: string, unlock: boolean) => {
+    try {
+      await updateDoc(doc(db, 'users', uid, 'characters', charId), {
+        unlockedCampaigns: unlock ? arrayUnion(campaignId) : arrayRemove(campaignId)
+      });
+      showAlert("Sucesso", unlock ? "Missão desbloqueada para o agente." : "Acesso removido.");
+    } catch (err) {
+      console.error(err);
+      showAlert("Erro", "Falha ao gerenciar acesso.");
+    }
+  };
+
   const handleAssignCharacter = async (uid: string, charId: string, campaignId: string) => {
     try {
       await updateDoc(doc(db, 'users', uid, 'characters', charId), { campaignId });
-      showAlert("Sucesso", "Agente atribuído com sucesso.");
+      showAlert("Sucesso", "Agente enviado para a missão (Ativa).");
       
-      // Update local state temporarily
       setAllCharacters(prev => prev.map(c => 
         c.character.id === charId ? { ...c, character: { ...c.character, campaignId } } : c
       ));
@@ -303,22 +328,70 @@ export default function CampaignsPanel() {
                 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <p className="text-[8px] text-industrial-silver/30 font-display font-bold uppercase tracking-widest">Esquadrões</p>
+                    <p className="text-[8px] text-industrial-silver/30 font-display font-bold uppercase tracking-widest">Acesso à Missão (Desbloquear)</p>
                     <select 
                       className="w-full bg-surface-container-lowest border border-white/5 text-[10px] font-display font-bold text-primary p-3 outline-none rounded-sm focus:border-primary/40 transition-all appearance-none cursor-pointer shadow-inner"
-                      onChange={(e) => e.target.value && handleAssignGroup(e.target.value, campaign.id)}
+                      onChange={(e) => e.target.value && handleUnlockForGroup(e.target.value, campaign.id, true)}
                       value=""
                     >
-                      <option value="">Ligar Grupo...</option>
-                      {groups.filter(g => g.campaignId !== campaign.id).map(g => (
+                      <option value="">Desbloquear para Grupo...</option>
+                      {groups.filter(g => !(g.unlockedCampaigns || []).includes(campaign.id)).map(g => (
                         <option key={g.id} value={g.id}>{g.name}</option>
                       ))}
                     </select>
                   </div>
                   <div className="space-y-2">
-                    <p className="text-[8px] text-industrial-silver/30 font-display font-bold uppercase tracking-widest">Agentes Solo</p>
+                    <p className="text-[8px] text-industrial-silver/30 font-display font-bold uppercase tracking-widest">Acesso Solo (Desbloquear)</p>
                     <select 
                       className="w-full bg-surface-container-lowest border border-white/5 text-[10px] font-display font-bold text-primary p-3 outline-none rounded-sm focus:border-primary/40 transition-all appearance-none cursor-pointer shadow-inner"
+                      onChange={(e) => {
+                         if (!e.target.value) return;
+                         const [uid, charId] = e.target.value.split('|');
+                         handleUnlockForCharacter(uid, charId, campaign.id, true);
+                      }}
+                      value=""
+                    >
+                      <option value="">Desbloquear para Agente...</option>
+                      {allCharacters.filter(c => !(c.character.unlockedCampaigns || []).includes(campaign.id)).map(c => (
+                        <option key={`${c.account.uid}_${c.character.id}`} value={`${c.account.uid}|${c.character.id}`}>{c.character.codinome}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <p className="text-[8px] text-industrial-silver/30 font-display font-bold uppercase tracking-widest border-b border-white/5 pb-2">Rede de Acesso (Quem vê esta missão)</p>
+                  <div className="flex flex-wrap gap-2">
+                    {groups.filter(g => (g.unlockedCampaigns || []).includes(campaign.id)).map(g => (
+                      <div key={g.id} className="flex items-center gap-2 bg-primary/5 border border-primary/20 rounded-sm pr-1">
+                        <span className="text-[9px] font-display font-bold text-primary/80 px-2 py-1 uppercase tracking-wider">GRP: {g.name}</span>
+                        <button onClick={() => handleUnlockForGroup(g.id, campaign.id, false)} className="p-1 text-primary/40 hover:text-red-500 material-symbols-outlined text-xs">close</button>
+                      </div>
+                    ))}
+                    {allCharacters.filter(c => (c.character.unlockedCampaigns || []).includes(campaign.id)).map(c => (
+                      <div key={c.character.id} className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-sm pr-1">
+                        <span className="text-[9px] font-display font-bold text-industrial-silver/60 px-2 py-1 uppercase tracking-wider">AGT: {c.character.codinome}</span>
+                        <button onClick={() => handleUnlockForCharacter(c.account.uid, c.character.id, campaign.id, false)} className="p-1 text-white/20 hover:text-red-500 material-symbols-outlined text-xs">close</button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <p className="text-[8px] text-emerald-500/50 font-display font-bold uppercase tracking-widest border-b border-emerald-500/10 pb-2">Em Operação (Ativa no App)</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <select 
+                      className="w-full bg-emerald-500/5 border border-emerald-500/20 text-[10px] font-display font-bold text-emerald-500 p-3 outline-none rounded-sm focus:border-emerald-500/40 transition-all appearance-none cursor-pointer"
+                      onChange={(e) => e.target.value && handleAssignGroup(e.target.value, campaign.id)}
+                      value=""
+                    >
+                      <option value="">Designar Grupo para Campo...</option>
+                      {groups.filter(g => g.campaignId !== campaign.id).map(g => (
+                        <option key={g.id} value={g.id}>{g.name}</option>
+                      ))}
+                    </select>
+                    <select 
+                      className="w-full bg-emerald-500/5 border border-emerald-500/20 text-[10px] font-display font-bold text-emerald-500 p-3 outline-none rounded-sm focus:border-emerald-500/40 transition-all appearance-none cursor-pointer"
                       onChange={(e) => {
                          if (!e.target.value) return;
                          const [uid, charId] = e.target.value.split('|');
@@ -326,25 +399,24 @@ export default function CampaignsPanel() {
                       }}
                       value=""
                     >
-                      <option value="">Ligar Agente...</option>
-                      {allCharacters.filter(c => c.character.campaignId !== campaign.id && !groups.some(g => g.campaignId === campaign.id && g.characterSlots?.some(s => s.characterId === c.character.id))).map(c => (
-                        <option key={`${c.account.uid}_${c.character.id}`} value={`${c.account.uid}|${c.character.id}`}>{c.character.codinome} ({c.account.masterName || c.account.email})</option>
+                      <option value="">Designar Agente para Campo...</option>
+                      {allCharacters.filter(c => c.character.campaignId !== campaign.id).map(c => (
+                        <option key={`${c.account.uid}_${c.character.id}`} value={`${c.account.uid}|${c.character.id}`}>{c.character.codinome}</option>
                       ))}
                     </select>
                   </div>
-                </div>
-
-                <div className="flex flex-wrap gap-2">
-                  {groups.filter(g => g.campaignId === campaign.id).map(g => (
-                    <span key={g.id} className="text-[9px] font-display font-bold bg-primary/5 text-primary/60 border border-primary/10 px-3 py-1 rounded-sm uppercase tracking-wider">
-                      GRP: {g.name}
-                    </span>
-                  ))}
-                  {allCharacters.filter(c => c.character.campaignId === campaign.id).map(c => (
-                    <span key={`${c.account.uid}_${c.character.id}`} className="text-[9px] font-display font-bold bg-white/5 text-industrial-silver/40 border border-white/5 px-3 py-1 rounded-sm uppercase tracking-wider">
-                      AGT: {c.character.codinome}
-                    </span>
-                  ))}
+                  <div className="flex flex-wrap gap-2">
+                    {groups.filter(g => g.campaignId === campaign.id).map(g => (
+                      <span key={g.id} className="text-[9px] font-display font-bold bg-emerald-500/10 text-emerald-500 border border-emerald-500/30 px-3 py-1 rounded-sm uppercase tracking-wider animate-pulse">
+                        OPERANDO: {g.name}
+                      </span>
+                    ))}
+                    {allCharacters.filter(c => c.character.campaignId === campaign.id).map(c => (
+                      <span key={c.character.id} className="text-[9px] font-display font-bold bg-emerald-500/10 text-emerald-500 border border-emerald-500/30 px-3 py-1 rounded-sm uppercase tracking-wider animate-pulse">
+                        OPERANDO: {c.character.codinome}
+                      </span>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>

@@ -96,16 +96,7 @@ export default function Player() {
             return;
           }
 
-          // Check for legacy V1 migration (root fields → character subcollection)
-          const { needsMigration, migrateLegacyUser, needsIntelMigration, migrateUserToUnifiedIntel } = await import('./store/migration');
-          if (await needsMigration(user.uid)) {
-            await migrateLegacyUser(user.uid);
-          }
 
-          // Check for Intel V2 migration (tapes+gallery → unified intel subcollection)
-          if (await needsIntelMigration(user.uid)) {
-            await migrateUserToUnifiedIntel(user.uid);
-          }
 
           const account = await loadMasterAccount(user.uid);
           setMasterAccount(account);
