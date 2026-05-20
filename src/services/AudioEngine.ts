@@ -160,6 +160,14 @@ export class AudioEngine {
     return this.state;
   }
 
+  public getCurrentTime(): number {
+    return this.audio ? this.audio.currentTime : 0;
+  }
+
+  public getDuration(): number {
+    return this.audio && !isNaN(this.audio.duration) ? this.audio.duration : 0;
+  }
+
   public clearTrack() {
     if (this.audio) {
       if (this.fadeInterval) {

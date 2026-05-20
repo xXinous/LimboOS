@@ -7,6 +7,7 @@ export interface Campaign {
   rpgSystem: string;
   status: 'Ativa' | 'Arquivada' | 'Bloqueada';
   imageUrl: string;
+  playerType?: 'walkman' | 'nokia';
 }
 
 export const campaigns: Campaign[] = [
@@ -39,6 +40,7 @@ export const campaigns: Campaign[] = [
     rpgSystem: 'Tales from the Loop',
     status: 'Ativa',
     imageUrl: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?q=80&w=800&auto=format&fit=crop',
+    playerType: 'nokia',
   },
   {
     id: 'dead-zone-arizona',

@@ -308,9 +308,13 @@ export default function CampaignsPanel() {
             <div className="p-8 space-y-8">
               <p className="text-[12px] text-industrial-silver/50 italic line-clamp-2 leading-relaxed font-sans">{campaign.description}</p>
               
-              <div className="flex items-center justify-between text-[10px] font-display font-bold text-industrial-silver/30 uppercase border-y border-white/5 py-4 tracking-widest">
+              <div className="flex items-center justify-between text-[10px] font-display font-bold text-industrial-silver/30 uppercase border-y border-white/5 py-4 tracking-widest gap-2 flex-wrap">
                 <div className="flex items-center gap-2"><span className="material-symbols-outlined text-base text-industrial-silver/20">location_on</span> {campaign.location}</div>
                 <div className="flex items-center gap-2"><span className="material-symbols-outlined text-base text-industrial-silver/20">schedule</span> {campaign.year}</div>
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-base text-industrial-silver/20">devices</span> 
+                  {campaign.playerType === 'nokia' ? 'NOKIA 2280' : 'WALKMAN'}
+                </div>
                 <span className={`px-3 py-1 rounded-sm border font-display font-bold ${
                   campaign.status === 'Ativa' ? 'border-emerald-500/20 text-emerald-500 bg-emerald-500/5' : 
                   campaign.status === 'Bloqueada' ? 'border-red-500/20 text-red-500 bg-red-500/5' : 'border-white/5 text-industrial-silver/30'
@@ -503,6 +507,19 @@ export default function CampaignsPanel() {
                       </select>
                       <div className="h-0.5 w-0 bg-primary transition-all duration-300 group-focus-within:w-full" />
                     </div>
+                  </div>
+
+                  <div className="group">
+                    <label className="block text-[9px] font-display font-bold text-industrial-silver/40 uppercase tracking-[0.2em] mb-2 group-focus-within:text-primary transition-colors">Interface do Jogador (Tema)</label>
+                    <select 
+                      value={editingCampaign?.playerType || 'walkman'}
+                      onChange={e => setEditingCampaign({...editingCampaign, playerType: e.target.value as any})}
+                      className="w-full bg-surface-container-lowest border-none text-primary text-[10px] font-display font-bold px-4 py-4 outline-none rounded-sm uppercase cursor-pointer shadow-inner appearance-none"
+                    >
+                      <option value="walkman">WALKMAN RETRO</option>
+                      <option value="nokia">NOKIA 2280 AZUL</option>
+                    </select>
+                    <div className="h-0.5 w-0 bg-primary transition-all duration-300 group-focus-within:w-full" />
                   </div>
                 </div>
 

@@ -25,23 +25,30 @@ export default function App() {
     }
 
     testConnection();
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       if (currentUser) {
         const userRef = doc(db, 'users', currentUser.uid);
-        const userSnap = await getDoc(userRef);
-        if (!userSnap.exists()) {
-          await setDoc(userRef, {
-            uid: currentUser.uid,
-            email: currentUser.email,
-            displayName: ADMIN_CODENAME,
-            role: 'admin',
-            createdAt: serverTimestamp(),
-            lastLogin: serverTimestamp(),
+        // Execute logging updates in the background to avoid blocking the Admin UI load
+        getDoc(userRef)
+          .then((userSnap) => {
+            if (!userSnap.exists()) {
+              setDoc(userRef, {
+                uid: currentUser.uid,
+                email: currentUser.email,
+                displayName: ADMIN_CODENAME,
+                role: 'admin',
+                createdAt: serverTimestamp(),
+                lastLogin: serverTimestamp(),
+              }).catch(err => console.warn('[AdminApp] Error creating admin user doc:', err));
+            } else {
+              setDoc(userRef, { lastLogin: serverTimestamp() }, { merge: true })
+                .catch(err => console.warn('[AdminApp] Error updating admin login timestamp:', err));
+            }
+          })
+          .catch((err) => {
+            console.warn('[AdminApp] Error fetching admin user doc:', err);
           });
-        } else {
-          await setDoc(userRef, { lastLogin: serverTimestamp() }, { merge: true });
-        }
       }
       setLoading(false);
     });

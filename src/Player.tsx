@@ -21,6 +21,9 @@ const Windows95App = React.lazy(() => import('./components/Windows95App'));
 const EvidenceReader = React.lazy(() => import('./components/EvidenceReader'));
 const CampaignSelection = React.lazy(() => import('./components/CampaignSelection'));
 const AgentDossierOverlay = React.lazy(() => import('./components/campaign/AgentDossierOverlay').then(m => ({ default: m.AgentDossierOverlay })));
+const NokiaPlayer = React.lazy(() => import('./components/player/NokiaPlayer'));
+import { Campaign } from './data/campaigns';
+import { campaignService } from './services/CampaignService';
 import { audioEngine } from './services/AudioEngine';
 import { analyticsTracker } from './services/AnalyticsTracker';
 import { activityLogger } from './services/ActivityLogger';
@@ -66,6 +69,7 @@ export default function Player() {
   const [limboStatus, setLimboStatus] = useState<LimboGlobalState>({ seized: false });
   const [activeEvidence, setActiveEvidence] = useState<IntelBase | null>(null);
   const [galleryImages, setGalleryImages] = useState<GalleryImage[]>([]);
+  const [activeCampaign, setActiveCampaign] = useState<Campaign | null>(null);
   
   const hasPlayedCurrentTape = useRef(false);
   const timerRef = useRef<ReturnType<typeof setTimeout>>();
@@ -76,6 +80,20 @@ export default function Player() {
   useEffect(() => {
     playerDataRef.current = playerData;
   }, [playerData]);
+
+  // Sincroniza campanha ativa do jogador
+  useEffect(() => {
+    if (!playerData?.character?.campaignId) {
+      setActiveCampaign(null);
+      return;
+    }
+    return campaignService.subscribeToActiveCampaigns((list) => {
+      const found = list.find(c => c.id === playerData.character.campaignId);
+      if (found) {
+        setActiveCampaign(found);
+      }
+    });
+  }, [playerData?.character?.campaignId]);
 
   useEffect(() => {
     return () => {
@@ -370,13 +388,38 @@ useEffect(() => {
             </React.Suspense>
           </motion.div>
         ) : screen === 'player' ? (
-          <motion.div key="player" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} className="relative w-full max-w-sm h-full max-h-[750px] bg-surface-container-high rounded-[32px] border-8 border-[#1a1a1a] shadow-2xl flex flex-col p-3 sm:p-4 overflow-hidden z-10">
-            <Screw className="top-4 left-4" /><Screw className="top-4 right-4 -rotate-90" /><Screw className="bottom-4 left-4 -rotate-90" /><Screw className="bottom-4 right-4" />
-            <CassetteVisor currentIntel={currentIntel} status={walkmanStatus} onEject={handleEject} onScanClick={handleScanClick} onCancelScan={handleCancelScan} onQrDetected={handleQrDetected} />
-            <TapeLibrary intelItems={intelManager?.getAll() || EMPTY_ARRAY} currentIntelId={currentIntel?.id ?? null} isPlaying={isPlaying} displayMode={displayMode} onIntelSelect={handleIntelSelect} />
-            <SideControls volume={volume} setVolume={setVolume} onModeChange={handleModeChange} onProfileOpen={handleProfileOpen} onCharacterSwitch={handleCharacterSwitch} />
-            <BottomControls status={walkmanStatus} setIsPlaying={handleSetIsPlaying} hasTape={!!currentIntel} onRewind={handleRewind} hasTerminalAccess={playerData.hasTerminalAccess} onTerminalOpen={handleTerminalOpen} hasMacAccess={playerData.hasMacAccess} onMacOpen={handleMacOpen} />
-          </motion.div>
+          activeCampaign?.playerType === 'nokia' ? (
+            <React.Suspense fallback={<RetroLoading message="CARREGANDO NOKIA..." />}>
+              <NokiaPlayer
+                currentIntel={currentIntel}
+                status={walkmanStatus}
+                isPlaying={isPlaying}
+                volume={volume}
+                setVolume={setVolume}
+                intelItems={intelManager?.getAll() || EMPTY_ARRAY}
+                currentIntelId={currentIntel?.id ?? null}
+                onIntelSelect={handleIntelSelect}
+                onEject={handleEject}
+                onScanClick={handleScanClick}
+                onCancelScan={handleCancelScan}
+                onQrDetected={handleQrDetected}
+                hasTerminalAccess={playerData.hasTerminalAccess}
+                onTerminalOpen={handleTerminalOpen}
+                hasMacAccess={playerData.hasMacAccess}
+                onMacOpen={handleMacOpen}
+                onProfileOpen={handleProfileOpen}
+                onCharacterSwitch={handleCharacterSwitch}
+              />
+            </React.Suspense>
+          ) : (
+            <motion.div key="player" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} className="relative w-full max-w-sm h-full max-h-[750px] bg-surface-container-high rounded-[32px] border-8 border-[#1a1a1a] shadow-2xl flex flex-col p-3 sm:p-4 overflow-hidden z-10">
+              <Screw className="top-4 left-4" /><Screw className="top-4 right-4 -rotate-90" /><Screw className="bottom-4 left-4 -rotate-90" /><Screw className="bottom-4 right-4" />
+              <CassetteVisor currentIntel={currentIntel} status={walkmanStatus} onEject={handleEject} onScanClick={handleScanClick} onCancelScan={handleCancelScan} onQrDetected={handleQrDetected} />
+              <TapeLibrary intelItems={intelManager?.getAll() || EMPTY_ARRAY} currentIntelId={currentIntel?.id ?? null} isPlaying={isPlaying} displayMode={displayMode} onIntelSelect={handleIntelSelect} />
+              <SideControls volume={volume} setVolume={setVolume} onModeChange={handleModeChange} onProfileOpen={handleProfileOpen} onCharacterSwitch={handleCharacterSwitch} />
+              <BottomControls status={walkmanStatus} setIsPlaying={handleSetIsPlaying} hasTape={!!currentIntel} onRewind={handleRewind} hasTerminalAccess={playerData.hasTerminalAccess} onTerminalOpen={handleTerminalOpen} hasMacAccess={playerData.hasMacAccess} onMacOpen={handleMacOpen} />
+            </motion.div>
+          )
         ) : (
           <motion.div key="apps" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-50">
             <React.Suspense fallback={<RetroLoading fullScreen message="INICIALIZANDO SISTEMA..." subMessage="Carregando interface de baixo nível" />}>
