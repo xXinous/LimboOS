@@ -68,7 +68,7 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
     unsubs.push(onSnapshot(collection(db, 'users'), (snap) => {
       setStats(prev => ({ ...prev, totalUsers: snap.size }));
     }));
-    unsubs.push(onSnapshot(collection(db, 'intel_items'), (snap) => {
+    unsubs.push(onSnapshot(collection(db, 'audios'), (snap) => {
       setStats(prev => ({ ...prev, totalAudios: snap.size }));
     }));
     unsubs.push(onSnapshot(collection(db, 'playEvents'), (snap) => {

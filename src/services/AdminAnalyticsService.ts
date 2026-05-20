@@ -92,12 +92,12 @@ export class AdminAnalyticsService {
         },
         (err) => console.warn('[AdminAnalyticsService] users listener error:', err)
       ),
-      onSnapshot(collection(db, "intel_items"), 
+      onSnapshot(collection(db, "audios"), 
         (snap) => {
           audios = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
           notify();
         },
-        (err) => console.warn('[AdminAnalyticsService] intel_items listener error:', err)
+        (err) => console.warn('[AdminAnalyticsService] audios listener error:', err)
       ),
       onSnapshot(collectionGroup(db, "achievements"), 
         (snap) => {
