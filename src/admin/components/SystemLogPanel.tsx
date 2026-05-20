@@ -216,7 +216,7 @@ export default function SystemLogPanel() {
   const handleMigrateIntel = async () => {
     const ok = await showConfirm(
       'Migração Global do Sistema', 
-      'Isso consolidará dados legacy e migradas fitas/imagens para todos os usuários inativos. Esta ação é segura.', 
+      'Isso consolidará dados legacy e migradas fitas/imagens para todos os usuários inativos. Esta ação é segura. A página será recarregada automaticamente ao concluir.', 
       'Iniciar Migração Global'
     );
     if (!ok) return;
@@ -225,7 +225,10 @@ export default function SystemLogPanel() {
     try {
       const result = await runGlobalSystemMigration((msg) => console.log(msg));
       if (result.success) {
-        await showAlert('Sucesso', `Migração concluída! ${result.usersProcessed} usuários foram processados.`);
+        await showAlert('Sucesso', `Migração concluída! ${result.usersProcessed} usuários foram processados. A página será recarregada para re-sincronizar os dados.`);
+        // Reload the page to re-establish all Firestore onSnapshot listeners cleanly
+        // After mass writes, some listeners may become stale or enter error states
+        window.location.reload();
       } else {
         await showAlert('Erro', 'Ocorreu um erro durante a migração. Verifique o console.');
       }
