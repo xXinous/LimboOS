@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { fetchAllQrRedirects, saveQrRedirect, deleteQrRedirect } from '../../store/firestore';
+import { subscribeToQrRedirects, saveQrRedirect, deleteQrRedirect } from '../../store/firestore';
 import { activityLogger } from '../../services/ActivityLogger';
 import { useModal } from './ConfirmModal';
 import { format } from 'date-fns';
@@ -22,20 +22,13 @@ export default function RedirectsPanel() {
   const [isSaving, setIsSaving] = useState(false);
   const { showAlert, modal } = useModal();
 
-  const loadRedirects = async () => {
-    setLoading(true);
-    try {
-      const data = await fetchAllQrRedirects();
-      setRedirects(data as QrRedirect[]);
-    } catch (err) {
-      console.error('Error loading redirects:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    loadRedirects();
+    setLoading(true);
+    const unsub = subscribeToQrRedirects((data) => {
+      setRedirects(data as QrRedirect[]);
+      setLoading(false);
+    });
+    return unsub;
   }, []);
 
   const handleAddRedirect = async (e: React.FormEvent) => {
@@ -48,7 +41,6 @@ export default function RedirectsPanel() {
       setNewSourceId('');
       setNewTargetId('');
       setNewReason('');
-      await loadRedirects();
       showAlert('Sucesso', 'Mapeamento sintonizado.');
     } catch (err) {
       console.error('Error saving redirect:', err);
@@ -62,7 +54,7 @@ export default function RedirectsPanel() {
     try {
       await deleteQrRedirect(sourceId);
       activityLogger.logAdmin('gm.mpg', 'qr_redirect_remove', `Removeu redirecionamento: ${sourceId}`, { sourceId });
-      await loadRedirects();
+      // Real-time listener handles state update
     } catch (err) {
       console.error('Error deleting redirect:', err);
       showAlert('Erro', 'Falha ao remover redirecionamento.');

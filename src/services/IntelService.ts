@@ -2,6 +2,8 @@ import type { IntelItem, PlayerIntelCollection, IntelType, AccessLevel } from '.
 import type { PlayerData } from '../types/player';
 import type { GalleryImage } from '../types/player';
 import { intelRegistry } from '../data/intel_registry';
+import { collection, onSnapshot } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 import { 
   fetchAudioTapeById, 
   fetchAudioTapesByIds,
@@ -66,6 +68,31 @@ class IntelService {
     gallery.forEach(img => {
       intelRegistry.registerGalleryImage(img);
     });
+  }
+
+  /**
+   * Subscribes to real-time changes in the global 'audios' and 'gallery' collections.
+   * Updates the in-memory intelRegistry and notifies the callback.
+   */
+  public subscribeToIntelRegistry(onUpdate: (items: IntelItem[]) => void): () => void {
+    const unsubAudios = onSnapshot(collection(db, 'audios'), (snapshot) => {
+      snapshot.forEach((doc) => {
+        this.registerRemoteAudioFromFirebase({ id: doc.id, ...doc.data() });
+      });
+      onUpdate(intelRegistry.getAll());
+    }, (err) => console.warn('[IntelService] subscribeToAudios error:', err));
+
+    const unsubGallery = onSnapshot(collection(db, 'gallery'), (snapshot) => {
+      snapshot.forEach((doc) => {
+        intelRegistry.registerGalleryImage({ id: doc.id, ...doc.data() } as GalleryImage);
+      });
+      onUpdate(intelRegistry.getAll());
+    }, (err) => console.warn('[IntelService] subscribeToGallery error:', err));
+
+    return () => {
+      unsubAudios();
+      unsubGallery();
+    };
   }
 
   /**

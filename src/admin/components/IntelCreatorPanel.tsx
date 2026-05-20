@@ -74,19 +74,13 @@ export default function IntelCreatorPanel() {
   }, []);
 
   useEffect(() => {
-    const sync = async () => {
-      setIsLoading(true);
-      try {
-        await intelService.syncRegistryWithFirebase();
-        refreshItems();
-      } catch (err) {
-        console.error("Sync error:", err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    sync();
-  }, [refreshItems]);
+    setIsLoading(true);
+    const unsub = intelService.subscribeToIntelRegistry((items) => {
+      setAllItems(items);
+      setIsLoading(false);
+    });
+    return unsub;
+  }, []);
 
   const filteredItems = useMemo(() => {
     return allItems.filter(item => {

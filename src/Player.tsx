@@ -169,7 +169,7 @@ export default function Player() {
       );
     }
     return () => {
-      analyticsTracker.stopAll();
+      analyticsTracker.stopAll(true);
       playerSyncService.stopAll();
     };
   }, [playerData?.activeCharacterId]);

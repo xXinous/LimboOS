@@ -51,44 +51,51 @@ export default function CampaignSelection({
   }, []);
 
   useEffect(() => {
-    let isMounted = true;
-    
-    const fetchVisibleCampaigns = async () => {
-      if (!playerData) return;
+    if (!playerData) return;
 
-      try {
-        // 1. Get groups for this character
-        const playerGroups = await groupService.getGroupsForCharacter(playerData.activeCharacterId);
-        
-        // 2. Collect all unlocked IDs
-        const unlockedIds = new Set<string>([
-          ...(playerData.character.unlockedCampaigns || []),
-          ...playerGroups.flatMap(g => g.unlockedCampaigns || [])
-        ]);
+    let activeCampaigns: Campaign[] = [];
+    let characterGroups: Group[] = [];
 
-        // 3. Subscribe to all active campaigns and filter them
-        return campaignService.subscribeToActiveCampaigns(list => {
-          if (!isMounted) return;
-          
-          // Se for admin, vê tudo. Se não, filtra pelos IDs desbloqueados.
-          const visible = playerData.role === 'admin' 
-            ? list 
-            : list.filter(c => unlockedIds.has(c.id));
-            
-          setCampaigns(visible);
-          setLoading(false);
-        });
-      } catch (error) {
-        console.error("Erro ao carregar campanhas visíveis:", error);
-        setLoading(false);
-      }
+    const updateVisibleCampaigns = () => {
+      // 1. Collect all unlocked IDs (including active/assigned campaigns)
+      const unlockedIds = new Set<string>([
+        ...(playerData.character.unlockedCampaigns || []),
+        ...(playerData.character.campaignId ? [playerData.character.campaignId] : []),
+        ...characterGroups.flatMap(g => [
+          ...(g.unlockedCampaigns || []),
+          ...(g.campaignId ? [g.campaignId] : [])
+        ])
+      ]);
+
+      // 2. Filter active campaigns
+      const visible = playerData.role === 'admin'
+        ? activeCampaigns
+        : activeCampaigns.filter(c => unlockedIds.has(c.id));
+
+      setCampaigns(visible);
+      setLoading(false);
     };
 
-    const unsubPromise = fetchVisibleCampaigns();
-    
+    // Listen to groups
+    const unsubGroups = groupService.subscribeToGroupsForCharacter(
+      playerData.activeCharacterId,
+      (groups) => {
+        characterGroups = groups;
+        updateVisibleCampaigns();
+      }
+    );
+
+    // Listen to active campaigns
+    const unsubCampaigns = campaignService.subscribeToActiveCampaigns(
+      (list) => {
+        activeCampaigns = list;
+        updateVisibleCampaigns();
+      }
+    );
+
     return () => {
-      isMounted = false;
-      unsubPromise.then(unsub => unsub?.());
+      unsubGroups();
+      unsubCampaigns();
     };
   }, [playerData]);
 

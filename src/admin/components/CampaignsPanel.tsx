@@ -50,6 +50,11 @@ export default function CampaignsPanel() {
       }
       setCampaigns(list);
       setLoading(false);
+    }, (err) => {
+      console.warn('[CampaignsPanel] campaigns listener error:', err);
+      // Use local fallback so the UI doesn't stay stuck on loading
+      setCampaigns(initialCampaigns);
+      setLoading(false);
     });
 
     const unsubSettings = onSnapshot(doc(db, 'system', 'campaignSettings'), (snap) => {

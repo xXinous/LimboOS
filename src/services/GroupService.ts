@@ -148,6 +148,19 @@ export class GroupService {
   }
 
   /**
+   * Subscribe to all groups that a specific character belongs to.
+   */
+  public subscribeToGroupsForCharacter(characterId: string, callback: (groups: Group[]) => void): () => void {
+    const q = query(collection(db, 'groups'));
+    return onSnapshot(q, (snapshot) => {
+      const groups = snapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() } as Group))
+        .filter(g => g.characterSlots?.some(slot => slot.characterId === characterId));
+      callback(groups);
+    }, (error) => console.warn('[GroupService] subscribeToGroupsForCharacter error:', error));
+  }
+
+  /**
    * Grant intel to all (or only alive) characters in a group.
    * Returns the count of characters that received the intel.
    */

@@ -12,6 +12,7 @@ import {
   query,
   orderBy,
   where,
+  onSnapshot,
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { storage, db } from '../lib/firebase';
@@ -312,9 +313,6 @@ export async function updateRemoteIntel(item: IntelItem): Promise<void> {
   if (!collectionName) return;
 
   const docRef = doc(db, collectionName, item.id);
-  const snap = await getDoc(docRef);
-  
-  if (!snap.exists()) return;
 
   const updateData: any = {
     level: item.level,
@@ -349,6 +347,14 @@ export async function fetchQrRedirect(sourceId: string): Promise<string | null> 
 export async function fetchAllQrRedirects(): Promise<QrRedirect[]> {
   const snap = await getDocs(collection(db, 'qrRedirects'));
   return snap.docs.map(d => ({ sourceId: d.id, ...d.data() } as QrRedirect));
+}
+
+export function subscribeToQrRedirects(callback: (redirects: QrRedirect[]) => void): () => void {
+  const q = collection(db, 'qrRedirects');
+  return onSnapshot(q, (snap) => {
+    const list = snap.docs.map(d => ({ sourceId: d.id, ...d.data() } as QrRedirect));
+    callback(list);
+  }, (err) => console.warn('[Firestore] subscribeToQrRedirects error:', err));
 }
 
 export async function saveQrRedirect(sourceId: string, targetId: string, reason?: string): Promise<void> {

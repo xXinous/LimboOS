@@ -5,6 +5,7 @@ import { checkNewAchievements } from '../data/achievements';
 import { intelRegistry } from '../data/intel_registry';
 import type { Toast } from '../components/ToastNotification';
 import { activityLogger } from './ActivityLogger';
+import { auth } from '../lib/firebase';
 
 export class AnalyticsTracker {
   private static instance: AnalyticsTracker;
@@ -115,6 +116,10 @@ export class AnalyticsTracker {
 
   public forceSyncToServer() {
     if (this.playerData && this.localStats) {
+      const currentUser = auth.currentUser;
+      if (!currentUser || currentUser.uid !== this.playerData.uid) {
+        return;
+      }
       firestoreUpdateStats(this.playerData.uid, this.playerData.activeCharacterId, this.localStats).catch(console.error);
     }
   }
