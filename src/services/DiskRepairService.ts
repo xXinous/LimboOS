@@ -1,6 +1,6 @@
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { firestoreUnlockTape } from '../store/firestore';
+import { firestoreUnlockIntel } from '../store/firestore';
 import { analyticsTracker } from './AnalyticsTracker';
 import { activityLogger } from './ActivityLogger';
 
@@ -45,7 +45,7 @@ class DiskRepairService {
         if (p >= 100) {
           clearInterval(interval);
           analyticsTracker.grantAchievement('ACH-REPAIR-FAIL');
-          firestoreUnlockTape(uid, characterId, 'evidence-disk-01-corrupted').catch(console.error);
+          firestoreUnlockIntel(uid, characterId, 'evidence-disk-01-corrupted').catch(console.error);
           resolve();
         } else {
           onProgress(p);
@@ -66,7 +66,7 @@ class DiskRepairService {
           const success = this.diskRepairAllowed;
           if (success) {
             analyticsTracker.grantAchievement('ACH-REPAIR-SUCCESS');
-            firestoreUnlockTape(uid, characterId, 'evidence-disk-01').catch(console.error);
+            firestoreUnlockIntel(uid, characterId, 'evidence-disk-01').catch(console.error);
           }
           resolve(success);
         } else {

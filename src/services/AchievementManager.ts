@@ -3,7 +3,7 @@ import type { IntelItem } from '../types/intel';
 
 export interface EvaluationContext {
   profile: {
-    unlockedTapeIds: string[];
+    unlockedIntelIds: string[];
     achievementIds: string[];
     stats: PlayerStats;
   };
@@ -18,7 +18,7 @@ export abstract class AchievementRule {
 export class TapeCountRule extends AchievementRule {
   constructor(private targetCount: number) { super(); }
   evaluate(context: EvaluationContext): boolean {
-    return context.profile.unlockedTapeIds.length >= this.targetCount;
+    return context.profile.unlockedIntelIds.length >= this.targetCount;
   }
 }
 

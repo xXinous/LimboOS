@@ -24,7 +24,9 @@ export default function App() {
       document.head.appendChild(link);
     }
 
-    testConnection();
+    // Non-blocking connectivity check
+    testConnection().catch(() => {});
+    
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       if (currentUser) {
@@ -59,7 +61,7 @@ export default function App() {
     return <RetroLoading fullScreen message="Inicializando_Protocolos..." subMessage="Acessando Terminal Administrativo RM-84" />;
   }
 
-  if (!user || user.email !== 'gm.mpg@runningman.local') {
+  if (!user || user.uid !== '5TZK6YHmOOTe5padFPqCbXuavPu1') {
     window.location.href = '/';
     return null;
   }

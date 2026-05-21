@@ -31,6 +31,8 @@
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
+    "@types/react": "^19.2.15",
+    "@types/react-dom": "^19.2.3",
     "autoprefixer": "^10.4.21",
     "music-metadata": "^11.12.3",
     "tailwindcss": "^4.1.14",

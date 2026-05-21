@@ -6,13 +6,10 @@ import { collection, onSnapshot } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { 
   fetchAudioTapeById, 
-  fetchAudioTapesByIds,
-  fetchAllAudios,
-  fetchAllGalleryImages,
+  fetchAllMediaAssets,
   fetchQrRedirect, 
-  firestoreUnlockTape,
+  firestoreUnlockIntel,
   firestoreGrantAchievements,
-  fetchPlayerGalleryImages,
   updateRemoteIntel,
 } from '../store/firestore';
 
@@ -36,19 +33,71 @@ class IntelService {
 
   // --- Sincronização ---
 
-  private registerRemoteAudioFromFirebase(raw: Record<string, any>): IntelItem {
-    return intelRegistry.registerRemoteAudio({
-      id: raw.id,
-      title: raw.title,
-      artist: raw.artist,
-      npc: raw.npc,
-      chapter: raw.chapter,
-      description: raw.description,
-      url: raw.audioUrl || raw.url,
-      duration: raw.duration,
-      isSecret: raw.isSecret,
-      level: raw.level,
-    });
+  private registerMediaAssetAsIntel(raw: Record<string, any>): IntelItem | null {
+    if (raw.type === 'audio') {
+      return intelRegistry.registerRemoteAudio({
+        id: raw.id,
+        title: raw.metadata?.title || raw.filename,
+        artist: raw.metadata?.artist,
+        npc: raw.metadata?.npc,
+        chapter: raw.metadata?.chapter,
+        description: raw.metadata?.description,
+        url: raw.url,
+        duration: raw.metadata?.duration,
+        isSecret: raw.metadata?.isSecret,
+        level: raw.metadata?.level || 1,
+        campaignId: raw.campaignId,
+      });
+    } else if (raw.type === 'image' || raw.type === 'video') {
+      return intelRegistry.registerGalleryImage({
+        id: raw.id,
+        title: raw.metadata?.title || raw.filename,
+        description: raw.metadata?.description || '',
+        imageUrl: raw.url,
+        category: raw.metadata?.category || 'pistas',
+        level: raw.metadata?.level || 1,
+        campaignId: raw.campaignId,
+      } as any);
+    } else if (raw.type === 'text' || raw.type === 'document') {
+      const intel: IntelItem = {
+        id: raw.id,
+        campaignId: raw.campaignId,
+        type: 'TEXT',
+        level: (raw.metadata?.level || 1) as AccessLevel,
+        title: raw.metadata?.title || raw.filename || '',
+        description: raw.metadata?.description || raw.description || '',
+        textContent: raw.textContent || raw.metadata?.textContent || '',
+        metadata: {
+          npc: raw.metadata?.npc || '',
+          artist: raw.metadata?.artist || '',
+          chapter: raw.metadata?.chapter || '',
+          hint: raw.metadata?.hint || '',
+        }
+      };
+      intelRegistry.register(intel);
+      return intel;
+    } else if (raw.type === 'meta' || raw.type === 'achievement') {
+      const intel: IntelItem = {
+        id: raw.id,
+        campaignId: raw.campaignId,
+        type: 'META',
+        level: (raw.metadata?.level || 1) as AccessLevel,
+        title: raw.metadata?.title || raw.filename || '',
+        description: raw.metadata?.description || raw.description || '',
+        metadata: {
+          npc: raw.metadata?.npc || '',
+          artist: raw.metadata?.artist || '',
+          chapter: raw.metadata?.chapter || '',
+          icon: raw.metadata?.icon || '',
+          hint: raw.metadata?.hint || '',
+          unlockCondition: raw.metadata?.unlockCondition || '',
+          achievementRuleId: raw.metadata?.achievementRuleId || '',
+        }
+      };
+      intelRegistry.register(intel);
+      return intel;
+    }
+    return null;
   }
 
   /**
@@ -56,42 +105,23 @@ class IntelService {
    * Útil para o painel administrativo ver todos os itens remotos.
    */
   public async syncRegistryWithFirebase(): Promise<void> {
-    const [audios, gallery] = await Promise.all([
-      fetchAllAudios(),
-      fetchAllGalleryImages(),
-    ]);
+    const media = await fetchAllMediaAssets();
 
-    audios.forEach(audio => {
-      this.registerRemoteAudioFromFirebase(audio);
-    });
-
-    gallery.forEach(img => {
-      intelRegistry.registerGalleryImage(img);
+    media.forEach(m => {
+      this.registerMediaAssetAsIntel(m);
     });
   }
 
-  /**
-   * Subscribes to real-time changes in the global 'audios' and 'gallery' collections.
-   * Updates the in-memory intelRegistry and notifies the callback.
-   */
   public subscribeToIntelRegistry(onUpdate: (items: IntelItem[]) => void): () => void {
-    const unsubAudios = onSnapshot(collection(db, 'audios'), (snapshot) => {
+    const unsubMedia = onSnapshot(collection(db, 'mediaAssets'), (snapshot) => {
       snapshot.forEach((doc) => {
-        this.registerRemoteAudioFromFirebase({ id: doc.id, ...doc.data() });
+        this.registerMediaAssetAsIntel({ id: doc.id, ...doc.data() });
       });
       onUpdate(intelRegistry.getAll());
-    }, (err) => console.warn('[IntelService] subscribeToAudios error:', err));
-
-    const unsubGallery = onSnapshot(collection(db, 'gallery'), (snapshot) => {
-      snapshot.forEach((doc) => {
-        intelRegistry.registerGalleryImage({ id: doc.id, ...doc.data() } as GalleryImage);
-      });
-      onUpdate(intelRegistry.getAll());
-    }, (err) => console.warn('[IntelService] subscribeToGallery error:', err));
+    }, (err) => console.warn('[IntelService] subscribeToMediaAssets error:', err));
 
     return () => {
-      unsubAudios();
-      unsubGallery();
+      unsubMedia();
     };
   }
 
@@ -123,11 +153,11 @@ class IntelService {
     const local = intelRegistry.getByCode(finalCode);
     if (local) return local;
 
-    // Step 3: Try Firebase audio
-    const remoteTape = await fetchAudioTapeById(finalCode);
-    if (remoteTape) {
+    // Step 3: Try Firebase mediaAsset
+    const remoteMedia = await fetchAudioTapeById(finalCode);
+    if (remoteMedia) {
       // Registra no registry para cache local
-      return this.registerRemoteAudioFromFirebase(remoteTape);
+      return this.registerMediaAssetAsIntel(remoteMedia);
     }
 
     return null;
@@ -146,14 +176,14 @@ class IntelService {
     playerData: PlayerData,
     intelId: string
   ): Promise<{ alreadyOwned: boolean; updatedIds: string[] }> {
-    const alreadyOwned = playerData.unlockedTapeIds.includes(intelId);
+    const alreadyOwned = playerData.unlockedIntelIds.includes(intelId);
 
-    // Persiste no Firestore (subcollection tapes — retrocompatível)
-    await firestoreUnlockTape(playerData.uid, playerData.activeCharacterId, intelId, playerData.character.campaignId);
+    // Persiste no Firestore na nova subcoleção 'intel'
+    await firestoreUnlockIntel(playerData.uid, playerData.activeCharacterId, intelId, playerData.character.campaignId);
 
     const updatedIds = alreadyOwned
-      ? playerData.unlockedTapeIds
-      : [...playerData.unlockedTapeIds, intelId];
+      ? playerData.unlockedIntelIds
+      : [...playerData.unlockedIntelIds, intelId];
 
     return { alreadyOwned, updatedIds };
   }
@@ -165,34 +195,27 @@ class IntelService {
    * combinando tapes desbloqueados + gallery images.
    */
   public async getCollection(
-    playerData: PlayerData,
-    galleryImages: GalleryImage[] = []
+    playerData: PlayerData
   ): Promise<PlayerIntelCollection> {
-    // 1. Resolve tapes desbloqueados em paralelo
-    const tapeIdsToFetch = playerData.unlockedTapeIds.filter(id => !intelRegistry.get(id));
+    // 1. Resolve itens desbloqueados
+    const idsToFetch = playerData.unlockedIntelIds.filter(id => !intelRegistry.get(id));
     
     // Busca remota apenas para o que não está no registry
-    const remoteTapesResults = await Promise.all(
-      tapeIdsToFetch.map(id => fetchAudioTapeById(id))
+    const remoteMediaResults = await Promise.all(
+      idsToFetch.map(id => fetchAudioTapeById(id))
     );
 
     // Registra os novos itens remotos
-    remoteTapesResults.forEach(remoteTape => {
-      if (remoteTape) {
-        this.registerRemoteAudioFromFirebase(remoteTape);
+    remoteMediaResults.forEach(remoteMedia => {
+      if (remoteMedia) {
+        this.registerMediaAssetAsIntel(remoteMedia);
       }
     });
 
     // Agora todos os itens (locais + novos remotos) devem estar no registry
-    let resolvedItems: IntelItem[] = playerData.unlockedTapeIds
+    let resolvedItems: IntelItem[] = playerData.unlockedIntelIds
       .map(id => intelRegistry.get(id))
       .filter((item): item is IntelItem => !!item);
-
-    // 2. Incorpora gallery images como VISUAL intel
-    for (const img of galleryImages) {
-      const visualIntel = intelRegistry.registerGalleryImage(img);
-      resolvedItems.push(visualIntel);
-    }
 
     // 3. ISOLAMENTO DE INVENTÁRIO (INSTÂNCIAS)
     // Filtra apenas itens da campanha ativa ou itens globais (sem campaignId)
@@ -251,11 +274,13 @@ class IntelService {
     const idsToFetch = ids.filter(id => !intelRegistry.get(id));
     
     if (idsToFetch.length > 0) {
-      const remoteTapesResults = await fetchAudioTapesByIds(idsToFetch);
+      const remoteTapesResults = await Promise.all(
+        idsToFetch.map(id => fetchAudioTapeById(id))
+      );
 
       remoteTapesResults.forEach(remoteTape => {
         if (remoteTape) {
-          this.registerRemoteAudioFromFirebase(remoteTape);
+          this.registerMediaAssetAsIntel(remoteTape);
         }
       });
     }

@@ -35,8 +35,7 @@ import type { MasterAccount, CharacterData, PlayerData, PlayerStats, LimboGlobal
 import { 
   loadMasterAccount,
   loadPlayerData, 
-  firestoreUpdateSpotifyPlaylist, 
-  fetchPlayerGalleryImages,
+  firestoreUpdateSpotifyPlaylist,
   firestoreSetCampaign
 } from './store/firestore';
 import type { IntelItem, PlayerIntelCollection } from './types/intel';
@@ -44,11 +43,151 @@ import type { AppScreen, WalkmanStatus, DisplayMode } from './types/player';
 
 const EMPTY_ARRAY: any[] = [];
 
+interface NokiaDeviceWrapperProps {
+  children: React.ReactNode;
+  status: WalkmanStatus;
+  volume: number;
+  isMuted: boolean;
+  onToggleMute: () => void;
+  onBack: () => void;
+  screen: AppScreen;
+  setScreen: (screen: AppScreen) => void;
+  backVisible?: boolean;
+  onProfileOpen?: () => void;
+}
+
+function NokiaDeviceWrapper({
+  children,
+  status,
+  volume,
+  isMuted,
+  onToggleMute,
+  onBack,
+  screen,
+  setScreen,
+  backVisible,
+  onProfileOpen,
+}: NokiaDeviceWrapperProps) {
+  const [systemTime, setSystemTime] = useState('12:00');
+
+  useEffect(() => {
+    const updateTime = () => {
+      const now = new Date();
+      setSystemTime(
+        `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+      );
+    };
+    updateTime();
+    const interval = setInterval(updateTime, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const isScanning = status === 'SCANNING';
+  const signalBarsCount = Math.ceil((volume / 100) * 5);
+
+  return (
+    <div className="absolute inset-0 w-full h-full bg-[#edfeed] p-2 sm:p-4 z-50 flex items-center justify-center overflow-hidden">
+      <div className="w-full h-full bg-[#edfeed] rounded-xl border-[4px] border-[#111e14] relative shadow-[inset_0_4px_16px_rgba(0,0,0,0.45)] overflow-hidden flex flex-col max-w-4xl mx-auto">
+        {/* Inner Screen with Nokia LCD effects (CSS pseudo-elements) */}
+        <div
+          id="nokia-lcd-screen-inner"
+          style={{ fontFamily: '"JetBrains Mono", monospace' }}
+          className="w-full h-full bg-[#edfeed] text-[#111e14] flex flex-col justify-between overflow-hidden relative select-none nokia-theme-active"
+        >
+          {/* 1px Inner Screen Bezel Border */}
+          <div className="absolute inset-0 border border-[#111e14]/15 pointer-events-none z-20" />
+
+          {/* ─── STATUS BAR ─── */}
+          {!isScanning && (
+            <div className="flex justify-between items-center bg-[#edfeed] px-2 border-b border-[#111e14] py-1 text-[12px] font-bold h-[24px] select-none z-10 leading-none shrink-0">
+              {/* Signal HP indicator */}
+              <div className="flex items-end gap-[1px] h-[10px]" title="Signal">
+                <span className="text-[10px] leading-none pr-[2px] font-black">HP</span>
+                {[1, 2, 3, 4, 5].map((level) => (
+                  <div
+                    key={level}
+                    className={`w-[2px] ${signalBarsCount >= level ? 'bg-[#111e14]' : 'bg-[#111e14]/10'}`}
+                    style={{ height: `${level * 2 + 2}px` }}
+                  />
+                ))}
+              </div>
+
+              {/* Center Clock */}
+              <span className="tracking-wide text-[12px] tabular-nums">{systemTime}</span>
+
+              {/* Battery MP indicator */}
+              <div className="flex items-center gap-[2px]">
+                <span className="text-[10px] pr-[2px] font-black">MP</span>
+                <div className="flex items-center border border-[#111e14] p-[1px] rounded-[1px] w-[18px] h-[10px]">
+                  <div className="bg-[#111e14] h-full w-[75%]" />
+                </div>
+                <div className="w-[1px] h-[4px] bg-[#111e14] -ml-[1px]" />
+              </div>
+            </div>
+          )}
+
+          {/* ─── MAIN CONTENT VIEWPORT ─── */}
+          <div className="flex-grow overflow-y-auto relative p-2 flex flex-col min-h-0 custom-nokia-scrollbar">
+            {children}
+          </div>
+
+          {/* ─── BOTTOM TOUCH NAVIGATION BAR ─── */}
+          {!isScanning && (
+            <div className="flex justify-around items-center bg-[#edfeed] border-t-2 border-[#111e14] py-2 text-[12px] font-bold z-20 h-[44px] select-none text-[#111e14] shrink-0">
+              {backVisible !== false ? (
+                <button
+                  onClick={onBack}
+                  className="px-4 py-1.5 border border-[#111e14] rounded hover:bg-[#111e14] hover:text-[#edfeed] transition-all duration-100 active:scale-95 flex items-center gap-1.5 cursor-pointer"
+                >
+                  <span>↩</span> <span className="text-[10px] tracking-tight uppercase">Voltar</span>
+                </button>
+              ) : (
+                <div className="px-4 py-1.5 opacity-0 pointer-events-none flex items-center gap-1.5">
+                  <span>↩</span> <span className="text-[10px] tracking-tight uppercase">Voltar</span>
+                </div>
+              )}
+
+              <button
+                onClick={() => setScreen('player')}
+                disabled={screen === 'player'}
+                className={`px-4 py-1.5 border border-[#111e14] rounded hover:bg-[#111e14] hover:text-[#edfeed] transition-all duration-100 active:scale-95 flex items-center gap-1.5 ${
+                  screen === 'player' ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer'
+                }`}
+              >
+                <span className="text-[10px] font-black">[*]</span> <span className="text-[10px] tracking-tight uppercase">Inicio</span>
+              </button>
+
+              <button
+                onClick={onToggleMute}
+                className="px-3 py-1.5 border border-[#111e14] rounded hover:bg-[#111e14] hover:text-[#edfeed] transition-all duration-100 active:scale-95 flex items-center gap-1 cursor-pointer"
+              >
+                <span className="text-[10px] font-black">{isMuted ? '[X]' : '[~]'}</span>
+                <span className="text-[10px] tracking-tight uppercase">{isMuted ? 'Mudo' : 'Som'}</span>
+              </button>
+
+              {onProfileOpen && (
+                <button
+                  onClick={onProfileOpen}
+                  className="px-3 py-1.5 border border-[#111e14] rounded hover:bg-[#111e14] hover:text-[#edfeed] transition-all duration-100 active:scale-95 flex items-center gap-1 cursor-pointer"
+                >
+                  <span className="text-[10px] font-black">[#]</span>
+                  <span className="text-[10px] tracking-tight uppercase">Dossie</span>
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Player() {
   const [masterAccount, setMasterAccount] = useState<MasterAccount | null | undefined>(null);
   const [playerData, setPlayerData] = useState<PlayerData | null>(null);
   const [localStats, setLocalStats] = useState<PlayerStats | null>(null);
   const [screen, setScreen] = useState<AppScreen>('login');
+  const [nokiaBackVisible, setNokiaBackVisible] = useState(true);
   
   // Unified Intel Collection State
   const [intelCollection, setIntelCollection] = useState<PlayerIntelCollection | null>(null);
@@ -68,11 +207,10 @@ export default function Player() {
   const [scanTimes, setScanTimes] = useState<number[]>([]);
   const [limboStatus, setLimboStatus] = useState<LimboGlobalState>({ seized: false });
   const [activeEvidence, setActiveEvidence] = useState<IntelBase | null>(null);
-  const [galleryImages, setGalleryImages] = useState<GalleryImage[]>([]);
   const [activeCampaign, setActiveCampaign] = useState<Campaign | null>(null);
   
   const hasPlayedCurrentTape = useRef(false);
-  const timerRef = useRef<ReturnType<typeof setTimeout>>();
+  const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const isInitialIntelLoad = useRef(true);
   
   // Estabiliza o playerData para callbacks sem quebrar o memo
@@ -109,7 +247,7 @@ export default function Player() {
     const unsub = onAuthStateChanged(async (user) => {
       try {
         if (user) {
-          if (user.email === 'gm.mpg@runningman.local') {
+          if (user.uid === '5TZK6YHmOOTe5padFPqCbXuavPu1') {
             window.location.href = '/admin';
             return;
           }
@@ -150,6 +288,7 @@ export default function Player() {
       setScreen('campaignSelection');
     } catch (err) {
       console.error('[CharacterSelect] Error:', err);
+      throw err;
     }
   };
 
@@ -174,8 +313,7 @@ export default function Player() {
     };
   }, [playerData?.activeCharacterId]);
 
-const tapeIdsKey = playerData?.unlockedTapeIds?.join(',') ?? '';
-const galleryIdsKey = playerData?.unlockedGalleryIds?.join(',') ?? '';
+const intelIdsKey = playerData?.unlockedIntelIds?.join(',') ?? '';
 
 // Unified Intel Fetching (Adding debug logs and loading state management)
 useEffect(() => {
@@ -185,9 +323,7 @@ useEffect(() => {
       setWalkmanStatus('LOADING'); // Indicate background work only on first load
     }
     try {
-      const gallery = playerData.unlockedGalleryIds.length ? await fetchPlayerGalleryImages(playerData.uid, playerData.activeCharacterId) : [];
-      setGalleryImages(gallery);
-      const collection = await intelService.getCollection(playerData, gallery);
+      const collection = await intelService.getCollection(playerData);
       setIntelCollection(collection);
     } catch (error) {
         console.error('[Player DEBUG] Error during Intel Fetch:', error);
@@ -199,7 +335,7 @@ useEffect(() => {
     }
   };
   fetchIntel();
-}, [tapeIdsKey, galleryIdsKey]);
+}, [intelIdsKey]);
 
   useEffect(() => {
     audioEngine.setVolume(volume);
@@ -260,7 +396,7 @@ useEffect(() => {
       const recentScans = [...scanTimes.filter(t => now - t < 300000), now];
       setScanTimes(recentScans);
       analyticsTracker.checkAchievements(recentScans);
-      setPlayerData({ ...currentPD, unlockedTapeIds: updatedIds });
+      setPlayerData({ ...currentPD, unlockedIntelIds: updatedIds });
       
       hasPlayedCurrentTape.current = false;
       setWalkmanStatus('LOADING');
@@ -303,12 +439,16 @@ useEffect(() => {
     // Stop services BEFORE invalidating auth to avoid permission errors on final sync
     analyticsTracker.stopAll(true);
     playerSyncService.stopAll();
-    await logout();
-    setMasterAccount(undefined);
+    
+    // Clear states first to unmount components and unsubscribe from listeners
     setPlayerData(null);
+    setMasterAccount(undefined);
     setCurrentIntel(null);
     setWalkmanStatus('IDLE');
     setScreen('login');
+    
+    // Now safely log out of Firebase auth
+    await logout();
   }, []);
 
   const handleEject = useCallback(() => { 
@@ -337,12 +477,57 @@ useEffect(() => {
   const handleTerminalOpen = useCallback(() => setScreen('bios'), []);
   const handleMacOpen = useCallback(() => setScreen('macos'), []);
 
+  // Nokia Theme States and Helpers
+  const [isMuted, setIsMuted] = useState(false);
+  const [preMuteVolume, setPreMuteVolume] = useState(80);
+  const handleToggleMute = useCallback(() => {
+    if (isMuted) {
+      setVolume(preMuteVolume);
+      setIsMuted(false);
+    } else {
+      setPreMuteVolume(volume);
+      setVolume(0);
+      setIsMuted(true);
+    }
+  }, [isMuted, volume, preMuteVolume]);
+
+  const nokiaBackHandlerRef = useRef<(() => boolean) | null>(null);
+  const registerNokiaBackHandler = useCallback((handler: (() => boolean) | null) => {
+    nokiaBackHandlerRef.current = handler;
+  }, []);
+
+  const handleNokiaBack = useCallback(() => {
+    if (nokiaBackHandlerRef.current) {
+      const handled = nokiaBackHandlerRef.current();
+      if (handled) return;
+    }
+    if (screen !== 'player') {
+      setScreen('player');
+    }
+  }, [screen]);
+
   const swipeHandlers = useSwipeable({
     onSwipedLeft: () => screen === 'player' && playerDataRef.current && setScreen('profile'),
     onSwipedRight: () => screen === 'profile' && playerDataRef.current && setScreen('player'),
     trackMouse: true,
     preventScrollOnSwipe: true,
   });
+
+  const visualGalleryImages = useMemo(() => {
+    return intelManager?.getAll()
+      .filter((i): i is VisualIntel => i.type === 'VISUAL')
+      .map(i => ({
+        id: i.id,
+        title: i.title,
+        description: i.description || '',
+        imageUrl: i.mediaUrl,
+        category: 'pistas',
+        level: i.level || 1
+      } as GalleryImage)) || [];
+  }, [intelManager]);
+
+  const isNokiaTheme = playerData !== null && activeCampaign?.playerType === 'nokia';
+  const showNokiaShell = isNokiaTheme && (screen === 'player' || screen === 'profile');
 
   if (masterAccount === null) return (
     <RetroLoading fullScreen message="AUTENTICANDO..." subMessage="Validando credenciais de acesso" />
@@ -352,66 +537,107 @@ useEffect(() => {
     <div {...swipeHandlers} className="fixed inset-0 bg-surface flex items-center justify-center p-0 sm:p-4 overflow-hidden select-none touch-none">
       <div className="noise-overlay" /><div className="scanlines" /><div className="vignette" />
       
-      <AnimatePresence mode="wait">
-        {screen === 'login' || !masterAccount ? (
-          <motion.div key="login" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full h-full flex items-center justify-center">
-            <React.Suspense fallback={<RetroLoading message="CARREGANDO LOGIN..." />}>
-              <LoginScreen onLogin={(acc) => { setMasterAccount(acc); setScreen('characterSelection'); }} />
-            </React.Suspense>
-          </motion.div>
-        ) : (screen === 'characterSelection' && masterAccount) ? (
-          <motion.div key="charSelect" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full h-full flex items-center justify-center">
-            <React.Suspense fallback={<RetroLoading message="LISTANDO AGENTES..." />}>
-              <CharacterSelectionScreen account={masterAccount} onSelect={handleCharacterSelect} onLogout={handleLogout} />
-            </React.Suspense>
-          </motion.div>
-        ) : playerData === null ? (
-          <RetroLoading message="SINCRONIZANDO..." subMessage="Recuperando dossiê do agente" />
-        ) : screen === 'profile' ? (
-          <motion.div key="profile" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full h-full flex items-center justify-center">
-            <React.Suspense fallback={<RetroLoading message="ACESSANDO PERFIL..." />}>
-              <ProfileScreen profile={{ ...playerData, galleryImages }} onBack={() => setScreen('player')} onLogout={handleLogout} onChangeMission={() => setScreen('campaignSelection')} onChangeCharacter={handleCharacterSwitch} onUpdateSpotify={async (url) => { await firestoreUpdateSpotifyPlaylist(playerData.uid, playerData.activeCharacterId, url); setPlayerData({ ...playerData, character: { ...playerData.character, spotifyPlaylistUrl: url } }); }} />
-            </React.Suspense>
-          </motion.div>
-        ) : screen === 'agentDossier' ? (
-          <motion.div key="agentDossier" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full h-full flex items-center justify-center p-0 sm:p-4">
-            <div className="w-full h-full max-w-[520px] rounded-none sm:rounded-[20px] shadow-[0_35px_100px_rgba(0,0,0,0.9)] border-0 sm:border-2 border-primary/20 relative flex flex-col mx-auto overflow-hidden bg-surface">
-              <React.Suspense fallback={<RetroLoading message="ABRINDO DOSSIÊ..." />}>
-                <AgentDossierOverlay onClose={() => setScreen('campaignSelection')} playerData={playerData} intelManager={intelManager} />
+      {showNokiaShell ? (
+        <NokiaDeviceWrapper
+          status={walkmanStatus}
+          volume={volume}
+          isMuted={isMuted}
+          onToggleMute={handleToggleMute}
+          onBack={handleNokiaBack}
+          screen={screen}
+          setScreen={setScreen}
+          backVisible={screen === 'player' ? nokiaBackVisible : true}
+          onProfileOpen={handleProfileOpen}
+        >
+          <AnimatePresence mode="wait">
+            {screen === 'player' && (
+              <motion.div key="nokiaPlayer" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full h-full flex flex-col flex-grow min-h-0">
+                <React.Suspense fallback={<RetroLoading message="CARREGANDO NOKIA..." />}>
+                  <NokiaPlayer
+                    currentIntel={currentIntel}
+                    status={walkmanStatus}
+                    isPlaying={isPlaying}
+                    setIsPlaying={handleSetIsPlaying}
+                    volume={volume}
+                    setVolume={setVolume}
+                    intelItems={intelManager?.getAll() || EMPTY_ARRAY}
+                    currentIntelId={currentIntel?.id ?? null}
+                    onIntelSelect={handleIntelSelect}
+                    onRewind={handleRewind}
+                    onEject={handleEject}
+                    onScanClick={handleScanClick}
+                    onCancelScan={handleCancelScan}
+                    onQrDetected={handleQrDetected}
+                    hasTerminalAccess={playerData.hasTerminalAccess}
+                    onTerminalOpen={handleTerminalOpen}
+                    hasMacAccess={playerData.hasMacAccess}
+                    onMacOpen={handleMacOpen}
+                    onProfileOpen={handleProfileOpen}
+                    onCharacterSwitch={handleCharacterSwitch}
+                    registerBackHandler={registerNokiaBackHandler}
+                    setBackVisible={setNokiaBackVisible}
+                  />
+                </React.Suspense>
+              </motion.div>
+            )}
+            {screen === 'profile' && (
+              <motion.div key="profile" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full h-full flex flex-col flex-grow min-h-0">
+                <React.Suspense fallback={<RetroLoading message="ACESSANDO PERFIL..." />}>
+                  <ProfileScreen
+                    profile={playerData}
+                    galleryImages={visualGalleryImages}
+                    onBack={() => setScreen('player')}
+                    onLogout={handleLogout}
+                    onChangeMission={() => setScreen('campaignSelection')}
+                    onChangeCharacter={handleCharacterSwitch}
+                    onUpdateSpotify={async (url) => {
+                      await firestoreUpdateSpotifyPlaylist(playerData.uid, playerData.activeCharacterId, url);
+                      setPlayerData({ ...playerData, character: { ...playerData.character, spotifyPlaylistUrl: url } });
+                    }}
+                    variant="nokia"
+                  />
+                </React.Suspense>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </NokiaDeviceWrapper>
+      ) : (
+        <AnimatePresence mode="wait">
+          {screen === 'login' || !masterAccount ? (
+            <motion.div key="login" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full h-full flex items-center justify-center">
+              <React.Suspense fallback={<RetroLoading message="CARREGANDO LOGIN..." />}>
+                <LoginScreen onLogin={(acc) => { setMasterAccount(acc); setScreen('characterSelection'); }} />
               </React.Suspense>
-            </div>
-          </motion.div>
-        ) : screen === 'campaignSelection' ? (
-          <motion.div key="campaignSelection" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full h-full flex items-center justify-center p-0 sm:p-4">
-            <React.Suspense fallback={<RetroLoading message="SELECIONANDO MISSÃO..." />}>
-              <CampaignSelection onSelect={async (c) => { await firestoreSetCampaign(playerData.uid, playerData.activeCharacterId, c.id); setPlayerData({ ...playerData, character: { ...playerData.character, campaignId: c.id } }); setScreen('player'); }} onLogout={handleLogout} onShowProfile={() => setScreen('agentDossier')} onChangeCharacter={handleCharacterSwitch} playerData={playerData} />
-            </React.Suspense>
-          </motion.div>
-        ) : screen === 'player' ? (
-          activeCampaign?.playerType === 'nokia' ? (
-            <React.Suspense fallback={<RetroLoading message="CARREGANDO NOKIA..." />}>
-              <NokiaPlayer
-                currentIntel={currentIntel}
-                status={walkmanStatus}
-                isPlaying={isPlaying}
-                volume={volume}
-                setVolume={setVolume}
-                intelItems={intelManager?.getAll() || EMPTY_ARRAY}
-                currentIntelId={currentIntel?.id ?? null}
-                onIntelSelect={handleIntelSelect}
-                onEject={handleEject}
-                onScanClick={handleScanClick}
-                onCancelScan={handleCancelScan}
-                onQrDetected={handleQrDetected}
-                hasTerminalAccess={playerData.hasTerminalAccess}
-                onTerminalOpen={handleTerminalOpen}
-                hasMacAccess={playerData.hasMacAccess}
-                onMacOpen={handleMacOpen}
-                onProfileOpen={handleProfileOpen}
-                onCharacterSwitch={handleCharacterSwitch}
-              />
-            </React.Suspense>
-          ) : (
+            </motion.div>
+          ) : (screen === 'characterSelection' && masterAccount) ? (
+            <motion.div key="charSelect" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full h-full flex items-center justify-center">
+              <React.Suspense fallback={<RetroLoading message="LISTANDO AGENTES..." />}>
+                <CharacterSelectionScreen account={masterAccount} onSelect={handleCharacterSelect} onLogout={handleLogout} />
+              </React.Suspense>
+            </motion.div>
+          ) : playerData === null ? (
+            <RetroLoading message="SINCRONIZANDO..." subMessage="Recuperando dossiê do agente" />
+          ) : screen === 'profile' ? (
+            <motion.div key="profile" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full h-full flex items-center justify-center">
+              <React.Suspense fallback={<RetroLoading message="ACESSANDO PERFIL..." />}>
+                <ProfileScreen profile={playerData} galleryImages={visualGalleryImages} onBack={() => setScreen('player')} onLogout={handleLogout} onChangeMission={() => setScreen('campaignSelection')} onChangeCharacter={handleCharacterSwitch} onUpdateSpotify={async (url) => { await firestoreUpdateSpotifyPlaylist(playerData.uid, playerData.activeCharacterId, url); setPlayerData({ ...playerData, character: { ...playerData.character, spotifyPlaylistUrl: url } }); }} />
+              </React.Suspense>
+            </motion.div>
+          ) : screen === 'agentDossier' ? (
+            <motion.div key="agentDossier" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full h-full flex items-center justify-center p-0 sm:p-4">
+              <div className="w-full h-full max-w-[520px] rounded-none sm:rounded-[20px] shadow-[0_35px_100px_rgba(0,0,0,0.9)] border-0 sm:border-2 border-primary/20 relative flex flex-col mx-auto overflow-hidden bg-surface">
+                <React.Suspense fallback={<RetroLoading message="ABRINDO DOSSIÊ..." />}>
+                  <AgentDossierOverlay onClose={() => setScreen('campaignSelection')} playerData={playerData} intelManager={intelManager} />
+                </React.Suspense>
+              </div>
+            </motion.div>
+          ) : screen === 'campaignSelection' ? (
+            <motion.div key="campaignSelection" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full h-full flex items-center justify-center p-0 sm:p-4">
+              <React.Suspense fallback={<RetroLoading message="SELECIONANDO MISSÃO..." />}>
+                <CampaignSelection onSelect={async (c) => { await firestoreSetCampaign(playerData.uid, playerData.activeCharacterId, c.id); setPlayerData({ ...playerData, character: { ...playerData.character, campaignId: c.id } }); setScreen('player'); }} onLogout={handleLogout} onShowProfile={() => setScreen('agentDossier')} onChangeCharacter={handleCharacterSwitch} playerData={playerData} />
+              </React.Suspense>
+            </motion.div>
+          ) : screen === 'player' ? (
             <motion.div key="player" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} className="relative w-full max-w-sm h-full max-h-[750px] bg-surface-container-high rounded-[32px] border-8 border-[#1a1a1a] shadow-2xl flex flex-col p-3 sm:p-4 overflow-hidden z-10">
               <Screw className="top-4 left-4" /><Screw className="top-4 right-4 -rotate-90" /><Screw className="bottom-4 left-4 -rotate-90" /><Screw className="bottom-4 right-4" />
               <CassetteVisor currentIntel={currentIntel} status={walkmanStatus} onEject={handleEject} onScanClick={handleScanClick} onCancelScan={handleCancelScan} onQrDetected={handleQrDetected} />
@@ -419,19 +645,19 @@ useEffect(() => {
               <SideControls volume={volume} setVolume={setVolume} onModeChange={handleModeChange} onProfileOpen={handleProfileOpen} onCharacterSwitch={handleCharacterSwitch} />
               <BottomControls status={walkmanStatus} setIsPlaying={handleSetIsPlaying} hasTape={!!currentIntel} onRewind={handleRewind} hasTerminalAccess={playerData.hasTerminalAccess} onTerminalOpen={handleTerminalOpen} hasMacAccess={playerData.hasMacAccess} onMacOpen={handleMacOpen} />
             </motion.div>
-          )
-        ) : (
-          <motion.div key="apps" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-50">
-            <React.Suspense fallback={<RetroLoading fullScreen message="INICIALIZANDO SISTEMA..." subMessage="Carregando interface de baixo nível" />}>
-              {screen === 'bios' && <BiosTerminal uid={playerData.uid} username={playerData.character.codinome} onIpDetected={() => setScreen('limbo')} onClose={() => setScreen('player')} onAppLaunch={(app) => app === 'diskRepair' && setScreen('diskRepair')} onBootSystem={() => setScreen('windows95')} />}
-              {screen === 'limbo' && <LimboBoard uid={playerData.uid} characterId={playerData.activeCharacterId} onClose={() => setScreen('player')} onBackToTerminal={() => setScreen('bios')} globalSeizedStatus={limboStatus.seized} readThreadIds={limboStatus.readThreadIds || []} />}
-              {screen === 'diskRepair' && <DiskRepairApp uid={playerData.uid} characterId={playerData.activeCharacterId} onClose={() => setScreen('player')} onBackToTerminal={() => setScreen('bios')} />}
-              {screen === 'macos' && <MacOsApp uid={playerData.uid} onClose={() => setScreen('player')} />}
-              {screen === 'windows95' && <Windows95App uid={playerData.uid} onClose={() => setScreen('player')} />}
-            </React.Suspense>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          ) : (
+            <motion.div key="apps" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-50">
+              <React.Suspense fallback={<RetroLoading fullScreen message="INICIALIZANDO SISTEMA..." subMessage="Carregando interface de baixo nível" />}>
+                {screen === 'bios' && <BiosTerminal uid={playerData.uid} username={playerData.character.codinome} onIpDetected={() => setScreen('limbo')} onClose={() => setScreen('player')} onAppLaunch={(app) => app === 'diskRepair' && setScreen('diskRepair')} onBootSystem={() => setScreen('windows95')} />}
+                {screen === 'limbo' && <LimboBoard uid={playerData.uid} characterId={playerData.activeCharacterId} onClose={() => setScreen('player')} onBackToTerminal={() => setScreen('bios')} globalSeizedStatus={limboStatus.seized} readThreadIds={limboStatus.readThreadIds || []} />}
+                {screen === 'diskRepair' && <DiskRepairApp uid={playerData.uid} characterId={playerData.activeCharacterId} onClose={() => setScreen('player')} onBackToTerminal={() => setScreen('bios')} />}
+                {screen === 'macos' && <MacOsApp uid={playerData.uid} onClose={() => setScreen('player')} />}
+                {screen === 'windows95' && <Windows95App uid={playerData.uid} onClose={() => setScreen('player')} />}
+              </React.Suspense>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      )}
 
       <AnimatePresence>
         {activeEvidence && (

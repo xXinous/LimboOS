@@ -9,7 +9,7 @@ import RetroSpinner from './player/RetroSpinner';
 
 interface CharacterSelectionScreenProps {
   account: MasterAccount;
-  onSelect: (character: CharacterData) => void;
+  onSelect: (character: CharacterData) => Promise<void>;
   onLogout?: () => void;
 }
 
@@ -19,9 +19,11 @@ export default function CharacterSelectionScreen({ account, onSelect, onLogout }
   const [isCreating, setIsCreating] = useState(false);
   const [newCodinome, setNewCodinome] = useState('');
   const [creating, setCreating] = useState(false);
+  const [selectedCharId, setSelectedCharId] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // Master Name / Display Name Flow
-  const [showMasterNamePrompt, setShowMasterNamePrompt] = useState(!account.displayName);
+  const [showMasterNamePrompt, setShowMasterNamePrompt] = useState(!account.displayName && !account.masterName);
   const [newMasterName, setNewMasterName] = useState('');
   const [savingMasterName, setSavingMasterName] = useState(false);
 
@@ -84,6 +86,18 @@ export default function CharacterSelectionScreen({ account, onSelect, onLogout }
     }
   };
 
+  const handleSelect = async (char: CharacterData) => {
+    if (selectedCharId) return;
+    setSelectedCharId(char.id);
+    setErrorMsg(null);
+    try {
+      await onSelect(char);
+    } catch (err) {
+      setErrorMsg('Falha ao sincronizar agente. Tente novamente.');
+      setSelectedCharId(null);
+    }
+  };
+
   if (loading) {
     return <RetroLoading message="Acessando Banco de Dados..." subMessage="Recuperando registros de agentes da conta mestra" />;
   }
@@ -113,11 +127,18 @@ export default function CharacterSelectionScreen({ account, onSelect, onLogout }
           </div>
         </header>
 
+        {errorMsg && (
+          <div className="mb-4 bg-red-950/30 border border-red-500/50 p-3 flex items-center gap-3 text-red-500 animate-pulse">
+            <AlertCircle size={18} />
+            <span className="font-display text-xs uppercase tracking-widest">{errorMsg}</span>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <AnimatePresence mode="popLayout">
             {characters.map((char, i) => (
               <motion.div key={char.id} initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: i * 0.05 }}
-                onClick={() => onSelect(char)}
+                onClick={() => handleSelect(char)}
                 className="bg-surface-container-low border-2 border-industrial-silver/10 hover:border-primary/50 p-5 cursor-pointer transition-all group relative overflow-hidden"
               >
                 <div className="flex items-center gap-4 relative z-10">
@@ -142,7 +163,11 @@ export default function CharacterSelectionScreen({ account, onSelect, onLogout }
                       {char.agentId && <span className="text-[9px] font-mono text-industrial-silver/40">RM-{char.agentId}</span>}
                     </div>
                   </div>
-                  <ChevronRight size={20} className="text-industrial-silver/20 group-hover:text-primary transition-all group-hover:translate-x-1" />
+                  {selectedCharId === char.id ? (
+                    <RetroSpinner size="sm" className="text-primary" />
+                  ) : (
+                    <ChevronRight size={20} className="text-industrial-silver/20 group-hover:text-primary transition-all group-hover:translate-x-1" />
+                  )}
                 </div>
 
                 {/* Status-specific overlays */}

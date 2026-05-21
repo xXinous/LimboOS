@@ -461,8 +461,8 @@ export default function GroupManager({ isAdmin }: GroupManagerProps) {
            onClose={() => setShowGrantModal(null)}
            onSuccess={() => {}}
            onExecuteBulk={async (selectedIds) => {
-              const aliveOnly = await showConfirm('Condição de Distribuição', 'Distribuir apenas para agentes VIVOS no esquadrão?', 'Apenas Vivos', 'Todos (Inclui Mortos)');
-              await handleGrantIntelToGroup(showGrantModal, selectedIds, aliveOnly);
+             const aliveOnly = await showConfirm('Condição de Distribuição', 'Distribuir apenas para agentes VIVOS no esquadrão? (Clique em confirmar para Apenas Vivos)', 'Apenas Vivos');
+             await handleGrantIntelToGroup(showGrantModal, selectedIds, aliveOnly);
            }} 
            title="Vetor de Transmissão: Esquadrão"
         />

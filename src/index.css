@@ -160,4 +160,157 @@
   border-radius: 4px;
 }
 
+/* ═══════════════════════════════════════════════════
+   Nokia 2280 Authentic LCD Screen Effects
+   Ported from nokia-rpg-companion reference project
+   ═══════════════════════════════════════════════════ */
+
+/* Authentic physical LCD pixel grid overlay texture */
+#nokia-lcd-screen-inner::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(rgba(17, 30, 20, 0.05) 1px, transparent 1px),
+                    linear-gradient(90deg, rgba(17, 30, 20, 0.05) 1px, transparent 1px);
+  background-size: 2px 2px;
+  pointer-events: none;
+  z-index: 5;
+}
+
+/* Glass screen glare simulation */
+#nokia-lcd-screen-inner::after {
+  content: "";
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  right: -50%;
+  bottom: -50%;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.12) 0%,
+    rgba(255, 255, 255, 0.08) 40%,
+    rgba(255, 255, 255, 0) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  transform: rotate(15deg);
+  pointer-events: none;
+  z-index: 6;
+}
+
+/* ═══════════════════════════════════════════════════
+   Nokia LCD Monochrome CSS Overrides
+   ═══════════════════════════════════════════════════ */
+
+.nokia-theme-active {
+  background-color: #edfeed !important;
+  color: #111e14 !important;
+  font-family: 'JetBrains Mono', ui-monospace, 'Courier New', monospace !important;
+}
+
+.nokia-theme-active * {
+  color: #111e14 !important;
+  border-color: #111e14 !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  text-shadow: none !important;
+}
+
+.nokia-theme-active button {
+  background: transparent !important;
+  color: #111e14 !important;
+  border: 1px solid #111e14 !important;
+  border-radius: 2px !important;
+  padding: 0.25rem 0.5rem !important;
+  cursor: pointer !important;
+  font-family: 'JetBrains Mono', monospace !important;
+  font-weight: bold !important;
+  text-transform: uppercase !important;
+  transition: all 0.1s ease-in-out !important;
+}
+
+.nokia-theme-active button:hover:not(:disabled) {
+  background: #111e14 !important;
+  color: #edfeed !important;
+}
+
+.nokia-theme-active button:disabled {
+  opacity: 0.3 !important;
+  cursor: not-allowed !important;
+}
+
+.nokia-theme-active input,
+.nokia-theme-active textarea,
+.nokia-theme-active select {
+  background-color: transparent !important;
+  color: #111e14 !important;
+  border: 1px solid #111e14 !important;
+  border-radius: 2px !important;
+  padding: 0.25rem 0.5rem !important;
+  outline: none !important;
+  font-family: 'JetBrains Mono', monospace !important;
+}
+
+.nokia-theme-active h1,
+.nokia-theme-active h2,
+.nokia-theme-active h3,
+.nokia-theme-active h4,
+.nokia-theme-active h5,
+.nokia-theme-active h6 {
+  font-family: 'JetBrains Mono', monospace !important;
+  font-weight: 800 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.05em !important;
+}
+
+.nokia-theme-active .backdrop-blur-md,
+.nokia-theme-active .backdrop-blur-sm,
+.nokia-theme-active .bg-opacity-50 {
+  backdrop-filter: none !important;
+  background-color: #edfeed !important;
+}
+
+.nokia-theme-active *::-webkit-scrollbar {
+  width: 4px !important;
+  height: 4px !important;
+}
+
+.nokia-theme-active *::-webkit-scrollbar-track {
+  background: transparent !important;
+}
+
+.nokia-theme-active *::-webkit-scrollbar-thumb {
+  background-color: #111e14 !important;
+  border-radius: 2px !important;
+}
+
+.nokia-theme-active .bg-surface-container-lowest,
+.nokia-theme-active .bg-surface-container-low,
+.nokia-theme-active .bg-surface-container,
+.nokia-theme-active .bg-surface-container-high,
+.nokia-theme-active .bg-surface-container-highest,
+.nokia-theme-active .bg-surface-variant {
+  background-color: transparent !important;
+  border-color: #111e14 !important;
+}
+
+.nokia-theme-active .bg-primary,
+.nokia-theme-active .bg-primary\/10,
+.nokia-theme-active .bg-\[\#111e14\] {
+  background-color: #111e14 !important;
+  color: #edfeed !important;
+}
+
+.nokia-theme-active .bg-primary *,
+.nokia-theme-active .bg-\[\#111e14\] * {
+  color: #edfeed !important;
+}
+
+.nokia-theme-active .text-primary {
+  color: #111e14 !important;
+}
+
+.nokia-theme-active .border-primary {
+  border-color: #111e14 !important;
+}
 

@@ -33,8 +33,6 @@ export class PlayerSyncService {
 
     const emitIntelUpdate = () => {
       onPlayerDataUpdate({
-        unlockedTapeIds: [], // Deprecated
-        unlockedGalleryIds: [], // Deprecated
         unlockedIntelIds: latestIntelIds,
       });
     };

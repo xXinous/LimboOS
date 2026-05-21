@@ -67,6 +67,11 @@ export const CassetteCard = memo(({ campaign, onSelect, index, dragX, cardWidth,
               <img 
                 src={campaign.imageUrl} alt={campaign.name} 
                 onLoad={() => setImageLoaded(true)}
+                onError={(e) => {
+                  setImageLoaded(true);
+                  // Use a fallback image if Unsplash fails (often happens with old IDs)
+                  e.currentTarget.src = 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?q=80&w=800&auto=format&fit=crop';
+                }}
                 className={`w-full h-full object-cover transition-all duration-700 group-hover:scale-105 ${imageLoaded ? 'opacity-70 group-hover:opacity-100' : 'opacity-0'}`} 
                 draggable={false} 
               />

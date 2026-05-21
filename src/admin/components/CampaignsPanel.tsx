@@ -268,7 +268,13 @@ export default function CampaignsPanel() {
           <div key={campaign.id} className="bg-surface-container-low border border-primary/10 overflow-hidden group hover:border-primary/30 transition-all shadow-2xl relative">
             <div className="h-48 bg-black relative overflow-hidden">
               {campaign.imageUrl ? (
-                <img src={campaign.imageUrl} alt={campaign.name} className="w-full h-full object-cover opacity-40 grayscale group-hover:grayscale-0 group-hover:scale-105 transition-all duration-700" />
+                <img 
+                  src={campaign.imageUrl} alt={campaign.name} 
+                  className="w-full h-full object-cover opacity-40 grayscale group-hover:grayscale-0 group-hover:scale-105 transition-all duration-700" 
+                  onError={(e) => {
+                    e.currentTarget.src = 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?q=80&w=800&auto=format&fit=crop';
+                  }}
+                />
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-industrial-silver/5 bg-surface-container-high">
                   <span className="material-symbols-outlined text-7xl">map</span>
@@ -554,7 +560,13 @@ export default function CampaignsPanel() {
                     {/* Image preview */}
                     {editingCampaign?.imageUrl && (
                       <div className="relative mb-4 rounded-sm overflow-hidden border border-primary/20 group/preview">
-                        <img src={editingCampaign.imageUrl} alt="Preview" className="w-full h-32 object-cover opacity-60 group-hover/preview:opacity-80 transition-opacity" />
+                        <img 
+                          src={editingCampaign.imageUrl} alt="Preview" 
+                          className="w-full h-32 object-cover opacity-60 group-hover/preview:opacity-80 transition-opacity" 
+                          onError={(e) => {
+                            e.currentTarget.src = 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?q=80&w=800&auto=format&fit=crop';
+                          }}
+                        />
                         <div className="absolute inset-0 bg-linear-to-t from-black/60 to-transparent" />
                         <button
                           type="button"

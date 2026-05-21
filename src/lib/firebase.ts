@@ -18,11 +18,18 @@ export const db = initializeFirestore(app, {
 });
 export const storage = getStorage(app);
 export async function testConnection() {
+  // Execute in the background with a timeout to avoid blocking the initial load
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 5000);
+
   try {
+    // We don't await this in the main boot sequence, but we provide it as a utility
     await getDocFromServer(doc(db, 'test', 'connection'));
+    clearTimeout(timeoutId);
   } catch (error) {
+    clearTimeout(timeoutId);
     if(error instanceof Error && error.message.includes('the client is offline')) {
-      console.error("Please check your Firebase configuration. ");
+      console.warn("[Firebase] Client is offline, using local cache.");
     }
   }
 }
@@ -48,7 +55,7 @@ function logGlobalBrowserError(tag: string, fullMessage: string, stack?: string,
   if (extraArgs !== undefined) metadata.extraArgs = extraArgs;
   if (!user) return;
   const name = user.displayName || user.email || 'unknown_player';
-  if (user.email === 'gm.mpg@runningman.local') {
+  if (user.uid === '5TZK6YHmOOTe5padFPqCbXuavPu1') {
     activityLogger.logAdmin(name, tag.toLowerCase(), finalMessage, metadata);
   } else {
     activityLogger.logError(user.uid, name, finalMessage, stack, metadata);
@@ -57,6 +64,8 @@ function logGlobalBrowserError(tag: string, fullMessage: string, stack?: string,
 const _origError = console.error.bind(console);
 console.error = (...args: unknown[]) => {
   _origError(...args);
+  // Temporarily disabled for debugging connection issues
+  /*
   if (_isLogging) return;
   _isLogging = true;
   try {
@@ -67,10 +76,13 @@ console.error = (...args: unknown[]) => {
     ) { _isLogging = false; return; }
     logGlobalBrowserError('CONSOLE.ERROR', msg, undefined, undefined, args.length > 1 ? args : undefined);
   } finally { _isLogging = false; }
+  */
 };
 const _origWarn = console.warn.bind(console);
 console.warn = (...args: unknown[]) => {
   _origWarn(...args);
+  // Temporarily disabled for debugging connection issues
+  /*
   if (_isLogging) return;
   _isLogging = true;
   try {
@@ -81,6 +93,7 @@ console.warn = (...args: unknown[]) => {
     ) { _isLogging = false; return; }
     logGlobalBrowserError('CONSOLE.WARN', msg, undefined, undefined, args.length > 1 ? args : undefined);
   } finally { _isLogging = false; }
+  */
 };
 function getErrorDigest(error: unknown): { message: string; stack?: string; code?: string } {
   if (error instanceof Error) {

@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '../../lib/firebase';
-import { collection, getDocs, doc, setDoc, deleteDoc, serverTimestamp, query, where, Timestamp } from 'firebase/firestore';
+import { collection, getDocs, doc, setDoc, deleteDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { Campaign } from '../../data/campaigns';
 import { Group, CharacterData, MasterAccount } from '../../types/player';
 import { intelRegistry } from '../../data/intel_registry';
@@ -26,49 +26,67 @@ export default function CampaignInventoryModal({ campaign, groups, allCharacters
   // Determine which characters belong to this campaign
   // 1. Characters in groups assigned to this campaign
   // 2. Characters individually assigned to this campaign (campaignId on CharacterData)
-  const campaignCharacters = allCharacters.filter(({ character }) => {
-    if (character.campaignId === campaign.id) return true;
-    return groups.some(g => g.campaignId === campaign.id && g.characterSlots?.some(slot => slot.characterId === character.id));
-  });
+  const campaignCharacters = useMemo(() => {
+    return allCharacters.filter(({ character }) => {
+      if (character.campaignId === campaign.id) return true;
+      return groups.some(g => g.campaignId === campaign.id && g.characterSlots?.some(slot => slot.characterId === character.id));
+    });
+  }, [allCharacters, groups, campaign.id]);
 
   const loadInventories = async () => {
     setLoading(true);
-    const inventories: Record<string, { id: string; unlockedAt: any }[]> = {};
     
-    for (const item of campaignCharacters) {
-      try {
-        const tapesSnap = await getDocs(collection(db, "users", item.account.uid, "characters", item.character.id, "tapes"));
-        // Only include tapes that belong to THIS campaign, or have no campaignId (legacy/global)
-        const tapes = tapesSnap.docs.map(d => ({ 
-          id: d.id, 
-          unlockedAt: d.data().unlockedAt,
-          campaignId: d.data().campaignId
-        })).filter(t => !t.campaignId || t.campaignId === campaign.id);
-        
-        inventories[`${item.account.uid}_${item.character.id}`] = tapes;
-      } catch (err) {
-        console.error("Error loading inventory for char", item.character.id, err);
-      }
+    try {
+      const results = await Promise.all(
+        campaignCharacters.map(async (item) => {
+          try {
+            const tapesSnap = await getDocs(collection(db, "users", item.account.uid, "characters", item.character.id, "tapes"));
+            const tapes = tapesSnap.docs.map(d => ({ 
+              id: d.id, 
+              unlockedAt: d.data().unlockedAt,
+              campaignId: d.data().campaignId
+            })).filter(t => !t.campaignId || t.campaignId === campaign.id);
+            
+            return { key: `${item.account.uid}_${item.character.id}`, tapes };
+          } catch (err) {
+            console.error("Error loading inventory for char", item.character.id, err);
+            return { key: `${item.account.uid}_${item.character.id}`, tapes: [] };
+          }
+        })
+      );
+      
+      const inventories: Record<string, { id: string; unlockedAt: any }[]> = {};
+      results.forEach(res => {
+        inventories[res.key] = res.tapes;
+      });
+      
+      setCharacterInventories(inventories);
+    } catch (err) {
+      console.error("Critical error in bulk loading inventories:", err);
+    } finally {
+      setLoading(false);
     }
-    
-    setCharacterInventories(inventories);
-    setLoading(false);
   };
 
   useEffect(() => {
     loadInventories();
-  }, [campaign.id]);
+  }, [campaign.id, campaignCharacters]);
 
   const handleExecuteBulk = async (selectedIds: Set<string>) => {
     if (!showGrantModal) return;
     try {
-      await Promise.all([...selectedIds].map(intelId => 
-        setDoc(doc(db, "users", showGrantModal.uid, "characters", showGrantModal.charId, "tapes", intelId), {
+      const batch = writeBatch(db);
+      
+      [...selectedIds].forEach(intelId => {
+        const docRef = doc(db, "users", showGrantModal.uid, "characters", showGrantModal.charId, "tapes", intelId);
+        batch.set(docRef, {
           tapeId: intelId,
           unlockedAt: serverTimestamp(),
           campaignId: campaign.id // Scoped to this campaign!
-        })
-      ));
+        });
+      });
+      
+      await batch.commit();
     } catch (err) {
       console.error(err);
       throw err;

@@ -84,7 +84,16 @@ export const AgentDossierOverlay = ({ onClose, playerData, intelManager }: Agent
       <header className="p-6 border-b border-primary/20 flex justify-between items-center bg-surface-container-low/80 backdrop-blur-md relative z-20 shrink-0">
         <div className="flex items-center gap-4">
           <button onClick={() => fileInputRef.current?.click()} className="relative w-16 h-16 rounded-sm overflow-hidden bg-black border-2 border-primary/30 flex items-center justify-center text-primary font-display font-bold text-xl shadow-lg group">
-            {currentPhotoUrl ? <img src={currentPhotoUrl} alt="Perfil" className="w-full h-full object-cover" /> : <span>{stats.initials || '?'}</span>}
+            {currentPhotoUrl ? (
+              <img 
+                src={currentPhotoUrl} 
+                alt="Perfil" 
+                className="w-full h-full object-cover" 
+                onError={(e) => {
+                  e.currentTarget.src = 'https://images.unsplash.com/photo-1514516311115-91220997d662?q=80&w=800&auto=format&fit=crop';
+                }}
+              />
+            ) : <span>{stats.initials || '?'}</span>}
             <div className="absolute inset-0 bg-primary/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-black"><Camera size={20} /></div>
             {uploading && <div className="absolute inset-0 bg-black/60 flex items-center justify-center"><RetroSpinner size="sm" /></div>}
           </button>
@@ -237,7 +246,16 @@ export const AgentDossierOverlay = ({ onClose, playerData, intelManager }: Agent
                 {selectedIntel instanceof VisualIntel ? (
                   <div className="p-4 pt-8">
                     <div className="border border-primary/20 bg-black/40 overflow-hidden relative">
-                      <img src={selectedIntel.mediaUrl} alt={selectedIntel.title} loading="lazy" decoding="async" className="w-full max-h-[50vh] object-contain opacity-80 group-hover:opacity-100 transition-opacity" />
+                      <img 
+                        src={selectedIntel.mediaUrl} 
+                        alt={selectedIntel.title} 
+                        loading="lazy" 
+                        decoding="async" 
+                        className="w-full max-h-[50vh] object-contain opacity-80 group-hover:opacity-100 transition-opacity" 
+                        onError={(e) => {
+                          e.currentTarget.src = 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?q=80&w=800&auto=format&fit=crop';
+                        }}
+                      />
                     </div>
                   </div>
                 ) : (

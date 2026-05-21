@@ -37,10 +37,10 @@ export class UserService {
   public subscribeToUsers(callback: (users: MasterAccount[]) => void): () => void {
     return onSnapshot(collection(db, "users"), 
       (snapshot) => {
-        const users: MasterAccount[] = [];
-        snapshot.forEach((doc) => {
-          users.push({ uid: doc.id, ...doc.data() } as MasterAccount);
-        });
+        const users: MasterAccount[] = snapshot.docs.map((doc) => ({ 
+          uid: doc.id, 
+          ...doc.data() 
+        } as MasterAccount));
         callback(users);
       },
       (err) => console.warn('[UserService] users listener error:', err)
@@ -50,13 +50,13 @@ export class UserService {
   public subscribeToAllCharacters(callback: (characters: {uid: string, char: CharacterData}[]) => void): () => void {
     return onSnapshot(collectionGroup(db, "characters"),
       (snapshot) => {
-        const characters: {uid: string, char: CharacterData}[] = [];
-        snapshot.forEach((doc) => {
+        const characters: {uid: string, char: CharacterData}[] = snapshot.docs.map((doc) => {
           const uid = doc.ref.parent.parent?.id;
-          if (uid) {
-            characters.push({ uid, char: { id: doc.id, ...doc.data() } as CharacterData });
-          }
-        });
+          return { 
+            uid: uid || '', 
+            char: { id: doc.id, ...doc.data() } as CharacterData 
+          };
+        }).filter(item => item.uid !== '');
         callback(characters);
       },
       (err) => console.warn('[UserService] characters collectionGroup listener error:', err)
@@ -143,25 +143,35 @@ export class UserService {
   }
 
   public async updateMasterAccount(uid: string, data: Partial<MasterAccount>): Promise<void> {
-    await updateDoc(doc(db, "users", uid), data as any);
+    await updateDoc(doc(db, "users", uid), data);
   }
 
   public async updateCharacter(uid: string, characterId: string, data: Partial<CharacterData>): Promise<void> {
-    await updateDoc(doc(db, "users", uid, "characters", characterId), data as any);
+    await updateDoc(doc(db, "users", uid, "characters", characterId), data);
   }
 
   public async deleteCharacter(uid: string, characterId: string): Promise<void> {
-    const tapesSnap = await getDocs(collection(db, "users", uid, "characters", characterId, "tapes"));
-    await Promise.all(tapesSnap.docs.map((d) => deleteDoc(d.ref)));
-    const achSnap = await getDocs(collection(db, "users", uid, "characters", characterId, "achievements"));
-    await Promise.all(achSnap.docs.map((d) => deleteDoc(d.ref)));
-    // Clean unified intel subcollection
-    const intelSnap = await getDocs(collection(db, "users", uid, "characters", characterId, "intel"));
-    await Promise.all(intelSnap.docs.map((d) => deleteDoc(d.ref)));
-    // Clean legacy gallery subcollection
-    const gallerySnap = await getDocs(collection(db, "users", uid, "characters", characterId, "gallery"));
-    await Promise.all(gallerySnap.docs.map((d) => deleteDoc(d.ref)));
-    await deleteDoc(doc(db, "users", uid, "characters", characterId));
+    const batch = writeBatch(db);
+    
+    // 1. Fetch all docs from all subcollections
+    const [tapesSnap, achSnap, intelSnap, gallerySnap] = await Promise.all([
+      getDocs(collection(db, "users", uid, "characters", characterId, "tapes")),
+      getDocs(collection(db, "users", uid, "characters", characterId, "achievements")),
+      getDocs(collection(db, "users", uid, "characters", characterId, "intel")),
+      getDocs(collection(db, "users", uid, "characters", characterId, "gallery"))
+    ]);
+
+    // 2. Add all deletions to batch
+    tapesSnap.docs.forEach(d => batch.delete(d.ref));
+    achSnap.docs.forEach(d => batch.delete(d.ref));
+    intelSnap.docs.forEach(d => batch.delete(d.ref));
+    gallerySnap.docs.forEach(d => batch.delete(d.ref));
+
+    // 3. Delete the main character document
+    batch.delete(doc(db, "users", uid, "characters", characterId));
+
+    // 4. Commit everything
+    await batch.commit();
   }
 
   public async updateUserRole(uid: string, role: 'player' | 'admin'): Promise<void> {
@@ -280,42 +290,46 @@ export class UserService {
    * and deleting from the source.
    */
   public async transferCharacter(fromUid: string, toUid: string, characterId: string): Promise<void> {
-    // 1. Copy character document
-    const charSnap = await getDoc(doc(db, "users", fromUid, "characters", characterId));
+    const batch = writeBatch(db);
+
+    // 1. Fetch character document and all subcollections
+    const [charSnap, tapesSnap, intelSnap, achSnap, statsSnap] = await Promise.all([
+      getDoc(doc(db, "users", fromUid, "characters", characterId)),
+      getDocs(collection(db, "users", fromUid, "characters", characterId, "tapes")),
+      getDocs(collection(db, "users", fromUid, "characters", characterId, "intel")),
+      getDocs(collection(db, "users", fromUid, "characters", characterId, "achievements")),
+      getDoc(doc(db, "users", fromUid, "characters", characterId, "stats", "main"))
+    ]);
+
     if (!charSnap.exists()) throw new Error('Character not found');
-    await setDoc(doc(db, "users", toUid, "characters", characterId), charSnap.data());
 
-    // 2. Copy tapes subcollection (legacy)
-    const tapesSnap = await getDocs(collection(db, "users", fromUid, "characters", characterId, "tapes"));
-    const batch1 = writeBatch(db);
+    // 2. Set character document in target
+    batch.set(doc(db, "users", toUid, "characters", characterId), charSnap.data());
+
+    // 3. Set tapes subcollection in target
     tapesSnap.docs.forEach(d => {
-      batch1.set(doc(db, "users", toUid, "characters", characterId, "tapes", d.id), d.data());
+      batch.set(doc(db, "users", toUid, "characters", characterId, "tapes", d.id), d.data());
     });
-    if (tapesSnap.docs.length > 0) await batch1.commit();
 
-    // 3. Copy unified intel subcollection
-    const intelSnap = await getDocs(collection(db, "users", fromUid, "characters", characterId, "intel"));
-    const batchIntel = writeBatch(db);
+    // 4. Set intel subcollection in target
     intelSnap.docs.forEach(d => {
-      batchIntel.set(doc(db, "users", toUid, "characters", characterId, "intel", d.id), d.data());
+      batch.set(doc(db, "users", toUid, "characters", characterId, "intel", d.id), d.data());
     });
-    if (intelSnap.docs.length > 0) await batchIntel.commit();
 
-    // 4. Copy achievements subcollection
-    const achSnap = await getDocs(collection(db, "users", fromUid, "characters", characterId, "achievements"));
-    const batch2 = writeBatch(db);
+    // 5. Set achievements subcollection in target
     achSnap.docs.forEach(d => {
-      batch2.set(doc(db, "users", toUid, "characters", characterId, "achievements", d.id), d.data());
+      batch.set(doc(db, "users", toUid, "characters", characterId, "achievements", d.id), d.data());
     });
-    if (achSnap.docs.length > 0) await batch2.commit();
 
-    // 5. Copy stats
-    const statsSnap = await getDoc(doc(db, "users", fromUid, "characters", characterId, "stats", "main"));
+    // 6. Set stats in target
     if (statsSnap.exists()) {
-      await setDoc(doc(db, "users", toUid, "characters", characterId, "stats", "main"), statsSnap.data());
+      batch.set(doc(db, "users", toUid, "characters", characterId, "stats", "main"), statsSnap.data());
     }
 
-    // 6. Delete from source (now also cleans intel subcollection)
+    // 7. Commit the copies
+    await batch.commit();
+
+    // 8. Delete from source
     await this.deleteCharacter(fromUid, characterId);
   }
 

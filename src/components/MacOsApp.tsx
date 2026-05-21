@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import AppleIcon from './icons/AppleIcon';
-import { checkMacClosed, firestoreUnlockTape } from '../store/firestore';
+import { checkMacClosed, firestoreUnlockIntel, firestoreGrantAchievements } from '../store/firestore';
 import { analyticsTracker } from '../services/AnalyticsTracker';
 import { activityLogger } from '../services/ActivityLogger';
-const TEXTO_CORROMPIDO = `S̸e̵ ̸o̸n̵d̴a̷ ̶s̵o̵n̵o̶r̶a̷ ̷a̶t̶i̵n̵g̷e̸ ̴∇̸ ̴∞̵ ̵n̷o̵ ̵m̶i̶l̶i̴s̸s̶e̵g̷u̴n̸d̸o̵ ̴d̵o̴ ̷e̶r̵r̵o̸ ̶t̴e̵m̴p̴o̶r̵a̵l̴.̶.̶.̷
+const TEXTO_CORROMPIDO = `S̸e̵ ̸o̸n̵d̴a̷ ̶s̵o̵n̵o̶r̶a̷ ̷a̶t̶i̵n̵g̷e̸ ̴∇̸ ̴∞̵ ̵n̷o̵ ̵m̶i̶l̶i̴s̸s̶e̵g̷u̴n̸d̸o̵ ̴d̵o̴ ̷e̶r̵r̵o̸ ̶t̴e̵m̵p̵o̶r̵a̵l̴.̶.̶.̷
 O̵ ̵█̶█̶█̶█̶█̶█̶█̶█̶█̶█̶ ̷n̵ã̷o̵ ̷é̴ ̵l̵i̶n̴h̷a̴.̵ ̶É̸ ̴u̶m̸ ̷l̶o̵o̵p̸ ̷d̵e̴ ̶c̵ó̸d̵i̴g̵o̵.̶
 1̷9̶0̶0̶ ̶▒̶░̶▓̶ ̶E̷R̵R̴O̷ ̸S̷I̸N̸T̸A̶X̵E̴ ̴▓̸░̸▒̸ ̶2̶0̶0̶0̵
 A̶c̶h̷a̸m̴ ̴q̴u̷e̷ ̵é̶ ̵b̴u̷g̷ ̸c̷a̵l̶e̷n̸d̸á̷r̸i̴o̷.̸ ̵I̵d̴i̷o̷t̶a̵s̸.̵

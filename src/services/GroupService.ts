@@ -157,7 +157,10 @@ export class GroupService {
         .map(doc => ({ id: doc.id, ...doc.data() } as Group))
         .filter(g => g.characterSlots?.some(slot => slot.characterId === characterId));
       callback(groups);
-    }, (error) => console.warn('[GroupService] subscribeToGroupsForCharacter error:', error));
+    }, (error) => {
+      console.warn('[GroupService] subscribeToGroupsForCharacter error:', error);
+      callback([]); // Prevent indefinite loading
+    });
   }
 
   /**

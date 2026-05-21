@@ -50,6 +50,6 @@ export const campaigns: Campaign[] = [
     year: '2097',
     rpgSystem: 'Fallout 2d20',
     status: 'Bloqueada',
-    imageUrl: 'https://images.unsplash.com/photo-1469474099711-423507d9d68b?q=80&w=800&auto=format&fit=crop',
+    imageUrl: 'https://images.unsplash.com/photo-1542382156909-9ae37b3f56fd?q=80&w=800&auto=format&fit=crop',
   }
 ];

@@ -144,9 +144,11 @@ class IntelRegistry {
     duration?: number;
     isSecret?: boolean;
     level?: number;
+    campaignId?: string;
   }): IntelItem {
     const intel: IntelItem = {
       id: data.id,
+      campaignId: data.campaignId,
       type: 'AUDIO',
       level: (data.level || (data.isSecret ? 3 : 1)) as AccessLevel,
       title: data.title || '',
@@ -176,6 +178,7 @@ class IntelRegistry {
     };
     const intel: IntelItem = {
       id: img.id,
+      campaignId: (img as any).campaignId,
       type: 'VISUAL',
       level: (img.level || levelMap[img.category] || 1) as AccessLevel,
       title: img.title,

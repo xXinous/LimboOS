@@ -41,7 +41,7 @@ const registerAchievements = () => {
 registerAchievements();
 
 export interface AchievableProfile {
-  unlockedTapeIds: string[];
+  unlockedIntelIds: string[];
   achievementIds: string[];
   stats: PlayerStats;
 }

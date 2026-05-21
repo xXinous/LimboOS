@@ -51,7 +51,15 @@ export async function loadMasterAccount(uid: string): Promise<MasterAccount> {
   if (!snap.exists()) {
     throw new Error('Account not found');
   }
-  return snap.data() as MasterAccount;
+  const data = snap.data();
+  return {
+    uid,
+    email: data?.email || '',
+    masterName: data?.masterName || data?.displayName || 'Agente',
+    role: data?.role || 'player',
+    createdAt: data?.createdAt || null,
+    ...data
+  } as MasterAccount;
 }
 
 export async function createUserDoc(uid: string, email: string, masterId: string): Promise<void> {
@@ -95,18 +103,27 @@ export async function createCharacter(uid: string, codinome: string): Promise<Ch
 export async function loadPlayerData(uid: string, characterId: string): Promise<PlayerData> {
   if (!uid || !characterId) throw new Error('LoadPlayerData failed: Missing identifiers');
   
-  const [accountSnap, charSnap, statsSnap, achievementsSnap] = await Promise.all([
+  const [accountSnap, charSnap, statsSnap, achievementsSnap, intelSnap] = await Promise.all([
     getDoc(doc(db, 'users', uid)),
     getDoc(doc(db, 'users', uid, 'characters', characterId)),
     getDoc(doc(db, 'users', uid, 'characters', characterId, 'stats', 'main')),
-    getDocs(collection(db, 'users', uid, 'characters', characterId, 'achievements'))
+    getDocs(collection(db, 'users', uid, 'characters', characterId, 'achievements')),
+    getDocs(collection(db, 'users', uid, 'characters', characterId, 'intel'))
   ]);
 
   if (!accountSnap.exists() || !charSnap.exists()) {
     throw new Error('Data integrity failure: Account or Character missing');
   }
 
-  const account = accountSnap.data() as MasterAccount;
+  const accountData = accountSnap.data();
+  const account: MasterAccount = {
+    uid,
+    email: accountData?.email || '',
+    masterName: accountData?.masterName || accountData?.displayName || 'Agente',
+    role: accountData?.role || 'player',
+    createdAt: accountData?.createdAt || null,
+    ...accountData
+  };
   const character = { id: characterId, ...charSnap.data() } as CharacterData;
   const stats = statsSnap.exists() ? { ...DEFAULT_STATS, ...(statsSnap.data() as Partial<PlayerStats>) } : DEFAULT_STATS;
 
@@ -114,36 +131,22 @@ export async function loadPlayerData(uid: string, characterId: string): Promise<
     ...account,
     activeCharacterId: characterId,
     character,
-    unlockedTapeIds: [], // Populated asynchronously by PlayerSyncService
     achievementIds: achievementsSnap.docs.map((d) => d.id),
     stats,
-    unlockedGalleryIds: [], // Populated asynchronously by PlayerSyncService
-    unlockedIntelIds: [], // Unified IDs from 'intel', 'tapes', and 'gallery'
+    unlockedIntelIds: intelSnap.docs.map((d) => d.id).sort(),
   };
 }
 
 // --- Character Progress ---
 
-/**
- * @deprecated Renamed to firestoreUnlockIntel. Kept as alias for backward compatibility.
- */
-export const firestoreUnlockTape = firestoreUnlockIntel;
-
 export async function firestoreUnlockIntel(uid: string, characterId: string, intelId: string, campaignId?: string): Promise<void> {
   const unlockData = {
-    tapeId: intelId, // Legacy field kept for backward compat
     intelId,
     unlockedAt: serverTimestamp(),
-    campaignId: campaignId || null
+    campaignId: campaignId || null,
+    type: 'AUDIO' // Default type; overridden by IntelService with proper type
   };
-  // Dual-write: legacy 'tapes' subcollection + new unified 'intel' subcollection
-  await Promise.all([
-    setDoc(doc(db, 'users', uid, 'characters', characterId, 'tapes', intelId), unlockData),
-    setDoc(doc(db, 'users', uid, 'characters', characterId, 'intel', intelId), {
-      ...unlockData,
-      type: 'AUDIO', // Default type; will be overridden by IntelService with proper type
-    }, { merge: true }),
-  ]);
+  await setDoc(doc(db, 'users', uid, 'characters', characterId, 'intel', intelId), unlockData, { merge: true });
 }
 
 export async function firestoreGrantAchievements(uid: string, characterId: string, achievementIds: string[]): Promise<void> {
@@ -277,7 +280,7 @@ export async function generateAgentId(uid: string, characterId: string): Promise
 }
 
 export async function fetchAudioTapeById(audioId: string) {
-  const snap = await getDoc(doc(db, 'audios', audioId));
+  const snap = await getDoc(doc(db, 'mediaAssets', audioId));
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 }
 
@@ -286,7 +289,7 @@ export async function fetchAudioTapesByIds(audioIds: string[]) {
   const audios: any[] = [];
   for (let i = 0; i < audioIds.length; i += 30) {
     const chunk = audioIds.slice(i, i + 30);
-    const q = query(collection(db, 'audios'), where('__name__', 'in', chunk));
+    const q = query(collection(db, 'mediaAssets'), where('__name__', 'in', chunk));
     const snap = await getDocs(q);
     snap.docs.forEach(d => {
       audios.push({ id: d.id, ...d.data() });
@@ -295,45 +298,64 @@ export async function fetchAudioTapesByIds(audioIds: string[]) {
   return audios;
 }
 
-export async function fetchAllAudios() {
-  const snap = await getDocs(collection(db, 'audios'));
+export async function fetchAllMediaAssets() {
+  const snap = await getDocs(collection(db, 'mediaAssets'));
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
-}
-
-export async function fetchAllGalleryImages(): Promise<GalleryImage[]> {
-  const snap = await getDocs(collection(db, 'gallery'));
-  return snap.docs.map(d => ({ id: d.id, ...d.data() } as GalleryImage));
 }
 
 /**
  * Persiste alterações de um IntelItem de volta para o Firebase.
  */
 export async function updateRemoteIntel(item: IntelItem): Promise<void> {
-  const collectionName = item.type === 'AUDIO' ? 'audios' : item.type === 'VISUAL' ? 'gallery' : null;
-  if (!collectionName) return;
+  const docRef = doc(db, 'mediaAssets', item.id);
 
-  const docRef = doc(db, collectionName, item.id);
+  let rawType = 'other';
+  if (item.type === 'AUDIO') {
+    rawType = 'audio';
+  } else if (item.type === 'VISUAL') {
+    const ext = item.mediaUrl?.split('?')[0].split('.').pop()?.toLowerCase();
+    if (ext && ['mp4', 'webm', 'mov'].includes(ext)) {
+      rawType = 'video';
+    } else {
+      rawType = 'image';
+    }
+  } else if (item.type === 'TEXT') {
+    rawType = 'text';
+  } else if (item.type === 'META') {
+    rawType = 'meta';
+  }
 
-  const updateData: any = {
+  const metadata: any = {
     level: item.level,
     title: item.title,
     description: item.description,
   };
 
-  if (item.type === 'AUDIO' && item.metadata) {
-    if (item.metadata.artist) updateData.artist = item.metadata.artist;
-    if (item.metadata.npc) updateData.npc = item.metadata.npc;
-    if (item.metadata.chapter) updateData.chapter = item.metadata.chapter;
-    if (item.metadata.duration) updateData.duration = item.metadata.duration;
-    if (item.metadata.isSecret !== undefined) updateData.isSecret = item.metadata.isSecret;
-    if (item.mediaUrl) updateData.url = item.mediaUrl;
+  if (item.metadata) {
+    if (item.metadata.npc !== undefined) metadata.npc = item.metadata.npc;
+    if (item.metadata.artist !== undefined) metadata.artist = item.metadata.artist;
+    if (item.metadata.chapter !== undefined) metadata.chapter = item.metadata.chapter;
+    if (item.metadata.duration !== undefined) metadata.duration = item.metadata.duration;
+    if (item.metadata.isSecret !== undefined) metadata.isSecret = item.metadata.isSecret;
+    if (item.metadata.visualCategory !== undefined) metadata.category = item.metadata.visualCategory;
+    if (item.metadata.imageUrl !== undefined) metadata.imageUrl = item.metadata.imageUrl;
+    if (item.metadata.icon !== undefined) metadata.icon = item.metadata.icon;
+    if (item.metadata.hint !== undefined) metadata.hint = item.metadata.hint;
+    if (item.metadata.unlockCondition !== undefined) metadata.unlockCondition = item.metadata.unlockCondition;
+    if (item.metadata.achievementRuleId !== undefined) metadata.achievementRuleId = item.metadata.achievementRuleId;
   }
 
-  if (item.type === 'VISUAL' && item.metadata) {
-    if (item.metadata.visualCategory) updateData.category = item.metadata.visualCategory;
-    if (item.metadata.npc) updateData.npc = item.metadata.npc;
-    if (item.metadata.chapter) updateData.chapter = item.metadata.chapter;
-    if (item.mediaUrl) updateData.imageUrl = item.mediaUrl;
+  const updateData: any = {
+    type: rawType,
+    campaignId: item.campaignId || null,
+    metadata,
+  };
+
+  if (item.mediaUrl) {
+    updateData.url = item.mediaUrl;
+  }
+  if (item.textContent) {
+    updateData.textContent = item.textContent;
   }
 
   await setDoc(docRef, updateData, { merge: true });
@@ -367,38 +389,6 @@ export async function saveQrRedirect(sourceId: string, targetId: string, reason?
 
 export async function deleteQrRedirect(sourceId: string): Promise<void> {
   await deleteDoc(doc(db, 'qrRedirects', sourceId));
-}
-
-/**
- * Fetches gallery images for a player character.
- * Reads from both legacy 'gallery' subcollection AND unified 'intel' subcollection.
- */
-export async function fetchPlayerGalleryImages(uid: string, characterId: string): Promise<GalleryImage[]> {
-  // Try unified 'intel' subcollection first (post-migration)
-  const intelSnap = await getDocs(collection(db, 'users', uid, 'characters', characterId, 'intel'));
-  const visualIntelIds = intelSnap.docs
-    .filter(d => d.data().type === 'VISUAL' || d.data().migratedFrom === 'gallery')
-    .map(d => d.id);
-
-  // Also check legacy 'gallery' subcollection for backward compat
-  const grantSnap = await getDocs(collection(db, 'users', uid, 'characters', characterId, 'gallery'));
-  const legacyImageIds = grantSnap.docs.map(d => d.id);
-
-  // Merge and deduplicate
-  const imageIds = Array.from(new Set([...visualIntelIds, ...legacyImageIds]));
-  if (imageIds.length === 0) return [];
-  
-  const images: GalleryImage[] = [];
-  for (let i = 0; i < imageIds.length; i += 30) {
-    const chunk = imageIds.slice(i, i + 30);
-    const { where } = await import('firebase/firestore');
-    const q = query(collection(db, 'gallery'), where('__name__', 'in', chunk));
-    const snap = await getDocs(q);
-    snap.docs.forEach(d => {
-      images.push({ id: d.id, ...d.data() } as GalleryImage);
-    });
-  }
-  return images;
 }
 
 // Re-export types used by admin panels

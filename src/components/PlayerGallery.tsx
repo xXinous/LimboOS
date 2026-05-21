@@ -4,6 +4,7 @@ import { X, MapPin, Search, User, Package } from 'lucide-react';
 import type { GalleryImage, GalleryCategory } from '../store/firestore';
 interface PlayerGalleryProps {
   images: GalleryImage[];
+  variant?: 'default' | 'nokia';
 }
 const TABS: { id: GalleryCategory; label: string; Icon: React.FC<{ size?: number; className?: string }> }[] = [
   { id: 'locais', label: 'Locais', Icon: MapPin },
@@ -11,11 +12,98 @@ const TABS: { id: GalleryCategory; label: string; Icon: React.FC<{ size?: number
   { id: 'pessoas', label: 'Pessoas', Icon: User },
   { id: 'itens', label: 'Itens', Icon: Package },
 ];
-export default function PlayerGallery({ images }: PlayerGalleryProps) {
+export default function PlayerGallery({ images, variant = 'default' }: PlayerGalleryProps) {
   const [activeTab, setActiveTab] = useState<GalleryCategory>('locais');
   const [selectedImage, setSelectedImage] = useState<GalleryImage | null>(null);
   const filtered = images.filter(img => img.category === activeTab);
   const getCounts = (cat: GalleryCategory) => images.filter(i => i.category === cat).length;
+  if (variant === 'nokia') {
+    if (images.length === 0) {
+      return (
+        <div className="text-[8px] text-center border border-dashed border-[#111e14] py-3 opacity-80">
+          ARQUIVO VAZIO.
+        </div>
+      );
+    }
+    return (
+      <div className="space-y-1 text-[#111e14] font-mono text-[9px] uppercase">
+        <div className="flex gap-1 mb-1 border-b border-[#111e14] pb-1">
+          {TABS.map(tab => {
+            const count = getCounts(tab.id);
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex-1 border border-[#111e14] py-0.5 text-center transition-all ${
+                  isActive ? 'bg-[#111e14] text-[#edfeed] font-bold' : 'hover:bg-[#111e14]/10'
+                }`}
+              >
+                {tab.label.substring(0,3)} {count > 0 && `(${count})`}
+              </button>
+            );
+          })}
+        </div>
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={activeTab}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="grid grid-cols-2 gap-1"
+          >
+            {filtered.length === 0 ? (
+              <div className="col-span-2 text-center py-2 opacity-60">VAZIO</div>
+            ) : (
+              filtered.map((img) => (
+                <div key={img.id} onClick={() => setSelectedImage(img)} className="border border-[#111e14] p-[1px] cursor-pointer hover:bg-[#111e14] hover:text-[#edfeed] group transition-all relative">
+                  <div className="aspect-square bg-black overflow-hidden relative grayscale contrast-150 brightness-75 group-hover:grayscale-0 group-hover:contrast-100 transition-all">
+                    <img 
+                      src={img.imageUrl} 
+                      className="w-full h-full object-cover" 
+                      onError={(e) => {
+                        e.currentTarget.src = 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?q=80&w=800&auto=format&fit=crop';
+                      }}
+                    />
+                  </div>                  <div className="text-[7px] font-bold truncate mt-0.5 px-0.5 text-center group-hover:text-[#edfeed]">{img.title}</div>
+                </div>
+              ))
+            )}
+          </motion.div>
+        </AnimatePresence>
+        <AnimatePresence>
+          {selectedImage && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 z-[100] bg-[#edfeed] flex flex-col p-1 border-2 border-[#111e14]"
+              onClick={() => setSelectedImage(null)}
+            >
+              <div className="flex justify-between items-center border-b-2 border-[#111e14] pb-1 shrink-0 font-bold mb-1">
+                <span>IMG_VIEWER.EXE</span>
+                <button className="border border-[#111e14] px-1 hover:bg-[#111e14] hover:text-[#edfeed] active:scale-95 transition-all">[X]</button>
+              </div>
+              <div className="flex-1 overflow-y-auto flex flex-col items-center" style={{ scrollbarWidth: 'none' }}>
+                <div className="border-4 border-[#111e14] p-1 bg-black mb-2 grayscale contrast-125 w-full">
+                  <img 
+                    src={selectedImage.imageUrl} 
+                    className="w-full h-auto object-contain" 
+                    onError={(e) => {
+                      e.currentTarget.src = 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?q=80&w=800&auto=format&fit=crop';
+                    }}
+                  />
+                </div>
+                <div className="text-center font-bold">{selectedImage.title}</div>
+                {selectedImage.description && <div className="text-[8px] mt-1 px-2 text-center opacity-80">{selectedImage.description}</div>}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    );
+  }
+
   if (images.length === 0) {
     return (
       <div className="border border-dashed border-[#333] rounded-lg p-5 text-center">
@@ -89,6 +177,9 @@ export default function PlayerGallery({ images }: PlayerGalleryProps) {
                       alt={img.title}
                       className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                       loading="lazy"
+                      onError={(e) => {
+                        e.currentTarget.src = 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?q=80&w=800&auto=format&fit=crop';
+                      }}
                     />
                     <div className="absolute inset-0 bg-linear-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                   </div>
@@ -126,6 +217,9 @@ export default function PlayerGallery({ images }: PlayerGalleryProps) {
                 src={selectedImage.imageUrl}
                 alt={selectedImage.title}
                 className="w-full h-auto max-h-[60vh] object-contain rounded-lg"
+                onError={(e) => {
+                  e.currentTarget.src = 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?q=80&w=800&auto=format&fit=crop';
+                }}
               />
               <div className="mt-3 px-1">
                 <p className="text-white font-bold text-sm">{selectedImage.title}</p>

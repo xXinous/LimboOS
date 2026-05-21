@@ -142,7 +142,7 @@ export class AnalyticsTracker {
 
   private resolveOwnedIntelForAchievements(): IntelItem[] {
     if (!this.playerData) return [];
-    const ids = this.playerData.unlockedTapeIds;
+    const ids = this.playerData.unlockedIntelIds;
     return intelRegistry.resolve(ids);
   }
 
