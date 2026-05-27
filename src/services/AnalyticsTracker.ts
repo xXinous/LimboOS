@@ -6,6 +6,7 @@ import { intelRegistry } from '../data/intel_registry';
 import type { Toast } from '../components/ToastNotification';
 import { activityLogger } from './ActivityLogger';
 import { auth } from '../lib/firebase';
+import { firebaseAnalytics } from './FirebaseAnalyticsService';
 
 export class AnalyticsTracker {
   private static instance: AnalyticsTracker;
@@ -43,6 +44,11 @@ export class AnalyticsTracker {
     // Auto-initialize activity logger context
     activityLogger.setUser(playerData.uid, playerData.character.codinome, playerData.activeCharacterId);
     
+    // Initialize Firebase Analytics with user identity
+    firebaseAnalytics.init().then(() => {
+      firebaseAnalytics.setUser(playerData.uid, playerData.activeCharacterId, playerData.character.codinome);
+    });
+    
     this.startBackgroundSync();
   }
 
@@ -76,6 +82,13 @@ export class AnalyticsTracker {
     
     activityLogger.logAction('tape_play', `Iniciou reprodução: ${intel.title}`, { intelId: intel.id });
     
+    // Firebase Analytics: tape engagement tracking
+    firebaseAnalytics.logTapePlay(
+      intel.id, 
+      intel.type || 'AUDIO', 
+      this.playerData.character?.campaignId
+    );
+    
     if (this.listenTimer) clearInterval(this.listenTimer);
     this.listenTimer = window.setInterval(() => this.tick(), 5000);
   }
@@ -91,6 +104,14 @@ export class AnalyticsTracker {
       this.activePlayEventId = null;
     }
     activityLogger.logAction('tape_end', 'Reprodução finalizada');
+    
+    // Firebase Analytics: completion tracking
+    if (this.localStats) {
+      firebaseAnalytics.logTapeCompleted(
+        this.activePlayEventId || 'unknown',
+        this.localStats.totalListenTime
+      );
+    }
   }
 
   private tickCount = 0;
@@ -138,6 +159,7 @@ export class AnalyticsTracker {
     this.onStatsSync = null;
     this.onToast = null;
     activityLogger.clearUser();
+    firebaseAnalytics.clearUser();
   }
 
   private resolveOwnedIntelForAchievements(): IntelItem[] {
@@ -159,6 +181,8 @@ export class AnalyticsTracker {
       this.forceSyncToServer();
       newAchievements.forEach(ach => {
         if (this.onToast) this.onToast({ type: 'achievement', title: 'Conquista!', subtitle: ach.title, icon: ach.icon });
+        // Firebase Analytics: achievement tracking for ML predictions
+        firebaseAnalytics.logAchievementUnlocked(ach.id);
       });
       this.playerData.achievementIds = [...this.playerData.achievementIds, ...newAchievements.map(a => a.id)];
       this.syncLocalChanges();

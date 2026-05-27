@@ -12,7 +12,10 @@ import {
   getDoc,
   writeBatch,
   onSnapshot,
-  collectionGroup
+  collectionGroup,
+  limit,
+  orderBy,
+  startAfter
 } from "firebase/firestore";
 import { initializeApp, deleteApp } from "firebase/app";
 import { getAuth, createUserWithEmailAndPassword } from "firebase/auth";
@@ -47,6 +50,35 @@ export class UserService {
     );
   }
 
+  /**
+   * Fetches a single page of users with optional filtering and pagination.
+   */
+  public async fetchUsersPage(pageSize: number, lastDoc: any = null, searchField: string = '', searchQuery: string = ''): Promise<{ users: MasterAccount[], lastVisible: any }> {
+    let q = query(collection(db, "users"), orderBy("createdAt", "desc"), limit(pageSize));
+
+    if (searchQuery && searchField) {
+      // Basic prefix search for Firestore
+      const searchEnd = searchQuery + '\uf8ff';
+      q = query(
+        collection(db, "users"), 
+        where(searchField, ">=", searchQuery), 
+        where(searchField, "<=", searchEnd),
+        orderBy(searchField),
+        limit(pageSize)
+      );
+    }
+
+    if (lastDoc) {
+      q = query(q, startAfter(lastDoc));
+    }
+
+    const snapshot = await getDocs(q);
+    const users = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as MasterAccount));
+    const lastVisible = snapshot.docs[snapshot.docs.length - 1];
+
+    return { users, lastVisible };
+  }
+
   public subscribeToAllCharacters(callback: (characters: {uid: string, char: CharacterData}[]) => void): () => void {
     return onSnapshot(collectionGroup(db, "characters"),
       (snapshot) => {
@@ -67,6 +99,31 @@ export class UserService {
     if (!uid) return [];
     const snap = await getDocs(collection(db, "users", uid, "characters"));
     return snap.docs.map(d => ({ id: d.id, ...d.data() } as CharacterData));
+  }
+
+  /**
+   * Searches for characters across all users by codinome (prefix search).
+   * Note: This uses collectionGroup, so it still has some cost, but limit(20) makes it scalable.
+   */
+  public async searchCharactersByCodinome(queryStr: string, limitCount: number = 20): Promise<{uid: string, char: CharacterData}[]> {
+    if (!queryStr.trim()) return [];
+    
+    const searchEnd = queryStr + '\uf8ff';
+    const q = query(
+      collectionGroup(db, "characters"),
+      where("codinome", ">=", queryStr),
+      where("codinome", "<=", searchEnd),
+      limit(limitCount)
+    );
+
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => {
+      const uid = doc.ref.parent.parent?.id || '';
+      return {
+        uid,
+        char: { id: doc.id, ...doc.data() } as CharacterData
+      };
+    });
   }
 
   public subscribeToUserTotalPlays(callback: (counts: Record<string, number>) => void): () => void {
@@ -179,11 +236,11 @@ export class UserService {
   }
 
   public async removeUserIntel(uid: string, characterId: string, intelId: string): Promise<void> {
-    // Dual-delete: remove from both legacy and unified subcollections
-    await Promise.all([
-      deleteDoc(doc(db, "users", uid, "characters", characterId, "tapes", intelId)),
-      deleteDoc(doc(db, "users", uid, "characters", characterId, "intel", intelId)),
-    ]);
+    // Dual-delete: remove from both legacy and unified subcollections atomically
+    const batch = writeBatch(db);
+    batch.delete(doc(db, "users", uid, "characters", characterId, "tapes", intelId));
+    batch.delete(doc(db, "users", uid, "characters", characterId, "intel", intelId));
+    await batch.commit();
   }
 
   public async addUserIntel(uid: string, characterId: string, intelId: string): Promise<void> {
@@ -192,11 +249,11 @@ export class UserService {
       intelId,
       unlockedAt: serverTimestamp(),
     };
-    // Dual-write: write to both legacy and unified subcollections
-    await Promise.all([
-      setDoc(doc(db, "users", uid, "characters", characterId, "tapes", intelId), unlockData),
-      setDoc(doc(db, "users", uid, "characters", characterId, "intel", intelId), unlockData, { merge: true }),
-    ]);
+    // Dual-write: write to both legacy and unified subcollections atomically
+    const batch = writeBatch(db);
+    batch.set(doc(db, "users", uid, "characters", characterId, "tapes", intelId), unlockData);
+    batch.set(doc(db, "users", uid, "characters", characterId, "intel", intelId), unlockData, { merge: true });
+    await batch.commit();
   }
 
   public async grantUserAchievement(uid: string, characterId: string, achievementId: string): Promise<void> {

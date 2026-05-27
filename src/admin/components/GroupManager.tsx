@@ -30,6 +30,7 @@ export default function GroupManager({ isAdmin }: GroupManagerProps) {
   const [sessions, setSessions] = useState<string[]>([]);
   const [unlockedCampaigns, setUnlockedCampaigns] = useState<string[]>([]);
   const [showArchived, setShowArchived] = useState(false);
+  const [agentSearchQuery, setAgentSearchQuery] = useState("");
 
   // Intel Grant State
   const [showGrantModal, setShowGrantModal] = useState<string | null>(null);
@@ -37,27 +38,6 @@ export default function GroupManager({ isAdmin }: GroupManagerProps) {
 
   useEffect(() => {
     const unsubGroups = groupService.subscribeToGroups(setGroups);
-    let currentAccounts: any[] = [];
-    let currentChars: {uid: string, char: CharacterData}[] = [];
-
-    const updateAllCharacters = () => {
-      const filtered = currentChars.filter(c => {
-        const u = currentAccounts.find(acc => acc.uid === c.uid);
-        return !!u;
-      });
-      setAllCharacters(filtered);
-    };
-
-    const unsubUsers = userService.subscribeToUsers((fetchedUsers) => {
-      setUsers(fetchedUsers as unknown as UserData[]);
-      currentAccounts = fetchedUsers;
-      updateAllCharacters();
-    });
-
-    const unsubChars = userService.subscribeToAllCharacters((fetchedCharacters) => {
-      currentChars = fetchedCharacters;
-      updateAllCharacters();
-    });
     
     const unsubCampaigns = onSnapshot(collection(db, 'campaigns'), (snap) => {
       const list: Campaign[] = [];
@@ -65,13 +45,40 @@ export default function GroupManager({ isAdmin }: GroupManagerProps) {
       setCampaigns(list);
     });
 
+    fetchInitialAgents();
+
     return () => {
       unsubGroups();
-      unsubUsers();
-      unsubChars();
       unsubCampaigns();
     };
   }, []);
+
+  const fetchInitialAgents = async () => {
+    try {
+      const result = await userService.fetchUsersPage(50);
+      setUsers(result.users as unknown as UserData[]);
+      
+      const charPromises = result.users.map(u => userService.fetchCharactersForUser(u.uid));
+      const charResults = await Promise.all(charPromises);
+      
+      const combined: {uid: string, char: CharacterData}[] = [];
+      result.users.forEach((acc, i) => {
+        charResults[i].forEach(char => {
+          combined.push({ uid: acc.uid, char });
+        });
+      });
+      setAllCharacters(combined);
+    } catch (err) {
+      console.error("Erro ao carregar agentes:", err);
+    }
+  };
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      handleAgentSearch();
+    }, 500);
+    return () => clearTimeout(handler);
+  }, [agentSearchQuery]);
 
   const handleCreateGroup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -304,7 +311,20 @@ export default function GroupManager({ isAdmin }: GroupManagerProps) {
                      <span className={`text-[8px] font-black uppercase tracking-widest transition-colors ${showArchived ? 'text-primary' : 'text-zinc-600 group-hover:text-zinc-400'}`}>Incluir_Arquivados</span>
                    </label>
                 </div>
-                <div className="bg-black/60 border-2 border-[#1a1a1a] h-72 overflow-y-auto p-3 space-y-2 custom-scrollbar rounded-sm">
+
+                <div className="relative mb-3 group">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-industrial-silver/20 text-sm group-focus-within:text-primary transition-all">search</span>
+                  <input 
+                    type="text" 
+                    placeholder="BUSCAR AGENTE POR CODINOME..."
+                    value={agentSearchQuery}
+                    onChange={(e) => setAgentSearchQuery(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAgentSearch())}
+                    className="w-full bg-black/40 border-2 border-[#1a1a1a] text-white px-10 py-2.5 text-[9px] font-bold focus:border-primary/40 outline-none rounded-sm uppercase transition-all shadow-inner"
+                  />
+                </div>
+
+                <div className="bg-black/60 border-2 border-[#1a1a1a] h-60 overflow-y-auto p-3 space-y-2 custom-scrollbar rounded-sm">
                   {filteredCharacters.map(item => {
                     const isSel = isSelected(item.uid, item.char.id);
                     const user = users.find(u => u.uid === item.uid);

@@ -3,6 +3,8 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, getDocFromServer } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
+import { getAnalytics, isSupported } from 'firebase/analytics';
+import type { Analytics } from 'firebase/analytics';
 const firebaseConfig = {
   apiKey:            import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain:        import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -10,6 +12,7 @@ const firebaseConfig = {
   storageBucket:     import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
   appId:             import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId:     import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 };
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 export const auth = getAuth(app);
@@ -18,6 +21,21 @@ export const db = initializeFirestore(app, {
   experimentalForceLongPolling: true,
 });
 export const storage = getStorage(app);
+
+// Firebase Analytics (GA4) — initialized lazily since it requires browser support check
+let _analytics: Analytics | null = null;
+export async function getFirebaseAnalytics(): Promise<Analytics | null> {
+  if (_analytics) return _analytics;
+  try {
+    const supported = await isSupported();
+    if (supported) {
+      _analytics = getAnalytics(app);
+    }
+  } catch {
+    // Analytics not supported in this environment (e.g., SSR, privacy blockers)
+  }
+  return _analytics;
+}
 export async function testConnection() {
   // Execute in the background with a timeout to avoid blocking the initial load
   const controller = new AbortController();

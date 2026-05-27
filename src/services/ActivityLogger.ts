@@ -106,7 +106,7 @@ class ActivityLogger {
   /**
    * Internal helper to normalize arguments from multiple possible signatures.
    */
-  private normalizeArgs(args: any[]): { 
+  private normalizeArgs(args: any[], type?: ActivityType): { 
     uid: string; 
     characterId?: string;
     username: string; 
@@ -114,20 +114,34 @@ class ActivityLogger {
     message: string; 
     metadata?: Record<string, unknown> 
   } {
-    // Signature A: (category, message, metadata?) -> uses internal setUser state
+    let category = 'general';
+    let message = '';
+    let metadata: Record<string, unknown> = {};
+
+    if (type === 'navigation') {
+      // Signature: (path, metadata?)
+      category = 'navigation';
+      message = args[0] || '';
+      metadata = args[1] || {};
+    } else {
+      // Signature: (category, message, metadata?)
+      category = args[0] || 'general';
+      message = args[1] || '';
+      metadata = args[2] || {};
+    }
 
     return {
       uid: this.currentUid || 'unknown',
       characterId: this.currentCharacterId || undefined,
       username: this.currentUsername || 'System',
-      category: args[0] || 'general',
-      message: args[1] || '',
-      metadata: args[2] || {}
+      category,
+      message: typeof message === 'string' ? message : JSON.stringify(message),
+      metadata
     };
   }
 
   private async write(type: ActivityType, source: 'player' | 'admin', args: any[]): Promise<void> {
-    const { uid, characterId, username, category, message, metadata } = this.normalizeArgs(args);
+    const { uid, characterId, username, category, message, metadata } = this.normalizeArgs(args, type);
 
     try {
       const humanizedMessage = this.humanize(message, type);

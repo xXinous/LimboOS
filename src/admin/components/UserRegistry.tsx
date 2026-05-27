@@ -37,9 +37,15 @@ function statusBadge(status: ReturnType<typeof getAccountStatus>) {
 
 export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
   const [accounts, setAccounts] = useState<MasterAccount[]>([]);
-  const [allCharacters, setAllCharacters] = useState<{uid: string, char: CharacterData}[]>([]);
+  const [charactersByUid, setCharactersByUid] = useState<Record<string, CharacterData[]>>({});
   const [expandedAccounts, setExpandedAccounts] = useState<Set<string>>(new Set());
   const [showArchived, setShowArchived] = useState(false);
+
+  // Pagination State
+  const [lastVisible, setLastVisible] = useState<any>(null);
+  const [hasMore, setHasMore] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const PAGE_SIZE = 20;
 
   const { modal } = useModal();
   const toast = useToast();
@@ -76,13 +82,11 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
   // Agent count per account
   const agentCountMap = useMemo(() => {
     const map: Record<string, number> = {};
-    allCharacters.forEach(({ uid, char }) => {
-      if (!char.archived || showArchived) {
-        map[uid] = (map[uid] || 0) + 1;
-      }
+    Object.entries(charactersByUid).forEach(([uid, chars]) => {
+      map[uid] = chars.filter(c => !c.archived || showArchived).length;
     });
     return map;
-  }, [allCharacters, showArchived]);
+  }, [charactersByUid, showArchived]);
 
   // Export accounts
   const handleExport = (format: 'csv' | 'json') => {
@@ -129,19 +133,46 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
   };
 
   useEffect(() => {
-    const unsubUsers = userService.subscribeToUsers((fetchedAccounts) => {
-      setAccounts(fetchedAccounts);
-    });
-
-    const unsubChars = userService.subscribeToAllCharacters((fetchedCharacters) => {
-      setAllCharacters(fetchedCharacters);
-    });
-
-    return () => {
-      unsubUsers();
-      unsubChars();
-    };
+    // Initial load
+    loadPage(true);
   }, []);
+
+  const loadPage = async (reset = false) => {
+    if (loading || (!hasMore && !reset)) return;
+    setLoading(true);
+    try {
+      // Determine search field based on query content or default to masterName
+      let searchField = 'masterName';
+      if (searchQuery.includes('@')) searchField = 'email';
+      
+      const result = await userService.fetchUsersPage(
+        PAGE_SIZE, 
+        reset ? null : lastVisible,
+        searchQuery ? searchField : '',
+        searchQuery
+      );
+      
+      if (reset) {
+        setAccounts(result.users);
+      } else {
+        setAccounts(prev => [...prev, ...result.users]);
+      }
+      setLastVisible(result.lastVisible);
+      setHasMore(result.users.length === PAGE_SIZE);
+    } catch (err) {
+      toast.error('Erro ao carregar usuários.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Debounced Search
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      loadPage(true);
+    }, 500);
+    return () => clearTimeout(handler);
+  }, [searchQuery]);
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -236,13 +267,24 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
     }
   };
 
-  const toggleExpand = (uid: string) => {
+  const toggleExpand = async (uid: string) => {
+    const isExpanding = !expandedAccounts.has(uid);
+
     setExpandedAccounts(prev => {
       const next = new Set(prev);
       if (next.has(uid)) next.delete(uid);
       else next.add(uid);
       return next;
     });
+
+    if (isExpanding && !charactersByUid[uid]) {
+      try {
+        const chars = await userService.fetchCharactersForUser(uid);
+        setCharactersByUid(prev => ({ ...prev, [uid]: chars }));
+      } catch (err) {
+        toast.error('Falha ao carregar personagens.');
+      }
+    }
   };
 
   const filteredAccounts = useMemo(() => {
@@ -256,11 +298,12 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
         return true;
       }
 
-      // Also match if any character of this account matches
-      const accountChars = allCharacters.filter(c => c.uid === a.uid && (!c.char.archived || showArchived));
-      return accountChars.some(c => 
-        (c.char.codinome || "").toLowerCase().includes(q) || 
-        (c.char.id || "").toLowerCase().includes(q)
+      // Also match if any character of this account matches (only if already loaded)
+      const accountChars = charactersByUid[a.uid] || [];
+      const visibleChars = accountChars.filter(char => !char.archived || showArchived);
+      return visibleChars.some(char => 
+        (char.codinome || "").toLowerCase().includes(q) || 
+        (char.id || "").toLowerCase().includes(q)
       );
     });
 
@@ -472,6 +515,18 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
             </tbody>
           </table>
         </div>
+        
+        {hasMore && (
+          <div className="flex justify-center mt-8">
+            <button 
+              onClick={() => loadPage()} 
+              disabled={loading}
+              className="bg-surface-container-high border border-white/5 text-industrial-silver/40 hover:text-primary hover:border-primary/20 px-8 py-3 rounded-sm font-display font-bold text-[10px] tracking-[0.2em] transition-all active:scale-95 flex items-center gap-3"
+            >
+              {loading ? <RetroSpinner /> : <><span className="material-symbols-outlined text-base">expand_more</span> CARREGAR_MAIS</>}
+            </button>
+          </div>
+        )}
       </div>
 
       {selectedAgent && (

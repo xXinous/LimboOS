@@ -4,25 +4,37 @@ import { db } from '../../lib/firebase';
 import { setTerminalStateForUsers, setMacStateForUsers, fetchLimboGlobalState, setLimboMilitarySeizureGlobal, LimboGlobalState, PlayerMeta } from '../../store/firestore';
 import { Terminal, ShieldBan, ShieldCheck, UserCheck, Apple } from 'lucide-react';
 import { activityLogger } from '../../services/ActivityLogger';
+import { userService } from '../../services/UserService';
 import Screw from '../../components/player/Screw';
-
 export default function TerminalPanel() {
   const [users, setUsers] = useState<PlayerMeta[]>([]);
   const [selectedUids, setSelectedUids] = useState<Set<string>>(new Set());
   const [limboState, setLimboState] = useState<LimboGlobalState>({ seized: false });
   const [diskRepairAllowed, setDiskRepairAllowed] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const loadUsers = async () => {
+    setLoading(true);
+    try {
+      // Fetch top 100 recent users for terminal control
+      const result = await userService.fetchUsersPage(100);
+      setUsers(result.users as unknown as PlayerMeta[]);
+    } catch (err) {
+      console.error("Erro ao carregar usuários para o terminal:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const unsub = onSnapshot(collection(db, 'users'), (snap) => {
-      const u = snap.docs.map(d => d.data() as PlayerMeta);
-      setUsers(u);
-    });
-    return () => unsub();
+    loadUsers();
   }, []);
 
   useEffect(() => {
     fetchLimboGlobalState().then(setLimboState);
     const unsubLimbo = onSnapshot(collection(db, 'system'), (snap) => {
+...
+
       fetchLimboGlobalState().then(setLimboState);
       const gameEventsDoc = snap.docs.find(d => d.id === 'gameEvents');
       if (gameEventsDoc) {

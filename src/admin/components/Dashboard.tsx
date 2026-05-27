@@ -3,6 +3,7 @@ import { User } from 'firebase/auth';
 import { db } from '../../lib/firebase';
 import { doc, getDoc, collection, onSnapshot, query } from 'firebase/firestore';
 import { userService } from '../../services/UserService';
+import { adminAnalyticsService } from '../../services/AdminAnalyticsService';
 import { MasterAccount, CharacterData } from '../../types/player';
 import SpotlightSearch, { buildSearchItems } from './SpotlightSearch';
 import Sidebar from './Sidebar';
@@ -64,32 +65,53 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
 
   useEffect(() => {
     if (!isAdmin) return;
-    const unsubs: (() => void)[] = [];
-    unsubs.push(onSnapshot(collection(db, 'users'), (snap) => {
-      setStats(prev => ({ ...prev, totalUsers: snap.size }));
-    }));
-    unsubs.push(onSnapshot(collection(db, 'mediaAssets'), (snap) => {
-      setStats(prev => ({ ...prev, totalAudios: snap.size }));
-    }));
-    unsubs.push(onSnapshot(collection(db, 'playEvents'), (snap) => {
-      setStats(prev => ({ ...prev, totalPlays: snap.size }));
-    }));
-    return () => unsubs.forEach(u => u());
-  }, [isAdmin, user]);
+    
+    const unsubAgg = adminAnalyticsService.subscribeToAggregatedAnalytics((data) => {
+      if (data) {
+        setStats({
+          totalUsers: data.totalUsers || 0,
+          totalAudios: stats.totalAudios, // Fallback for now or add to aggregation
+          totalPlays: data.totalPlays || 0
+        });
+      }
+    });
 
-  // Load accounts + characters for spotlight search
+    // Audio assets can stay for now as they are fewer, or we can fetch them once
+    const unsubAudios = onSnapshot(collection(db, 'mediaAssets'), (snap) => {
+      setStats(prev => ({ ...prev, totalAudios: snap.size }));
+    });
+
+    return () => {
+      unsubAgg();
+      unsubAudios();
+    };
+  }, [isAdmin]);
+
+  // Load accounts + characters for spotlight search (Limited for scalability)
   useEffect(() => {
     if (!isAdmin) return;
-    const unsubUsers = userService.subscribeToUsers((accs) => {
-      setAllAccounts(accs);
-    });
-    const unsubChars = userService.subscribeToAllCharacters((chars) => {
-      setAllCharacters(chars);
-    });
-    return () => {
-      unsubUsers();
-      unsubChars();
+    
+    const fetchRecentItems = async () => {
+      try {
+        const userResult = await userService.fetchUsersPage(20);
+        setAllAccounts(userResult.users);
+        
+        const charPromises = userResult.users.map(u => userService.fetchCharactersForUser(u.uid));
+        const charResults = await Promise.all(charPromises);
+        
+        const combined: {uid: string, char: CharacterData}[] = [];
+        userResult.users.forEach((acc, i) => {
+          charResults[i].forEach(char => {
+            combined.push({ uid: acc.uid, char });
+          });
+        });
+        setAllCharacters(combined);
+      } catch (err) {
+        console.error("Erro ao carregar itens recentes para Spotlight:", err);
+      }
     };
+
+    fetchRecentItems();
   }, [isAdmin]);
 
   // Keyboard shortcuts: Cmd+K for spotlight, Cmd+1-8 for tabs

@@ -27,6 +27,7 @@ import { campaignService } from './services/CampaignService';
 import { audioEngine } from './services/AudioEngine';
 import { analyticsTracker } from './services/AnalyticsTracker';
 import { activityLogger } from './services/ActivityLogger';
+import { firebaseAnalytics } from './services/FirebaseAnalyticsService';
 import { intelService } from './services/IntelService';
 import { PlayerSyncService, playerSyncService } from './services/PlayerSyncService';
 import { IntelManager, IntelBase, AudioIntel, VisualIntel, TextIntel, MetaIntel, IntelFactory } from './services/IntelEngine';
@@ -187,6 +188,7 @@ export default function Player() {
   const [playerData, setPlayerData] = useState<PlayerData | null>(null);
   const [localStats, setLocalStats] = useState<PlayerStats | null>(null);
   const [screen, setScreen] = useState<AppScreen>('login');
+  const previousScreenRef = useRef<AppScreen | null>(null);
   const [nokiaBackVisible, setNokiaBackVisible] = useState(true);
   
   // Unified Intel Collection State
@@ -241,6 +243,14 @@ export default function Player() {
   
   // Derived states
   const isPlaying = walkmanStatus === 'PLAYING';
+
+  // ─── Firebase Analytics: Screen View Tracking ───
+  useEffect(() => {
+    firebaseAnalytics.init().then(() => {
+      firebaseAnalytics.logScreenView(screen, previousScreenRef.current || undefined);
+      previousScreenRef.current = screen;
+    });
+  }, [screen]);
 
   // --- Auth & Initial Load ---
   useEffect(() => {
@@ -387,10 +397,16 @@ useEffect(() => {
     
     try {
       const rawIntel = await intelService.resolve(code);
-      if (!rawIntel) return addToast({ type: 'error', title: 'Código Desconhecido', subtitle: code, icon: '❌' });
+      if (!rawIntel) {
+        firebaseAnalytics.logQrScan('fail');
+        return addToast({ type: 'error', title: 'Código Desconhecido', subtitle: code, icon: '❌' });
+      }
       
       const intel = IntelFactory.getInstance().create(rawIntel);
       const { alreadyOwned, updatedIds } = await intelService.unlock(currentPD, intel.id);
+      
+      // Firebase Analytics: QR scan result
+      firebaseAnalytics.logQrScan(alreadyOwned ? 'duplicate' : 'success');
       
       const now = Date.now();
       const recentScans = [...scanTimes.filter(t => now - t < 300000), now];
@@ -414,6 +430,8 @@ useEffect(() => {
     if (intel instanceof VisualIntel || intel instanceof TextIntel || intel instanceof MetaIntel) {
       setActiveEvidence(intel);
       activityLogger.logAction(intel.type === 'VISUAL' ? 'pista_open' : 'evidence_open', `Abriu: ${intel.title}`, { intelId: intel.id });
+      // Firebase Analytics: evidence engagement
+      firebaseAnalytics.logEvidenceViewed(intel.id, intel.type);
     } else if (intel instanceof AudioIntel) {
       if (intel.id === currentIntel?.id) return;
       if (!hasPlayedCurrentTape.current && currentIntel) analyticsTracker.incrementStat('ejectWithoutPlay');

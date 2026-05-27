@@ -52,6 +52,16 @@ export class AdminAnalyticsService {
     return AdminAnalyticsService.instance;
   }
 
+  public subscribeToAggregatedAnalytics(callback: (data: any) => void): () => void {
+    return onSnapshot(doc(db, "system", "analytics"), (snap) => {
+      if (snap.exists()) {
+        callback(snap.data());
+      } else {
+        callback(null);
+      }
+    }, (err) => console.warn('[AdminAnalyticsService] aggregated analytics listener error:', err));
+  }
+
   public subscribeToRawData(callback: (data: {
     playEvents: PlayEvent[];
     users: UserData[];
@@ -69,22 +79,8 @@ export class AdminAnalyticsService {
       callback({ playEvents, users, audios, unlockedAchievements, stats });
     };
 
-    // Limitamos a 2000 eventos para evitar crash no browser em apps com muito uso
-    // Uma solução melhor seria agregação no lado do servidor (Cloud Functions)
-    const playEventsQuery = query(
-      collection(db, "playEvents"), 
-      orderBy("playedAt", "desc"), 
-      limit(2000)
-    );
-
+    // We keep these for now but they should eventually be paginated or replaced
     const unsubs = [
-      onSnapshot(playEventsQuery, 
-        (snap) => {
-          playEvents = snap.docs.map(d => d.data() as PlayEvent);
-          notify();
-        },
-        (err) => console.warn('[AdminAnalyticsService] playEvents listener error:', err)
-      ),
       onSnapshot(collection(db, "users"), 
         (snap) => {
           users = snap.docs.map(d => d.data() as UserData);

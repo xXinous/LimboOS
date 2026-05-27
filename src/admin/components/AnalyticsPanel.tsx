@@ -11,6 +11,7 @@ export default function AnalyticsPanel() {
   const [audios, setAudios] = useState<AudioMetadata[]>([]);
   const [unlockedAchievements, setUnlockedAchievements] = useState<UserAchievement[]>([]);
   const [stats, setStats] = useState<PlayerStats[]>([]);
+  const [aggregatedData, setAggregatedData] = useState<any>(null);
   const [isResetting, setIsResetting] = useState(false);
   const { showConfirm, showAlert, modal } = useModal();
 
@@ -29,19 +30,53 @@ export default function AnalyticsPanel() {
   };
 
   useEffect(() => {
-    const unsub = adminAnalyticsService.subscribeToRawData((data) => {
+    const unsubRaw = adminAnalyticsService.subscribeToRawData((data) => {
       setPlayEvents(data.playEvents);
       setUsers(data.users);
       setAudios(data.audios);
       setUnlockedAchievements(data.unlockedAchievements);
       setStats(data.stats);
     });
-    return unsub;
+
+    const unsubAgg = adminAnalyticsService.subscribeToAggregatedAnalytics((data) => {
+      setAggregatedData(data);
+    });
+
+    return () => {
+      unsubRaw();
+      unsubAgg();
+    };
   }, []);
 
   const analytics = useMemo(() => {
     return adminAnalyticsService.computeAnalytics(playEvents, users, audios, unlockedAchievements, stats);
   }, [playEvents, users, audios, unlockedAchievements, stats]);
+
+  // Merge aggregated data into analytics if available
+  const displayAnalytics = useMemo(() => {
+    if (!aggregatedData) return analytics;
+
+    const dailyPlaysSorted = Object.entries(aggregatedData.dailyPlays || {})
+      .sort(([a], [b]) => a.localeCompare(b))
+      .slice(-30);
+    
+    const mostPlayed = Object.entries(aggregatedData.tapePlayCount || {})
+      .sort(([, a]: any, [, b]: any) => b - a)
+      .slice(0, 10);
+
+    return {
+      ...analytics,
+      totalPlays: aggregatedData.totalPlays || analytics.totalPlays,
+      completedPlays: aggregatedData.completedPlays || analytics.completedPlays,
+      activeUsers: aggregatedData.totalUsers || analytics.activeUsers,
+      dailyPlaysSorted,
+      maxDailyPlays: Math.max(...Object.values(aggregatedData.dailyPlays || {}).map(v => v as number), 1),
+      mostPlayed,
+      completionRate: (aggregatedData.totalPlays > 0) 
+        ? ((aggregatedData.completedPlays || 0) / aggregatedData.totalPlays) * 100 
+        : analytics.completionRate
+    };
+  }, [analytics, aggregatedData]);
 
   return (
     <div className="space-y-8 font-sans">
@@ -66,9 +101,9 @@ export default function AnalyticsPanel() {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KPICard label="Usuários Ativos" value={users.length} icon="group" color="text-primary" />
-        <KPICard label="Ativos 7d" value={analytics.activeUsers} icon="trending_up" color="text-tertiary" />
+        <KPICard label="Ativos 7d" value={displayAnalytics.activeUsers} icon="trending_up" color="text-tertiary" />
         <KPICard label="Arquivos Áudio" value={audios.length} icon="library_music" color="text-secondary" />
-        <KPICard label="Eventos Play" value={playEvents.length} icon="play_circle" color="text-primary" />
+        <KPICard label="Eventos Play" value={aggregatedData?.totalPlays ?? playEvents.length} icon="play_circle" color="text-primary" />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -91,10 +126,10 @@ export default function AnalyticsPanel() {
               <span className="material-symbols-outlined text-primary text-base">check_circle</span>
               <h3 className="text-[10px] font-display font-bold uppercase tracking-widest text-industrial-silver/40">Taxa de Conclusão</h3>
             </div>
-            <span className="text-[10px] font-display font-bold text-industrial-silver/60">{analytics.completionRate.toFixed(1)}% Concluído</span>
+            <span className="text-[10px] font-display font-bold text-industrial-silver/60">{displayAnalytics.completionRate.toFixed(1)}% Concluído</span>
           </div>
           <div className="h-2 w-full bg-black/40 rounded-full overflow-hidden border border-white/5">
-            <div className="h-full bg-primary shadow-[0_0_10px_rgba(255,140,0,0.2)] transition-all duration-1000" style={{ width: `${analytics.completionRate}%` }} />
+            <div className="h-full bg-primary shadow-[0_0_10px_rgba(255,140,0,0.2)] transition-all duration-1000" style={{ width: `${displayAnalytics.completionRate}%` }} />
           </div>
         </section>
       </div>
@@ -106,18 +141,18 @@ export default function AnalyticsPanel() {
             <h3 className="text-[10px] font-display font-bold uppercase tracking-widest text-industrial-silver/40">Atividade Temporal (30d)</h3>
           </div>
           <div className="flex items-end gap-1 h-40">
-            {analytics.dailyPlaysSorted.map(([date, count]) => (
+            {displayAnalytics.dailyPlaysSorted.map(([date, count]: [string, any]) => (
               <div key={date} className="flex-1 flex flex-col items-center group relative">
                 <div className="absolute -top-10 bg-surface-container-high border border-primary/20 text-primary text-[9px] font-display font-bold px-3 py-1.5 rounded-sm opacity-0 group-hover:opacity-100 transition-all whitespace-nowrap z-20 shadow-2xl scale-90 group-hover:scale-100 translate-y-2 group-hover:translate-y-0">
                   {date.split('-').slice(1).reverse().join('/')} : {count} plays
                 </div>
-                <div className="w-full bg-primary/20 group-hover:bg-primary transition-all rounded-t-sm" style={{ height: `${(count / analytics.maxDailyPlays) * 100}%`, minHeight: count > 0 ? '4px' : '1px' }}></div>
+                <div className="w-full bg-primary/20 group-hover:bg-primary transition-all rounded-t-sm" style={{ height: `${(count / displayAnalytics.maxDailyPlays) * 100}%`, minHeight: count > 0 ? '4px' : '1px' }}></div>
               </div>
             ))}
           </div>
           <div className="flex justify-between mt-4 text-[9px] font-display font-bold text-industrial-silver/20 tracking-widest uppercase border-t border-white/5 pt-4">
-            <span>{analytics.dailyPlaysSorted[0]?.[0] || '---'}</span>
-            <span>{analytics.dailyPlaysSorted[analytics.dailyPlaysSorted.length - 1]?.[0] || '---'}</span>
+            <span>{displayAnalytics.dailyPlaysSorted[0]?.[0] || '---'}</span>
+            <span>{displayAnalytics.dailyPlaysSorted[displayAnalytics.dailyPlaysSorted.length - 1]?.[0] || '---'}</span>
           </div>
         </section>
 
@@ -147,9 +182,9 @@ export default function AnalyticsPanel() {
             <h3 className="text-[10px] font-display font-bold uppercase tracking-widest text-industrial-silver/40">Top Conteúdo (Plays)</h3>
           </div>
           <div className="space-y-5">
-            {analytics.mostPlayed.length === 0 ? (<p className="text-industrial-silver/20 text-[10px] font-display font-bold uppercase tracking-widest py-8 text-center border border-dashed border-white/5 rounded-sm">Sem dados registrados</p>) : (
-              analytics.mostPlayed.map(([tapeId, count], idx) => {
-                const maxCount = analytics.mostPlayed[0][1] as number;
+            {displayAnalytics.mostPlayed.length === 0 ? (<p className="text-industrial-silver/20 text-[10px] font-display font-bold uppercase tracking-widest py-8 text-center border border-dashed border-white/5 rounded-sm">Sem dados registrados</p>) : (
+              displayAnalytics.mostPlayed.map(([tapeId, count]: [string, any], idx: number) => {
+                const maxCount = displayAnalytics.mostPlayed[0][1] as number;
                 const intel = intelRegistry.get(tapeId);
                 const remoteTape = audios.find((a) => a.id === tapeId);
                 const tapeName = intel?.title || remoteTape?.title || remoteTape?.originalName || tapeId;
@@ -258,10 +293,10 @@ export default function AnalyticsPanel() {
               <h3 className="text-[10px] font-display font-bold uppercase tracking-widest text-industrial-silver/40">Métricas de Engajamento</h3>
             </div>
             <div className="grid grid-cols-2 gap-x-8 gap-y-6">
-              <MetricRow label="Média de Plays" value={users.length > 0 ? (playEvents.length / users.length).toFixed(1) : '0'} />
-              <MetricRow label="Conteúdos Únicos" value={new Set(playEvents.map(e => e.tapeId)).size.toString()} />
-              <MetricRow label="Tempo de Escuta" value={formatSecs(analytics.totalListenSecs)} />
-              <MetricRow label="Taxa de Abandono" value={`${analytics.abandonRate.toFixed(1)}%`} />
+              <MetricRow label="Média de Plays" value={users.length > 0 ? ((aggregatedData?.totalPlays ?? playEvents.length) / users.length).toFixed(1) : '0'} />
+              <MetricRow label="Conteúdos Únicos" value={new Set([...playEvents.map(e => e.tapeId), ...Object.keys(aggregatedData?.tapePlayCount || {})]).size.toString()} />
+              <MetricRow label="Tempo de Escuta" value={formatSecs(displayAnalytics.totalListenSecs)} />
+              <MetricRow label="Taxa de Abandono" value={`${displayAnalytics.abandonRate.toFixed(1)}%`} />
             </div>
           </section>
         </div>

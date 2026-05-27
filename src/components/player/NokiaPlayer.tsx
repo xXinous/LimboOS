@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Camera, Volume2, Play, Pause, X, Rewind } from 'lucide-react';
+import { Camera, Volume2, Play, Pause, X, Rewind, MessageSquare } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { IntelBase, AudioIntel } from '../../services/IntelEngine';
 import { audioEngine } from '../../services/AudioEngine';
@@ -33,7 +33,14 @@ interface NokiaPlayerProps {
   setBackVisible?: (v: boolean) => void;
 }
 
-type FilterTab = 'TODOS' | 'AUDIO' | 'DOCS';
+type FilterTab = 'TODOS' | 'AUDIO' | 'DOCS' | 'SMS';
+
+const placeholderMessages = [
+  { id: '1', sender: 'DESCONHECIDO', text: 'Você ainda está aí?', time: '10:42', read: false },
+  { id: '2', sender: 'AGENTE K', text: 'O pacote foi entregue no ponto de encontro.', time: 'Ontem', read: true },
+  { id: '3', sender: 'SISTEMA', text: 'Nova pista detectada na zona sul.', time: 'Segunda', read: true },
+  { id: '4', sender: 'OPERADOR', text: 'Mantenha silêncio de rádio até novas ordens.', time: '23/05', read: true },
+];
 
 // Retro square-wave audio feedback engine
 class NokiaAudioFeedback {
@@ -251,6 +258,7 @@ export default function NokiaPlayer({
     { key: 'TODOS', label: 'TODOS' },
     { key: 'AUDIO', label: 'AUDIO' },
     { key: 'DOCS', label: 'DOCS' },
+    { key: 'SMS', label: 'SMS' },
   ];
 
   return (
@@ -437,7 +445,31 @@ export default function NokiaPlayer({
 
             {/* ─── UNIFIED INTEL LIST ─── */}
             <div className="flex-grow overflow-y-auto min-h-0" style={{ scrollbarWidth: 'none' }}>
-              {sortedItems.length === 0 ? (
+              {activeTab === 'SMS' ? (
+                <div className="flex flex-col">
+                  {placeholderMessages.map((msg) => (
+                    <div
+                      key={msg.id}
+                      className="text-[11px] py-2 px-2 border-b border-[#111e14]/10 flex flex-col gap-0.5 hover:bg-[#111e14]/5 cursor-pointer active:bg-[#111e14]/10 transition-colors"
+                      onClick={() => sfx.playConfirm()}
+                    >
+                      <div className="flex justify-between items-center">
+                        <div className="flex items-center gap-1.5">
+                          {!msg.read && <div className="w-1.5 h-1.5 bg-[#111e14] rounded-full animate-pulse" />}
+                          <span className="font-black uppercase text-[9px] tracking-tight">{msg.sender}</span>
+                        </div>
+                        <span className="text-[8px] opacity-60 font-black">{msg.time}</span>
+                      </div>
+                      <div className="truncate opacity-80 text-[10px] leading-tight">
+                        {msg.text}
+                      </div>
+                    </div>
+                  ))}
+                  <div className="py-4 flex justify-center opacity-30">
+                    <MessageSquare size={16} />
+                  </div>
+                </div>
+              ) : sortedItems.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-center">
                   <div className="text-[10px] font-bold uppercase opacity-70">
                     Nenhum intel desbloqueado

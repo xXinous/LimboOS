@@ -52,7 +52,6 @@ export default function CampaignsPanel() {
       setLoading(false);
     }, (err) => {
       console.warn('[CampaignsPanel] campaigns listener error:', err);
-      // Use local fallback so the UI doesn't stay stuck on loading
       setCampaigns(initialCampaigns);
       setLoading(false);
     });
@@ -69,37 +68,38 @@ export default function CampaignsPanel() {
       setGroups(list);
     });
 
-    let currentAccounts: MasterAccount[] = [];
-    let currentChars: {uid: string, char: CharacterData}[] = [];
-
-    const updateAllCharacters = () => {
-      const combined = currentChars.map(c => {
-        const acc = currentAccounts.find(a => a.uid === c.uid);
-        if (!acc) return null;
-        return { account: acc, character: c.char };
-      }).filter(Boolean) as {account: MasterAccount; character: CharacterData}[];
-      setAllCharacters(combined.filter(c => c.account.role !== 'admin' && !c.character.archived));
-    };
-
-    const unsubUsers = userService.subscribeToUsers((fetchedAccounts) => {
-      setUsers(fetchedAccounts as unknown as UserData[]);
-      currentAccounts = fetchedAccounts;
-      updateAllCharacters();
-    });
-
-    const unsubChars = userService.subscribeToAllCharacters((fetchedCharacters) => {
-      currentChars = fetchedCharacters;
-      updateAllCharacters();
-    });
+    // Fetch initial batch of agents (non-realtime for scalability)
+    fetchInitialAgents();
 
     return () => {
       unsubCampaigns();
       unsubSettings();
       unsubGroups();
-      unsubUsers();
-      unsubChars();
     };
   }, []);
+
+  const fetchInitialAgents = async () => {
+    try {
+      // Just fetch the most recent 50 agents to populate selectors
+      const result = await userService.fetchUsersPage(50);
+      setUsers(result.users as unknown as UserData[]);
+      
+      const charPromises = result.users.map(u => userService.fetchCharactersForUser(u.uid));
+      const charResults = await Promise.all(charPromises);
+      
+      const combined: {account: MasterAccount; character: CharacterData}[] = [];
+      result.users.forEach((acc, i) => {
+        charResults[i].forEach(char => {
+          if (!char.archived && acc.role !== 'admin') {
+            combined.push({ account: acc as MasterAccount, character: char });
+          }
+        });
+      });
+      setAllCharacters(combined);
+    } catch (err) {
+      console.error("Erro ao carregar agentes iniciais:", err);
+    }
+  };
 
   const initializeCampaignsFromData = async () => {
     const batch = writeBatch(db);
