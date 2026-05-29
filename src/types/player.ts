@@ -45,6 +45,7 @@ export interface CharacterData {
   spotifyPlaylistUrl?: string;
   agentId?: string; // Generated RM-XXXX ID
   unlockedCampaigns?: string[]; // IDs das campanhas desbloqueadas para este personagem
+  phoneNumber?: string; // Random 10-digit US phone number, e.g. (555) 555-1234
 }
 
 export interface PlayerStats {

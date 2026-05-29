@@ -88,6 +88,16 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
     return map;
   }, [charactersByUid, showArchived]);
 
+  const allCharacters = useMemo(() => {
+    const list: { uid: string; char: CharacterData }[] = [];
+    Object.entries(charactersByUid).forEach(([uid, chars]) => {
+      chars.forEach(char => {
+        list.push({ uid, char });
+      });
+    });
+    return list;
+  }, [charactersByUid]);
+
   // Export accounts
   const handleExport = (format: 'csv' | 'json') => {
     const data = filteredAccounts.map((acc) => ({

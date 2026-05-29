@@ -37,6 +37,7 @@ import {
   loadMasterAccount,
   loadPlayerData, 
   firestoreUpdateSpotifyPlaylist,
+  firestoreUpdatePhoneNumber,
   firestoreSetCampaign
 } from './store/firestore';
 import type { IntelItem, PlayerIntelCollection } from './types/intel';
@@ -140,11 +141,11 @@ function NokiaDeviceWrapper({
                   onClick={onBack}
                   className="px-4 py-1.5 border border-[#111e14] rounded hover:bg-[#111e14] hover:text-[#edfeed] transition-all duration-100 active:scale-95 flex items-center gap-1.5 cursor-pointer"
                 >
-                  <span>↩</span> <span className="text-[10px] tracking-tight uppercase">Voltar</span>
+                  <span className="text-[10px] font-black">&lt;-</span> <span className="text-[10px] tracking-tight uppercase">Voltar</span>
                 </button>
               ) : (
                 <div className="px-4 py-1.5 opacity-0 pointer-events-none flex items-center gap-1.5">
-                  <span>↩</span> <span className="text-[10px] tracking-tight uppercase">Voltar</span>
+                  <span className="text-[10px] font-black">&lt;-</span> <span className="text-[10px] tracking-tight uppercase">Voltar</span>
                 </div>
               )}
 
@@ -392,14 +393,14 @@ useEffect(() => {
 
   const handleQrDetected = useCallback(async (code: string) => {
     const currentPD = playerDataRef.current;
-    if (!currentPD || !localStats) return addToast({ type: 'error', title: 'Aguarde', subtitle: 'Perfil carregando...', icon: '⏳' });
+    if (!currentPD || !localStats) return addToast({ type: 'error', title: 'Aguarde', subtitle: 'Perfil carregando...', icon: '[..]' });
     setWalkmanStatus('IDLE');
     
     try {
       const rawIntel = await intelService.resolve(code);
       if (!rawIntel) {
         firebaseAnalytics.logQrScan('fail');
-        return addToast({ type: 'error', title: 'Código Desconhecido', subtitle: code, icon: '❌' });
+        return addToast({ type: 'error', title: 'Código Desconhecido', subtitle: code, icon: '[X]' });
       }
       
       const intel = IntelFactory.getInstance().create(rawIntel);
@@ -419,10 +420,10 @@ useEffect(() => {
       timerRef.current = setTimeout(() => { 
         setCurrentIntel(intel); 
         setWalkmanStatus('LOADED'); 
-        addToast({ type: 'tape', title: alreadyOwned ? 'Intel Inserida' : 'Intel Desbloqueada!', subtitle: intel.title, icon: '📼' }); 
+        addToast({ type: 'tape', title: alreadyOwned ? 'Intel Inserida' : 'Intel Desbloqueada!', subtitle: intel.title, icon: '[=]' }); 
       }, 400);
       activityLogger.logAction(alreadyOwned ? 'tape_insert' : 'tape_unlock', `${alreadyOwned ? 'Inseriu' : 'Desbloqueou'}: ${intel.title}`, { tapeId: intel.id });
-    } catch (err) { addToast({ type: 'error', title: 'Erro QR', subtitle: 'Tente dnv', icon: '⚠️' }); }
+    } catch (err) { addToast({ type: 'error', title: 'Erro QR', subtitle: 'Tente dnv', icon: '[!]' }); }
   }, [localStats, scanTimes, addToast]);
 
   const handleIntelSelect = useCallback((intel: IntelBase) => {
@@ -594,6 +595,12 @@ useEffect(() => {
                     onCharacterSwitch={handleCharacterSwitch}
                     registerBackHandler={registerNokiaBackHandler}
                     setBackVisible={setNokiaBackVisible}
+                    activeCharacter={playerData.character}
+                    uid={playerData.uid}
+                    onUpdatePhoneNumber={async (num) => {
+                      await firestoreUpdatePhoneNumber(playerData.uid, playerData.activeCharacterId, num);
+                      setPlayerData({ ...playerData, character: { ...playerData.character, phoneNumber: num } });
+                    }}
                   />
                 </React.Suspense>
               </motion.div>
@@ -611,6 +618,10 @@ useEffect(() => {
                     onUpdateSpotify={async (url) => {
                       await firestoreUpdateSpotifyPlaylist(playerData.uid, playerData.activeCharacterId, url);
                       setPlayerData({ ...playerData, character: { ...playerData.character, spotifyPlaylistUrl: url } });
+                    }}
+                    onUpdatePhoneNumber={async (num) => {
+                      await firestoreUpdatePhoneNumber(playerData.uid, playerData.activeCharacterId, num);
+                      setPlayerData({ ...playerData, character: { ...playerData.character, phoneNumber: num } });
                     }}
                     variant="nokia"
                   />
@@ -638,7 +649,22 @@ useEffect(() => {
           ) : screen === 'profile' ? (
             <motion.div key="profile" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full h-full flex items-center justify-center">
               <React.Suspense fallback={<RetroLoading message="ACESSANDO PERFIL..." />}>
-                <ProfileScreen profile={playerData} galleryImages={visualGalleryImages} onBack={() => setScreen('player')} onLogout={handleLogout} onChangeMission={() => setScreen('campaignSelection')} onChangeCharacter={handleCharacterSwitch} onUpdateSpotify={async (url) => { await firestoreUpdateSpotifyPlaylist(playerData.uid, playerData.activeCharacterId, url); setPlayerData({ ...playerData, character: { ...playerData.character, spotifyPlaylistUrl: url } }); }} />
+                <ProfileScreen 
+                  profile={playerData} 
+                  galleryImages={visualGalleryImages} 
+                  onBack={() => setScreen('player')} 
+                  onLogout={handleLogout} 
+                  onChangeMission={() => setScreen('campaignSelection')} 
+                  onChangeCharacter={handleCharacterSwitch} 
+                  onUpdateSpotify={async (url) => { 
+                    await firestoreUpdateSpotifyPlaylist(playerData.uid, playerData.activeCharacterId, url); 
+                    setPlayerData({ ...playerData, character: { ...playerData.character, spotifyPlaylistUrl: url } }); 
+                  }} 
+                  onUpdatePhoneNumber={async (num) => {
+                    await firestoreUpdatePhoneNumber(playerData.uid, playerData.activeCharacterId, num);
+                    setPlayerData({ ...playerData, character: { ...playerData.character, phoneNumber: num } });
+                  }}
+                />
               </React.Suspense>
             </motion.div>
           ) : screen === 'agentDossier' ? (

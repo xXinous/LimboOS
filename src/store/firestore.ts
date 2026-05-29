@@ -168,6 +168,10 @@ export async function firestoreUpdateSpotifyPlaylist(uid: string, characterId: s
   await setDoc(doc(db, 'users', uid, 'characters', characterId), { spotifyPlaylistUrl: url }, { merge: true });
 }
 
+export async function firestoreUpdatePhoneNumber(uid: string, characterId: string, phoneNumber: string): Promise<void> {
+  await setDoc(doc(db, 'users', uid, 'characters', characterId), { phoneNumber }, { merge: true });
+}
+
 export async function firestoreSetCampaign(uid: string, characterId: string, campaignId: string): Promise<void> {
   await setDoc(doc(db, 'users', uid, 'characters', characterId), { campaignId }, { merge: true });
 }

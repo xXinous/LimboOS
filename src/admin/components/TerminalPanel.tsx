@@ -33,8 +33,6 @@ export default function TerminalPanel() {
   useEffect(() => {
     fetchLimboGlobalState().then(setLimboState);
     const unsubLimbo = onSnapshot(collection(db, 'system'), (snap) => {
-...
-
       fetchLimboGlobalState().then(setLimboState);
       const gameEventsDoc = snap.docs.find(d => d.id === 'gameEvents');
       if (gameEventsDoc) {

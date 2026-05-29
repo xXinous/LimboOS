@@ -194,6 +194,47 @@ export class GroupService {
 
     return grantCount;
   }
+
+  /**
+   * Subscribe to messages in a specific group.
+   */
+  public subscribeToGroupMessages(groupId: string, callback: (messages: any[]) => void): () => void {
+    const q = query(
+      collection(db, 'groups', groupId, 'messages'),
+      orderBy('createdAt', 'asc')
+    );
+    return onSnapshot(q, (snapshot) => {
+      const messages = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      callback(messages);
+    }, (error) => {
+      console.warn('[GroupService] subscribeToGroupMessages error:', error);
+      callback([]);
+    });
+  }
+
+  /**
+   * Send a message to a specific group.
+   */
+  public async sendGroupMessage(
+    groupId: string,
+    senderId: string,
+    senderName: string,
+    senderNumber: string,
+    text: string
+  ): Promise<void> {
+    const messageRef = doc(collection(db, 'groups', groupId, 'messages'));
+    await setDoc(messageRef, {
+      id: messageRef.id,
+      senderId,
+      senderName,
+      senderNumber,
+      text,
+      createdAt: serverTimestamp()
+    });
+  }
 }
 
 export const groupService = GroupService.getInstance();

@@ -292,6 +292,8 @@ export class AdminAnalyticsService {
       maxObsessionCount,
       abandonRate: playEvents.length > 0 ? ((playEvents.length - completedPlays) / playEvents.length) * 100 : 0,
       totalAchievements: unlockedAchievements.length,
+      totalPlays: playEvents.length,
+      completedPlays,
     };
   }
 }

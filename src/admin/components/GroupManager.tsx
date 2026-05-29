@@ -73,6 +73,24 @@ export default function GroupManager({ isAdmin }: GroupManagerProps) {
     }
   };
 
+  const handleAgentSearch = async () => {
+    if (!agentSearchQuery.trim()) {
+      fetchInitialAgents();
+      return;
+    }
+    try {
+      const results = await userService.searchCharactersByCodinome(agentSearchQuery);
+      setAllCharacters(results);
+      const uids = [...new Set(results.map(r => r.uid))];
+      const userPromises = uids.map(uid => userService.fetchUsersPage(1, null, 'uid', uid));
+      const userResults = await Promise.all(userPromises);
+      const foundUsers = userResults.flatMap(r => r.users);
+      setUsers(foundUsers as unknown as UserData[]);
+    } catch (err) {
+      console.error("Erro ao buscar agentes:", err);
+    }
+  };
+
   useEffect(() => {
     const handler = setTimeout(() => {
       handleAgentSearch();

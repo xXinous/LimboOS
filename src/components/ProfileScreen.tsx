@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft, LogOut, Trophy, Music, Pencil, Check, X, ExternalLink, Image, Map, User } from 'lucide-react';
+import { ArrowLeft, LogOut, Trophy, Music, Pencil, Check, X, ExternalLink, Image, Map, User, Phone } from 'lucide-react';
 import { ALL_ACHIEVEMENTS } from '../data/achievements';
 import PlayerGallery from './PlayerGallery';
 import type { GalleryImage, PlayerData } from '../types/player';
@@ -11,6 +11,7 @@ interface ProfileScreenProps {
   onBack: () => void;
   onLogout: () => void;
   onUpdateSpotify?: (url: string) => void;
+  onUpdatePhoneNumber?: (phoneNumber: string) => void;
   onChangeMission?: () => void;
   onChangeCharacter?: () => void;
   variant?: 'default' | 'nokia';
@@ -26,12 +27,28 @@ function extractSpotifyEmbedUrl(url: string): string | null {
   return null;
 }
 
+const STATUS_CONFIG = {
+  vivo: { label: 'ATIVO', color: 'text-green-500', dot: 'bg-green-500', glow: 'glow-green' },
+  morto: { label: 'ELIMINADO', color: 'text-red-500', dot: 'bg-red-500', glow: 'glow-red' },
+  desaparecido: { label: 'DESAPARECIDO', color: 'text-yellow-500', dot: 'bg-yellow-500', glow: 'glow-yellow' },
+} as const;
+
+const DANGER_LABELS = ['—', 'BAIXO', 'MODERADO', 'ELEVADO', 'ALTO', 'CRÍTICO'] as const;
+
+export function generateRandomUSPhoneNumber(): string {
+  const areaCode = Math.floor(100 + Math.random() * 900); // 100-999
+  const exchangeCode = Math.floor(100 + Math.random() * 900); // 100-999
+  const subscriberNumber = Math.floor(1000 + Math.random() * 9000); // 1000-9999
+  return `(${areaCode}) ${exchangeCode}-${subscriberNumber}`;
+}
+
 export default function ProfileScreen({ 
   profile,
   galleryImages = [],
   onBack, 
   onLogout, 
   onUpdateSpotify, 
+  onUpdatePhoneNumber,
   onChangeMission, 
   onChangeCharacter,
   variant = 'default'
@@ -67,50 +84,98 @@ export default function ProfileScreen({
   };
 
   if (variant === 'nokia') {
+    const statusCfg = STATUS_CONFIG[profile.character.agentStatus || 'vivo'];
+    const dangerLabel = DANGER_LABELS[profile.character.dangerLevel || 0];
+
     return (
       <div className="w-full h-full bg-[#edfeed] text-[#111e14] flex flex-col p-1 font-mono uppercase text-[10px] select-none tracking-widest relative">
         {/* Header */}
-        <div className="flex justify-between items-center border-b border-[#111e14] pb-1 shrink-0 font-bold mb-1">
+        <div className="flex justify-between items-center border-b-2 border-[#111e14] pb-1 shrink-0 font-bold mb-2">
           <button onClick={onBack} className="hover:bg-[#111e14] hover:text-[#edfeed] px-1 active:scale-95 transition-all">
             [VOLTAR]
           </button>
-          <span>DOSSIÊ: {profile.character.codinome}</span>
+          <span className="text-[9px] animate-pulse">CLASSIFICADO</span>
           <button onClick={onLogout} className="hover:bg-[#111e14] hover:text-[#edfeed] px-1 active:scale-95 transition-all">
             [SAIR]
           </button>
         </div>
 
-        {/* Info */}
-        <div className="flex divide-x divide-[#111e14] border-b border-[#111e14] shrink-0 font-bold mb-1">
-          <div className="flex-1 flex flex-col items-center py-1">
-            <span className="text-[14px]">{profile.unlockedIntelIds.length}</span>
-            <span className="text-[8px] opacity-80">PROVAS</span>
-          </div>
-          <div className="flex-1 flex flex-col items-center py-1">
-            <span className="text-[14px]">{profile.achievementIds.length}</span>
-            <span className="text-[8px] opacity-80">CONQUISTAS</span>
-          </div>
-        </div>
+        <div className="flex-1 overflow-y-auto min-h-0 space-y-3 pb-2 pr-1 custom-nokia-scrollbar" style={{ scrollbarWidth: 'none' }}>
+          
+          {/* Main Agent Info (Dossier Header) */}
+          <div className="border-2 border-[#111e14] p-2 bg-[#111e14]/5 relative overflow-hidden shadow-[2px_2px_0px_#111e14]">
+             <div className="flex gap-3 mb-2">
+                {/* Pixel Photo Placeholder */}
+                <div className="w-12 h-12 border-2 border-[#111e14] bg-[#edfeed] shrink-0 flex items-center justify-center font-black text-[16px] relative overflow-hidden shadow-[1px_1px_0px_#111e14]">
+                   {profile.character.profilePhotoUrl ? (
+                     <img 
+                      src={profile.character.profilePhotoUrl} 
+                      alt="Perfil" 
+                      className="w-full h-full object-cover grayscale contrast-150 brightness-75 mix-blend-multiply" 
+                     />
+                   ) : (
+                     <span>{initials}</span>
+                   )}
+                   {/* Scanline Overlay */}
+                   <div className="absolute inset-0 opacity-10 pointer-events-none bg-[repeating-linear-gradient(0deg,transparent,transparent_1px,#111e14_1px,#111e14_2px)]" />
+                </div>
+                
+                <div className="flex-1 flex flex-col justify-between py-0.5">
+                  <div className="flex flex-col gap-0.5">
+                    <div className="text-[12px] font-black leading-none truncate w-[120px]">{profile.character.codinome}</div>
+                    <div className="text-[8px] opacity-60 font-bold tracking-tighter">AGENT_ID: RM-{profile.character.agentId || 'XXXX'}</div>
+                  </div>
+                  <div className={`self-start px-1.5 py-0.5 border border-[#111e14] text-[7px] font-black ${profile.character.agentStatus === 'vivo' ? 'bg-[#111e14] text-[#edfeed]' : ''}`}>
+                    STATUS: {statusCfg.label}
+                  </div>
+                </div>
+             </div>
+             
+             <div className="grid grid-cols-2 gap-2 border-y border-[#111e14]/20 py-2 my-2">
+                <div className="flex flex-col">
+                  <span className="text-[7px] opacity-60 font-bold tracking-tighter">PROVAS_INTEL</span>
+                  <span className="text-[14px] font-black leading-none mt-1">{profile.unlockedIntelIds.length}</span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-[7px] opacity-60 font-bold tracking-tighter">MEDALHAS_REG</span>
+                  <span className="text-[14px] font-black leading-none mt-1">{profile.achievementIds.length}</span>
+                </div>
+             </div>
 
-        <div className="flex-1 overflow-y-auto min-h-0 space-y-2 pb-2 pr-1" style={{ scrollbarWidth: 'none' }}>
+             <div className="">
+                <div className="flex justify-between items-center mb-1">
+                  <span className="text-[7px] opacity-60 font-bold">NIVEL_PERICULOSIDADE</span>
+                  <span className="text-[7px] font-black">{dangerLabel}</span>
+                </div>
+                <div className="flex gap-0.5 h-1.5">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <div 
+                      key={i} 
+                      className={`flex-1 border border-[#111e14] ${i < (profile.character.dangerLevel || 0) ? 'bg-[#111e14]' : ''}`} 
+                    />
+                  ))}
+                </div>
+             </div>
+          </div>
+
           {/* Actions */}
           <div className="space-y-1">
-            <button onClick={onChangeMission} className="w-full border border-[#111e14] flex justify-between px-2 py-1.5 hover:bg-[#111e14] hover:text-[#edfeed] font-bold active:scale-95 transition-all">
-              <span>[ ] ALVO/MISSÃO</span>
-              <span>&gt;</span>
+            <button onClick={onChangeMission} className="w-full border-2 border-[#111e14] flex justify-between px-2 py-2 hover:bg-[#111e14] hover:text-[#edfeed] font-black active:scale-95 transition-all shadow-[1px_1px_0px_#111e14]">
+              <span>[ ] ALVO / MISSÃO</span>
+              <span>&gt;&gt;</span>
             </button>
-            <button onClick={onChangeCharacter} className="w-full border border-[#111e14] flex justify-between px-2 py-1.5 hover:bg-[#111e14] hover:text-[#edfeed] font-bold active:scale-95 transition-all">
+            <button onClick={onChangeCharacter} className="w-full border-2 border-[#111e14] flex justify-between px-2 py-2 hover:bg-[#111e14] hover:text-[#edfeed] font-black active:scale-95 transition-all shadow-[1px_1px_0px_#111e14]">
               <span>[ ] TROCAR AGENTE</span>
-              <span>&gt;</span>
+              <span>&gt;&gt;</span>
             </button>
           </div>
 
           {/* Spotify */}
-          <div className="border border-[#111e14] p-1.5">
-            <div className="flex justify-between items-center mb-1 font-bold">
-              <span>WALKMAN / REDE</span>
+          <div className="border-2 border-[#111e14] p-1.5 shadow-[1px_1px_0px_#111e14]">
+            <div className="flex justify-between items-center mb-2 font-black border-b border-[#111e14]/20 pb-1">
+              <span className="text-[8px]">WALKMAN / REDE_SCN</span>
               {onUpdateSpotify && !isEditingSpotify && (
-                <button onClick={() => { setIsEditingSpotify(true); setSpotifyInput(profile.character.spotifyPlaylistUrl || ''); }} className="hover:bg-[#111e14] hover:text-[#edfeed] px-1 active:scale-95 transition-all">
+                <button onClick={() => { setIsEditingSpotify(true); setSpotifyInput(profile.character.spotifyPlaylistUrl || ''); }} className="hover:bg-[#111e14] hover:text-[#edfeed] px-1 active:scale-95 transition-all text-[8px] border border-[#111e14]">
                   [{embedUrl ? 'EDIT' : 'LINK'}]
                 </button>
               )}
@@ -127,43 +192,66 @@ export default function ProfileScreen({
                 />
                 {spotifyError && <p className="text-[8px] animate-pulse">ERRO: {spotifyError}</p>}
                 <div className="flex gap-1 justify-end">
-                  <button onClick={handleCancelEdit} className="border border-[#111e14] px-2 py-0.5 hover:bg-[#111e14] hover:text-[#edfeed] active:scale-95 transition-all">[CANC]</button>
-                  <button onClick={handleSaveSpotify} className="border border-[#111e14] px-2 py-0.5 hover:bg-[#111e14] hover:text-[#edfeed] active:scale-95 transition-all font-bold">[SALV]</button>
+                  <button onClick={handleCancelEdit} className="border border-[#111e14] px-2 py-0.5 hover:bg-[#111e14] hover:text-[#edfeed] active:scale-95 transition-all text-[8px]">[CANC]</button>
+                  <button onClick={handleSaveSpotify} className="border border-[#111e14] px-2 py-0.5 hover:bg-[#111e14] hover:text-[#edfeed] active:scale-95 transition-all font-black text-[8px]">[SALV]</button>
                 </div>
               </div>
             ) : embedUrl ? (
-              <div className="border border-dashed border-[#111e14] p-0.5">
+              <div className="border border-dashed border-[#111e14] p-0.5 opacity-90">
                 <iframe src={embedUrl} width="100%" height="80" frameBorder="0" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy" />
               </div>
             ) : (
-              <div className="text-[8px] text-center border border-dashed border-[#111e14] py-3 opacity-80">
+              <div className="text-[8px] text-center border border-dashed border-[#111e14] py-3 opacity-60 font-bold italic">
                 SEM CONEXÃO DE ÁUDIO.
               </div>
             )}
           </div>
 
+          {/* Telefone Nokia */}
+          <div className="border-2 border-[#111e14] p-1.5 font-black shadow-[1px_1px_0px_#111e14]">
+            <div className="flex justify-between items-center mb-1 text-[8px] opacity-60">
+              <span>CONTATO / SMS_LINK</span>
+            </div>
+            {profile.character.phoneNumber ? (
+              <div className="flex justify-between items-center bg-[#111e14] text-[#edfeed] p-1.5">
+                <span className="text-[8px]">NÚMERO:</span>
+                <span className="text-[10px] font-mono tracking-tighter">{profile.character.phoneNumber}</span>
+              </div>
+            ) : (
+              <button
+                onClick={() => {
+                  const num = generateRandomUSPhoneNumber();
+                  onUpdatePhoneNumber?.(num);
+                }}
+                className="w-full border-2 border-[#111e14] py-1.5 text-center hover:bg-[#111e14] hover:text-[#edfeed] active:scale-95 transition-all text-[9px]"
+              >
+                [GERAR NÚMERO US]
+              </button>
+            )}
+          </div>
+
           {/* Gallery */}
-          <div className="border border-[#111e14] p-1.5">
-            <div className="font-bold mb-1 flex items-center gap-1">
-               <span>GALERIA VISUAL</span>
+          <div className="border-2 border-[#111e14] p-1.5 shadow-[1px_1px_0px_#111e14]">
+            <div className="font-black mb-2 flex items-center gap-1 text-[8px] border-b border-[#111e14]/20 pb-1">
+               <span>ARQUIVOS_VISUAIS</span>
             </div>
             <PlayerGallery images={galleryImages} variant="nokia" />
           </div>
 
           {/* Achievements */}
-          <div className="border border-[#111e14] p-1.5">
-            <div className="font-bold mb-1">REGISTROS ESP.</div>
-            <div className="space-y-1">
+          <div className="border-2 border-[#111e14] p-1.5 shadow-[1px_1px_0px_#111e14]">
+            <div className="font-black mb-2 text-[8px] border-b border-[#111e14]/20 pb-1">REGISTROS_OPERACIONAIS</div>
+            <div className="space-y-1.5">
               {ALL_ACHIEVEMENTS.map((ach) => {
                 const earned = earnedIds.has(ach.id);
                 const isRevealed = profile.character.achievementsRevealed;
                 const title = earned || isRevealed ? ach.title : 'BLOQUEADO';
                 return (
-                  <div key={ach.id} className={`p-1.5 border border-[#111e14]/30 flex gap-2 items-center ${!earned ? 'opacity-50 border-dashed' : 'bg-[#111e14]/10'}`}>
-                    <span className="text-[14px] shrink-0">{earned ? '☑' : '☐'}</span>
+                  <div key={ach.id} className={`p-2 border border-[#111e14]/30 flex gap-2 items-center ${!earned ? 'opacity-40 border-dashed' : 'bg-[#111e14]/5'}`}>
+                    <span className="text-[12px] shrink-0 font-black">{earned ? '[X]' : '[ ]'}</span>
                     <div className="leading-tight truncate">
-                      <div className="font-bold truncate">{title}</div>
-                      {earned && <div className="text-[7px] truncate opacity-80 mt-0.5">{ach.description}</div>}
+                      <div className="font-black truncate text-[9px] tracking-tighter">{title}</div>
+                      {earned && <div className="text-[7px] truncate opacity-60 mt-0.5 lowercase tracking-tight">{ach.description}</div>}
                     </div>
                   </div>
                 );
@@ -358,6 +446,37 @@ export default function ProfileScreen({
               </motion.div>
             )}
           </AnimatePresence>
+        </div>
+
+        {/* Telefone Section */}
+        <div className="px-4 pt-4 pb-2">
+          <div className="flex items-center gap-2 mb-3">
+            <Phone size={14} className="text-orange-500" />
+            <h2 className="text-orange-500 text-xs font-bold uppercase tracking-widest">Número de Telefone</h2>
+          </div>
+          <div className="bg-[#242424] border border-[#333] rounded-lg p-3">
+            {profile.character.phoneNumber ? (
+              <div className="flex items-center justify-between">
+                <span className="text-white text-sm font-mono">{profile.character.phoneNumber}</span>
+                <span className="text-[9px] text-orange-500 uppercase font-bold tracking-wider">Ativo</span>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2">
+                <p className="text-[10px] text-gray-500 uppercase tracking-wider block">
+                  Você precisa de um número americano para enviar mensagens no grupo.
+                </p>
+                <button
+                  onClick={() => {
+                    const num = generateRandomUSPhoneNumber();
+                    onUpdatePhoneNumber?.(num);
+                  }}
+                  className="w-full py-2 bg-orange-600 hover:bg-orange-700 text-black font-bold rounded-lg text-xs uppercase tracking-wider transition-all"
+                >
+                  Gerar Número Aleatório
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Gallery Section */}
