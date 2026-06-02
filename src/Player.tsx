@@ -488,7 +488,9 @@ useEffect(() => {
   const handleModeChange = useCallback((dir: 'up' | 'down') => {
     setDisplayMode(prev => {
       const modes: DisplayMode[] = ['default', 'title', 'chapter', 'type']; 
-      return modes[(modes.indexOf(prev) + (dir === 'up' ? 1 : -1) + modes.length) % modes.length];
+      const currentIndex = modes.indexOf(prev);
+      const nextIndex = (currentIndex + (dir === 'up' ? 1 : -1) + modes.length) % modes.length;
+      return modes[nextIndex] ?? 'default';
     });
   }, []);
 
@@ -553,7 +555,11 @@ useEffect(() => {
   );
 
   return (
-    <div {...swipeHandlers} className="fixed inset-0 bg-surface flex items-center justify-center p-0 sm:p-4 overflow-hidden select-none touch-none">
+    <div
+      onMouseDown={swipeHandlers.onMouseDown}
+      ref={swipeHandlers.ref}
+      className="fixed inset-0 bg-surface flex items-center justify-center p-0 sm:p-4 overflow-hidden select-none touch-none"
+    >
       <div className="noise-overlay" /><div className="scanlines" /><div className="vignette" />
       
       {showNokiaShell ? (

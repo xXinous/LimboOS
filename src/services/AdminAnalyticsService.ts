@@ -176,11 +176,11 @@ export class AdminAnalyticsService {
       return u.lastLogin.toDate() >= sevenDaysAgo;
     }).length;
 
-    const tapePlayMap: Record<string, number> = {};
-    const userPlayMap: Record<string, number> = {};
-    const dailyPlays: Record<string, number> = {};
-    const hourMap: Record<number, number> = {};
-    const userTapePlays: Record<string, number> = {};
+    const tapePlayMap = new Map<string, number>();
+    const userPlayMap = new Map<string, number>();
+    const dailyPlays = new Map<string, number>();
+    const hourMap = new Map<number, number>();
+    const userTapePlays = new Map<string, number>();
     let completedPlays = 0;
     let maxObsessionCount = 0;
 
@@ -188,40 +188,41 @@ export class AdminAnalyticsService {
     for (let i = 0; i < 30; i++) {
       const d = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
       const key = d.toISOString().slice(0, 10);
-      dailyPlays[key] = 0;
+      dailyPlays.set(key, 0);
     }
 
     // Initialize hour map
-    for (let i = 0; i < 24; i++) hourMap[i] = 0;
+    for (let i = 0; i < 24; i++) hourMap.set(i, 0);
 
     // Single pass over playEvents for multiple metrics
     playEvents.forEach((e) => {
-      tapePlayMap[e.tapeId] = (tapePlayMap[e.tapeId] || 0) + 1;
-      userPlayMap[e.uid] = (userPlayMap[e.uid] || 0) + 1;
+      tapePlayMap.set(e.tapeId, (tapePlayMap.get(e.tapeId) ?? 0) + 1);
+      userPlayMap.set(e.uid, (userPlayMap.get(e.uid) ?? 0) + 1);
       
       if (e.completed) completedPlays++;
 
       const obsessionKey = `${e.uid}_${e.tapeId}`;
-      userTapePlays[obsessionKey] = (userTapePlays[obsessionKey] || 0) + 1;
-      if (userTapePlays[obsessionKey] > maxObsessionCount) {
-        maxObsessionCount = userTapePlays[obsessionKey];
+      const obsCount = (userTapePlays.get(obsessionKey) ?? 0) + 1;
+      userTapePlays.set(obsessionKey, obsCount);
+      if (obsCount > maxObsessionCount) {
+        maxObsessionCount = obsCount;
       }
 
       if (e.playedAt?.toDate) {
         const date = e.playedAt.toDate();
         const dateKey = date.toISOString().slice(0, 10);
-        if (dailyPlays[dateKey] !== undefined) {
-          dailyPlays[dateKey]++;
+        if (dailyPlays.has(dateKey)) {
+          dailyPlays.set(dateKey, (dailyPlays.get(dateKey) ?? 0) + 1);
         }
-        hourMap[date.getHours()]++;
+        hourMap.set(date.getHours(), (hourMap.get(date.getHours()) ?? 0) + 1);
       }
     });
 
-    const mostPlayed = Object.entries(tapePlayMap)
+    const mostPlayed = Array.from(tapePlayMap.entries())
       .sort(([, a], [, b]) => b - a)
       .slice(0, 10);
 
-    const mostActiveUsers = Object.entries(userPlayMap)
+    const mostActiveUsers = Array.from(userPlayMap.entries())
       .sort(([, a], [, b]) => b - a)
       .slice(0, 10)
       .map(([uid, count]) => {
@@ -229,32 +230,32 @@ export class AdminAnalyticsService {
         return { uid, name: user?.displayName || user?.username || (uid?.slice ? uid.slice(0, 8) : 'unknown'), count };
       });
 
-    const dailyPlaysSorted = Object.entries(dailyPlays).sort(([a], [b]) => a.localeCompare(b));
-    const maxDailyPlays = Math.max(...Object.values(dailyPlays), 1);
+    const dailyPlaysSorted = Array.from(dailyPlays.entries()).sort(([a], [b]) => a.localeCompare(b));
+    const maxDailyPlays = Math.max(...dailyPlays.values(), 1);
     
-    const peakHours = Object.entries(hourMap).map(([h, count]) => ({ hour: parseInt(h), count }));
-    const maxHourCount = Math.max(...Object.values(hourMap), 1);
+    const peakHours = Array.from(hourMap.entries()).map(([h, count]) => ({ hour: h, count }));
+    const maxHourCount = Math.max(...hourMap.values(), 1);
 
-    const weeklyGrowth: Record<string, number> = {};
+    const weeklyGrowth = new Map<string, number>();
     users.forEach((u) => {
       if (u.createdAt?.toDate) {
         const d = u.createdAt.toDate();
         const weekStart = new Date(d);
         weekStart.setDate(weekStart.getDate() - weekStart.getDay());
         const key = weekStart.toISOString().slice(0, 10);
-        weeklyGrowth[key] = (weeklyGrowth[key] || 0) + 1;
+        weeklyGrowth.set(key, (weeklyGrowth.get(key) ?? 0) + 1);
       }
     });
 
-    const achCountMap: Record<string, number> = {};
+    const achCountMap = new Map<string, number>();
     unlockedAchievements.forEach(a => {
-      achCountMap[a.achievementId] = (achCountMap[a.achievementId] || 0) + 1;
+      achCountMap.set(a.achievementId, (achCountMap.get(a.achievementId) ?? 0) + 1);
     });
 
     const rarityList = ALL_ACHIEVEMENTS.map(a => ({
       ...a,
-      count: achCountMap[a.id] || 0,
-      percentage: users.length > 0 ? ((achCountMap[a.id] || 0) / users.length) * 100 : 0
+      count: achCountMap.get(a.id) ?? 0,
+      percentage: users.length > 0 ? ((achCountMap.get(a.id) ?? 0) / users.length) * 100 : 0
     })).sort((a, b) => a.count - b.count);
 
     const totalStorageSize = audios.reduce((acc, a) => acc + (a.size || 0), 0);

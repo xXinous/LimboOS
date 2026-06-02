@@ -270,10 +270,10 @@ export default function AnalyticsPanel() {
               <span className="material-symbols-outlined text-primary text-base">group_add</span>
               <h3 className="text-[10px] font-display font-bold uppercase tracking-widest text-industrial-silver/40">Crescimento de Rede (Semanal)</h3>
             </div>
-            {Object.keys(analytics.weeklyGrowth).length === 0 ? (<p className="text-industrial-silver/20 text-[10px] font-display font-bold uppercase tracking-widest py-8 text-center">Sem registros</p>) : (
+            {analytics.weeklyGrowth.size === 0 ? (<p className="text-industrial-silver/20 text-[10px] font-display font-bold uppercase tracking-widest py-8 text-center">Sem registros</p>) : (
               <div className="flex items-end gap-2 h-24">
-                {Object.entries(analytics.weeklyGrowth).sort(([a], [b]) => a.localeCompare(b)).slice(-12).map(([week, count]) => {
-                  const maxWeekly = Math.max(...(Object.values(analytics.weeklyGrowth) as number[]), 1);
+                {Array.from(analytics.weeklyGrowth.entries()).sort(([a], [b]) => a.localeCompare(b)).slice(-12).map(([week, count]) => {
+                  const maxWeekly = Math.max(...analytics.weeklyGrowth.values(), 1);
                   return (
                     <div key={week} className="flex-1 flex flex-col items-center group relative">
                       <div className="absolute -top-10 bg-surface-container-high border border-primary/20 text-secondary text-[9px] font-display font-bold px-3 py-1.5 rounded-sm opacity-0 group-hover:opacity-100 transition-all whitespace-nowrap z-20 shadow-2xl">

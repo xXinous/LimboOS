@@ -13,6 +13,11 @@ import { motion } from 'motion/react';
 type SortField = 'masterName' | 'role' | 'createdAt' | 'lastLogin';
 type SortDir = 'asc' | 'desc';
 
+/** Safe lookup that only accesses own properties, avoiding prototype chain traversal. */
+function getOwnProperty<V>(record: Record<string, V>, key: string): V | undefined {
+  return Object.hasOwn(record, key) ? record[key] : undefined;
+}
+
 function getAccountStatus(acc: MasterAccount): 'active' | 'inactive' | 'dormant' | 'suspended' | 'unknown' {
   if (acc.suspended) return 'suspended';
   if (!acc.lastLogin) return 'unknown';
@@ -23,15 +28,16 @@ function getAccountStatus(acc: MasterAccount): 'active' | 'inactive' | 'dormant'
   return 'dormant';
 }
 
+const STATUS_MAP = new Map<ReturnType<typeof getAccountStatus>, { label: string; cls: string }>([
+  ['active', { label: 'ATIVO', cls: 'border-emerald-500/30 text-emerald-500 bg-emerald-500/5' }],
+  ['inactive', { label: 'INATIVO', cls: 'border-yellow-500/30 text-yellow-500 bg-yellow-500/5' }],
+  ['dormant', { label: 'DORMENTE', cls: 'border-red-500/30 text-red-500 bg-red-500/5' }],
+  ['suspended', { label: 'SUSPENSA', cls: 'border-red-500/40 text-red-400 bg-red-500/10' }],
+  ['unknown', { label: 'SEM_DADOS', cls: 'border-white/5 text-industrial-silver/30' }],
+]);
+
 function statusBadge(status: ReturnType<typeof getAccountStatus>) {
-  const map = {
-    active: { label: 'ATIVO', cls: 'border-emerald-500/30 text-emerald-500 bg-emerald-500/5' },
-    inactive: { label: 'INATIVO', cls: 'border-yellow-500/30 text-yellow-500 bg-yellow-500/5' },
-    dormant: { label: 'DORMENTE', cls: 'border-red-500/30 text-red-500 bg-red-500/5' },
-    suspended: { label: 'SUSPENSA', cls: 'border-red-500/40 text-red-400 bg-red-500/10' },
-    unknown: { label: 'SEM_DADOS', cls: 'border-white/5 text-industrial-silver/30' },
-  };
-  const s = map[status];
+  const s = STATUS_MAP.get(status) ?? { label: 'SEM_DADOS', cls: 'border-white/5 text-industrial-silver/30' };
   return <span className={`text-[9px] font-display font-bold px-2 py-0.5 rounded-sm uppercase tracking-widest border ${s.cls}`}>{s.label}</span>;
 }
 
@@ -81,9 +87,9 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
 
   // Agent count per account
   const agentCountMap = useMemo(() => {
-    const map: Record<string, number> = {};
+    const map = new Map<string, number>();
     Object.entries(charactersByUid).forEach(([uid, chars]) => {
-      map[uid] = chars.filter(c => !c.archived || showArchived).length;
+      map.set(uid, chars.filter(c => !c.archived || showArchived).length);
     });
     return map;
   }, [charactersByUid, showArchived]);
@@ -107,7 +113,7 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
       lastLogin: acc.lastLogin ? acc.lastLogin.toDate().toISOString() : '',
       createdAt: acc.createdAt ? acc.createdAt.toDate().toISOString() : '',
       suspended: !!acc.suspended,
-      agents: agentCountMap[acc.uid] || 0,
+      agents: agentCountMap.get(acc.uid) ?? 0,
       notes: acc.notes || '',
     }));
 
@@ -120,8 +126,9 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
       mimeType = 'application/json';
       extension = 'json';
     } else {
-      const headers = ['masterName', 'email', 'role', 'lastLogin', 'createdAt', 'suspended', 'agents', 'notes'];
-      const rows = data.map((row) => headers.map((h) => `"${String((row as any)[h]).replace(/"/g, '""')}"`).join(','));
+      const headers = ['masterName', 'email', 'role', 'lastLogin', 'createdAt', 'suspended', 'agents', 'notes'] as const;
+      type RowKey = (typeof headers)[number];
+      const rows = data.map((row) => headers.map((h: RowKey) => `"${String(row[h]).replace(/"/g, '""')}"`).join(','));
       content = [headers.join(','), ...rows].join('\n');
       mimeType = 'text/csv';
       extension = 'csv';
@@ -287,7 +294,7 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
       return next;
     });
 
-    if (isExpanding && !charactersByUid[uid]) {
+    if (isExpanding && !getOwnProperty(charactersByUid, uid)) {
       try {
         const chars = await userService.fetchCharactersForUser(uid);
         setCharactersByUid(prev => ({ ...prev, [uid]: chars }));
@@ -309,7 +316,7 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
       }
 
       // Also match if any character of this account matches (only if already loaded)
-      const accountChars = charactersByUid[a.uid] || [];
+      const accountChars = getOwnProperty(charactersByUid, a.uid) ?? [];
       const visibleChars = accountChars.filter(char => !char.archived || showArchived);
       return visibleChars.some(char => 
         (char.codinome || "").toLowerCase().includes(q) || 
@@ -454,7 +461,7 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
                       <td className="p-6">{statusBadge(status)}</td>
                       <td className="p-6">
                         <span className="text-[10px] font-display font-bold text-industrial-silver/40 bg-black/30 border border-white/5 px-2 py-0.5 rounded-sm">
-                          {agentCountMap[acc.uid] || 0}
+                          {agentCountMap.get(acc.uid) ?? 0}
                         </span>
                       </td>
                       <td className="p-6 font-display font-bold text-[10px] text-industrial-silver/20">{acc.createdAt ? format(acc.createdAt.toDate(), "yyyy.MM.dd") : "---"}</td>

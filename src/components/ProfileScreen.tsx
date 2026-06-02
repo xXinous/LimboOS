@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft, LogOut, Trophy, Music, Pencil, Check, X, ExternalLink, Image, Map, User, Phone } from 'lucide-react';
+import { ArrowLeft, LogOut, Trophy, Music, Pencil, Check, X, ExternalLink, Image, Map as MapIcon, User, Phone } from 'lucide-react';
 import { ALL_ACHIEVEMENTS } from '../data/achievements';
 import PlayerGallery from './PlayerGallery';
 import type { GalleryImage, PlayerData } from '../types/player';
@@ -27,11 +27,13 @@ function extractSpotifyEmbedUrl(url: string): string | null {
   return null;
 }
 
-const STATUS_CONFIG = {
-  vivo: { label: 'ATIVO', color: 'text-green-500', dot: 'bg-green-500', glow: 'glow-green' },
-  morto: { label: 'ELIMINADO', color: 'text-red-500', dot: 'bg-red-500', glow: 'glow-red' },
-  desaparecido: { label: 'DESAPARECIDO', color: 'text-yellow-500', dot: 'bg-yellow-500', glow: 'glow-yellow' },
-} as const;
+type AgentStatusKey = 'vivo' | 'morto' | 'desaparecido';
+
+const STATUS_CONFIG: Map<AgentStatusKey, { label: string; color: string; dot: string; glow: string }> = new Map([
+  ['vivo', { label: 'ATIVO', color: 'text-green-500', dot: 'bg-green-500', glow: 'glow-green' }],
+  ['morto', { label: 'ELIMINADO', color: 'text-red-500', dot: 'bg-red-500', glow: 'glow-red' }],
+  ['desaparecido', { label: 'DESAPARECIDO', color: 'text-yellow-500', dot: 'bg-yellow-500', glow: 'glow-yellow' }],
+]);
 
 const DANGER_LABELS = ['—', 'BAIXO', 'MODERADO', 'ELEVADO', 'ALTO', 'CRÍTICO'] as const;
 
@@ -84,7 +86,7 @@ export default function ProfileScreen({
   };
 
   if (variant === 'nokia') {
-    const statusCfg = STATUS_CONFIG[profile.character.agentStatus || 'vivo'];
+    const statusCfg = STATUS_CONFIG.get((profile.character.agentStatus || 'vivo') as AgentStatusKey) ?? { label: 'ATIVO', color: 'text-green-500', dot: 'bg-green-500', glow: 'glow-green' };
     const dangerLabel = DANGER_LABELS[profile.character.dangerLevel || 0];
 
     return (
@@ -314,7 +316,7 @@ export default function ProfileScreen({
           >
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-lg bg-orange-600 flex items-center justify-center text-black shadow-lg">
-                <Map size={20} />
+                <MapIcon size={20} />
               </div>
               <div className="text-left">
                 <div className="text-xs font-bold text-white uppercase tracking-wider">Alternar Missão</div>
