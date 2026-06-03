@@ -560,7 +560,7 @@ useEffect(() => {
       ref={swipeHandlers.ref}
       className="fixed inset-0 bg-surface flex items-center justify-center p-0 sm:p-4 overflow-hidden select-none touch-none"
     >
-      <div className="noise-overlay" /><div className="scanlines" /><div className="vignette" />
+      {!isNokiaTheme && <><div className="noise-overlay" /><div className="scanlines" /><div className="vignette" /></>}
       
       {showNokiaShell ? (
         <NokiaDeviceWrapper
@@ -576,7 +576,7 @@ useEffect(() => {
         >
           <AnimatePresence mode="wait">
             {screen === 'player' && (
-              <motion.div key="nokiaPlayer" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full h-full flex flex-col flex-grow min-h-0">
+              <motion.div key="nokiaPlayer" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }} className="w-full h-full flex flex-col flex-grow min-h-0">
                 <React.Suspense fallback={<RetroLoading message="CARREGANDO NOKIA..." />}>
                   <NokiaPlayer
                     currentIntel={currentIntel}
@@ -612,7 +612,7 @@ useEffect(() => {
               </motion.div>
             )}
             {screen === 'profile' && (
-              <motion.div key="profile" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full h-full flex flex-col flex-grow min-h-0">
+              <motion.div key="profile" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }} className="w-full h-full flex flex-col flex-grow min-h-0">
                 <React.Suspense fallback={<RetroLoading message="ACESSANDO PERFIL..." />}>
                   <ProfileScreen
                     profile={playerData}
@@ -639,13 +639,13 @@ useEffect(() => {
       ) : (
         <AnimatePresence mode="wait">
           {screen === 'login' || !masterAccount ? (
-            <motion.div key="login" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full h-full flex items-center justify-center">
+            <motion.div key="login" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }} className="w-full h-full flex items-center justify-center">
               <React.Suspense fallback={<RetroLoading message="CARREGANDO LOGIN..." />}>
                 <LoginScreen onLogin={(acc) => { setMasterAccount(acc); setScreen('characterSelection'); }} />
               </React.Suspense>
             </motion.div>
           ) : (screen === 'characterSelection' && masterAccount) ? (
-            <motion.div key="charSelect" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full h-full flex items-center justify-center">
+            <motion.div key="charSelect" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }} className="w-full h-full flex items-center justify-center">
               <React.Suspense fallback={<RetroLoading message="LISTANDO AGENTES..." />}>
                 <CharacterSelectionScreen account={masterAccount} onSelect={handleCharacterSelect} onLogout={handleLogout} />
               </React.Suspense>
@@ -688,7 +688,7 @@ useEffect(() => {
               </React.Suspense>
             </motion.div>
           ) : screen === 'player' ? (
-            <motion.div key="player" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} className="relative w-full max-w-sm h-full max-h-[750px] bg-surface-container-high rounded-[32px] border-8 border-[#1a1a1a] shadow-2xl flex flex-col p-3 sm:p-4 overflow-hidden z-10">
+            <motion.div key="player" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.15 }} className="relative w-full max-w-sm h-full max-h-[750px] bg-surface-container-high rounded-[32px] border-8 border-[#1a1a1a] shadow-2xl flex flex-col p-3 sm:p-4 overflow-hidden z-10">
               <Screw className="top-4 left-4" /><Screw className="top-4 right-4 -rotate-90" /><Screw className="bottom-4 left-4 -rotate-90" /><Screw className="bottom-4 right-4" />
               <CassetteVisor currentIntel={currentIntel} status={walkmanStatus} onEject={handleEject} onScanClick={handleScanClick} onCancelScan={handleCancelScan} onQrDetected={handleQrDetected} />
               <TapeLibrary intelItems={intelManager?.getAll() || EMPTY_ARRAY} currentIntelId={currentIntel?.id ?? null} isPlaying={isPlaying} displayMode={displayMode} onIntelSelect={handleIntelSelect} />

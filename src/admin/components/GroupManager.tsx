@@ -8,6 +8,7 @@ import { db } from '../../lib/firebase';
 import { collection, onSnapshot, Timestamp } from 'firebase/firestore';
 import { useModal } from './ConfirmModal';
 import BulkInventoryModal from './BulkInventoryModal';
+import NpcSmsDistributionModal from './NpcSmsDistributionModal';
 
 interface GroupManagerProps {
   isAdmin: boolean;
@@ -35,6 +36,13 @@ export default function GroupManager({ isAdmin }: GroupManagerProps) {
   // Intel Grant State
   const [showGrantModal, setShowGrantModal] = useState<string | null>(null);
   const [grantLoading, setGrantLoading] = useState(false);
+  
+  // SMS Distribution State
+  const [showSmsModal, setShowSmsModal] = useState<string | null>(null);
+
+  // Quick Action State
+  const [quickAddGroup, setQuickAddGroup] = useState<string | null>(null);
+  const [quickAddSearch, setQuickAddSearch] = useState("");
 
   useEffect(() => {
     const unsubGroups = groupService.subscribeToGroups(setGroups);
@@ -169,6 +177,28 @@ export default function GroupManager({ isAdmin }: GroupManagerProps) {
     }
   };
 
+  const handleQuickRemoveMember = async (groupId: string, characterId: string, charName: string) => {
+    const ok = await showConfirm('Remover Agente', `Deseja remover ${charName} do esquadrão?`, 'Remover');
+    if (!ok) return;
+    try {
+      await groupService.removeCharacterFromGroup(groupId, characterId);
+      activityLogger.logAdmin('gm.mpg', 'group_leave_quick', `Removeu ${charName} do esquadrão rapidamente`);
+    } catch (err) {
+      console.error("Erro ao remover rapidamente:", err);
+    }
+  };
+
+  const handleQuickAddMember = async (groupId: string, uid: string, characterId: string, charName: string) => {
+    try {
+      await groupService.addCharacterToGroup(groupId, uid, characterId);
+      activityLogger.logAdmin('gm.mpg', 'group_join_quick', `Adicionou ${charName} ao esquadrão rapidamente`);
+      setQuickAddGroup(null);
+      setQuickAddSearch("");
+    } catch (err) {
+      console.error("Erro ao adicionar rapidamente:", err);
+    }
+  };
+
   const resetForm = () => {
     setIsCreating(false);
     setEditingGroup(null);
@@ -220,6 +250,14 @@ export default function GroupManager({ isAdmin }: GroupManagerProps) {
 
   const filteredCharacters = allCharacters.filter(c => showArchived || !c.char.archived);
 
+  const squadMembers = allCharacters.filter(item => 
+    selectedCharacters.some(sc => sc.uid === item.uid && sc.characterId === item.char.id)
+  );
+
+  const availableAgents = filteredCharacters.filter(item => 
+    !selectedCharacters.some(sc => sc.uid === item.uid && sc.characterId === item.char.id)
+  );
+
   return (
     <div className="space-y-8 font-chakra">
       {/* Cabeçalho de Grupos */}
@@ -247,7 +285,7 @@ export default function GroupManager({ isAdmin }: GroupManagerProps) {
               {/* Coluna 1: Info Básica */}
               <div className="space-y-6">
                 <div>
-                  <label className="block font-black text-[10px] text-zinc-500 mb-3 uppercase tracking-widest">Identificador_do_Grupo (Mesa)</label>
+                  <label className="block font-black text-[10px] text-zinc-500 mb-3 uppercase tracking-widest">Identificador_do_Esquadrão (Mesa)</label>
                   <input 
                     type="text" 
                     value={groupName}
@@ -259,7 +297,7 @@ export default function GroupManager({ isAdmin }: GroupManagerProps) {
                 </div>
 
                 <div>
-                  <label className="block font-black text-[10px] text-zinc-500 mb-3 uppercase tracking-widest">Nó_de_Missão_Vinculado</label>
+                  <label className="block font-black text-[10px] text-zinc-500 mb-3 uppercase tracking-widest">Missão_Ativa (Em_Campo)</label>
                   <select 
                     value={selectedCampaign}
                     onChange={(e) => setSelectedCampaign(e.target.value)}
@@ -273,7 +311,7 @@ export default function GroupManager({ isAdmin }: GroupManagerProps) {
                 </div>
 
                 <div>
-                  <label className="block font-black text-[10px] text-zinc-500 mb-3 uppercase tracking-widest">Missões_Desbloqueadas_para_Seleção</label>
+                  <label className="block font-black text-[10px] text-zinc-500 mb-3 uppercase tracking-widest">Missões_Autorizadas (Acesso_Liberado)</label>
                   <div className="bg-black/40 border border-[#1a1a1a] p-3 rounded-sm space-y-2 max-h-40 overflow-y-auto custom-scrollbar">
                     {campaigns.map(c => (
                       <button 
@@ -321,64 +359,106 @@ export default function GroupManager({ isAdmin }: GroupManagerProps) {
               </div>
 
               {/* Coluna 2: Seleção de Personagens */}
-              <div>
-                <div className="flex justify-between items-center mb-3">
-                   <label className="block font-black text-[10px] text-zinc-500 uppercase tracking-widest">Vincular_Agentes_ao_Vetor ({selectedCharacters.length})</label>
-                   <label className="flex items-center gap-2 cursor-pointer group">
-                     <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} className="hidden" />
-                     <span className={`text-[8px] font-black uppercase tracking-widest transition-colors ${showArchived ? 'text-primary' : 'text-zinc-600 group-hover:text-zinc-400'}`}>Incluir_Arquivados</span>
-                   </label>
-                </div>
-
-                <div className="relative mb-3 group">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-industrial-silver/20 text-sm group-focus-within:text-primary transition-all">search</span>
-                  <input 
-                    type="text" 
-                    placeholder="BUSCAR AGENTE POR CODINOME..."
-                    value={agentSearchQuery}
-                    onChange={(e) => setAgentSearchQuery(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAgentSearch())}
-                    className="w-full bg-black/40 border-2 border-[#1a1a1a] text-white px-10 py-2.5 text-[9px] font-bold focus:border-primary/40 outline-none rounded-sm uppercase transition-all shadow-inner"
-                  />
-                </div>
-
-                <div className="bg-black/60 border-2 border-[#1a1a1a] h-60 overflow-y-auto p-3 space-y-2 custom-scrollbar rounded-sm">
-                  {filteredCharacters.map(item => {
-                    const isSel = isSelected(item.uid, item.char.id);
-                    const user = users.find(u => u.uid === item.uid);
-                    return (
-                      <button
-                        key={`${item.uid}_${item.char.id}`}
-                        type="button"
-                        onClick={() => toggleCharacter(item.uid, item.char.id)}
-                        className={`w-full flex items-center justify-between p-3 text-left transition-all border-2 rounded-sm group ${
-                          isSel 
-                            ? 'bg-primary/5 border-primary/30 text-primary shadow-inner' 
-                            : 'bg-transparent border-transparent text-zinc-700 hover:bg-white/5'
-                        } ${item.char.archived ? 'opacity-50 grayscale' : ''}`}
-                      >
-                        <div className="flex items-center gap-3">
-                           <div className={`w-8 h-8 rounded-sm bg-black border border-[#1a1a1a] flex items-center justify-center font-black text-sm ${item.char.agentStatus === 'vivo' ? 'text-emerald-500' : 'text-red-500'}`}>
+              <div className="space-y-6">
+                {/* Membros Atuais */}
+                <div>
+                  <div className="flex justify-between items-center mb-3">
+                    <label className="block font-black text-[10px] text-zinc-500 uppercase tracking-widest">Membros do Esquadrão ({selectedCharacters.length})</label>
+                  </div>
+                  <div className="bg-black/40 border-2 border-[#1a1a1a] h-36 overflow-y-auto p-3 space-y-2 custom-scrollbar rounded-sm">
+                    {squadMembers.map(item => {
+                      const user = users.find(u => u.uid === item.uid);
+                      return (
+                        <div
+                          key={`member_${item.uid}_${item.char.id}`}
+                          className="flex items-center justify-between p-2 bg-primary/5 border border-primary/20 rounded-sm"
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className={`w-6 h-6 rounded-sm bg-black border border-[#1a1a1a] flex items-center justify-center font-black text-xs ${item.char.agentStatus === 'vivo' ? 'text-emerald-500' : 'text-red-500'}`}>
                               {(item.char.codinome || '?')[0].toUpperCase()}
-                           </div>
-                           <div className="min-w-0">
-                              <p className={`font-black text-[11px] uppercase truncate ${isSel ? 'text-primary' : 'text-zinc-500 group-hover:text-zinc-300'}`}>
+                            </div>
+                            <div className="min-w-0">
+                              <p className="font-black text-[10px] text-primary uppercase truncate">
                                 {item.char.codinome}
                               </p>
-                              <p className="text-[8px] font-mono text-zinc-800 font-bold uppercase tracking-tighter mt-0.5">
+                              <p className="text-[7px] font-mono text-zinc-600 font-bold uppercase truncate mt-0.5">
+                                {user?.displayName || user?.email?.split('@')[0]}
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => toggleCharacter(item.uid, item.char.id)}
+                            className="w-5 h-5 flex items-center justify-center text-zinc-600 hover:text-red-500 transition-all rounded-xs hover:bg-red-500/10 cursor-pointer"
+                            title="Remover do Esquadrão"
+                          >
+                            <span className="material-symbols-outlined text-sm font-black">close</span>
+                          </button>
+                        </div>
+                      );
+                    })}
+                    {selectedCharacters.length === 0 && (
+                      <div className="h-full flex flex-col items-center justify-center text-zinc-700 py-8 opacity-40">
+                        <span className="material-symbols-outlined text-2xl mb-1">group_off</span>
+                        <p className="text-[8px] font-black uppercase tracking-widest">Nenhum Agente Selecionado</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Agentes Disponíveis para Seleção */}
+                <div>
+                  <div className="flex justify-between items-center mb-3">
+                     <label className="block font-black text-[10px] text-zinc-500 uppercase tracking-widest">Agentes Disponíveis</label>
+                     <label className="flex items-center gap-2 cursor-pointer group">
+                       <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} className="hidden" />
+                       <span className={`text-[8px] font-black uppercase tracking-widest transition-colors ${showArchived ? 'text-primary' : 'text-zinc-600 group-hover:text-zinc-400'}`}>Incluir_Arquivados</span>
+                     </label>
+                  </div>
+
+                  <div className="relative mb-3 group">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-industrial-silver/20 text-sm group-focus-within:text-primary transition-all">search</span>
+                    <input 
+                      type="text" 
+                      placeholder="BUSCAR AGENTE POR CODINOME..."
+                      value={agentSearchQuery}
+                      onChange={(e) => setAgentSearchQuery(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAgentSearch())}
+                      className="w-full bg-black/40 border-2 border-[#1a1a1a] text-white px-10 py-2.5 text-[9px] font-bold focus:border-primary/40 outline-none rounded-sm uppercase transition-all shadow-inner"
+                    />
+                  </div>
+
+                  <div className="bg-black/60 border-2 border-[#1a1a1a] h-44 overflow-y-auto p-3 space-y-2 custom-scrollbar rounded-sm">
+                    {availableAgents.map(item => {
+                      const user = users.find(u => u.uid === item.uid);
+                      return (
+                        <button
+                          key={`avail_${item.uid}_${item.char.id}`}
+                          type="button"
+                          onClick={() => toggleCharacter(item.uid, item.char.id)}
+                          className="w-full flex items-center justify-between p-2 text-left transition-all border border-transparent hover:border-primary/20 hover:bg-primary/5 rounded-sm group cursor-pointer"
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className={`w-8 h-8 rounded-sm bg-black border border-[#1a1a1a] flex items-center justify-center font-black text-sm ${item.char.agentStatus === 'vivo' ? 'text-emerald-500' : 'text-red-500'}`}>
+                              {(item.char.codinome || '?')[0].toUpperCase()}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="font-black text-[10px] text-zinc-400 uppercase truncate group-hover:text-white transition-colors">
+                                {item.char.codinome}
+                              </p>
+                              <p className="text-[7px] font-mono text-zinc-600 font-bold uppercase truncate mt-0.5">
                                 JOGADOR: {user?.displayName || user?.email?.split('@')[0]}
                               </p>
-                           </div>
-                        </div>
-                        <div className={`w-4 h-4 border-2 rounded-sm transition-all flex items-center justify-center ${isSel ? 'bg-primary border-primary shadow-[0_0_8px_rgba(255,140,0,0.4)]' : 'border-zinc-900 group-hover:border-zinc-700'}`}>
-                           {isSel && <span className="material-symbols-outlined text-black text-[12px] font-black">check</span>}
-                        </div>
-                      </button>
-                    );
-                  })}
-                  {filteredCharacters.length === 0 && (
-                    <p className="text-zinc-600 text-[10px] font-black uppercase tracking-widest text-center py-8">Nenhum Agente Encontrado</p>
-                  )}
+                            </div>
+                          </div>
+                          <span className="material-symbols-outlined text-sm text-zinc-800 group-hover:text-primary transition-colors pr-1">person_add</span>
+                        </button>
+                      );
+                    })}
+                    {availableAgents.length === 0 && (
+                      <p className="text-zinc-600 text-[9px] font-black uppercase tracking-widest text-center py-8">Nenhum Agente Disponível</p>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -443,6 +523,9 @@ export default function GroupManager({ isAdmin }: GroupManagerProps) {
                     </div>
                   </div>
                   <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all translate-x-2 group-hover:translate-x-0">
+                    <button onClick={() => setShowSmsModal(group.id)} className="w-8 h-8 flex items-center justify-center bg-black/60 border border-white/10 rounded-sm text-primary hover:bg-primary hover:text-black transition-all active:scale-90" title="Distribuir Torpedos SMS de NPCs">
+                      <span className="material-symbols-outlined text-sm">sms</span>
+                    </button>
                     <button onClick={() => setShowGrantModal(group.id)} className="w-8 h-8 flex items-center justify-center bg-black/60 border border-white/10 rounded-sm text-primary hover:bg-primary hover:text-black transition-all active:scale-90" title="Transferência de Evidências em Lote">
                       <span className="material-symbols-outlined text-sm">wifi_tethering</span>
                     </button>
@@ -470,16 +553,59 @@ export default function GroupManager({ isAdmin }: GroupManagerProps) {
                       const item = allCharacters.find(c => c.uid === slot.uid && c.char.id === slot.characterId);
                       if (!item) return null;
                       return (
-                        <div key={`${slot.uid}_${slot.characterId}`} className="flex items-center gap-2 bg-black/40 border border-white/5 px-2 py-1.5 rounded-sm min-w-[120px]">
+                        <div key={`${slot.uid}_${slot.characterId}`} className="group/member flex items-center gap-2 bg-black/40 border border-white/5 px-2 py-1.5 rounded-sm min-w-[120px] relative">
                            <div className={`w-2 h-2 rounded-full ${item.char.agentStatus === 'vivo' ? 'bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.5)]' : item.char.agentStatus === 'morto' ? 'bg-red-500' : 'bg-yellow-500'}`} />
-                           <div className="min-w-0">
-                             <p className="font-black text-[9px] text-zinc-300 uppercase truncate">{item.char.codinome}</p>
+                           <div className="min-w-0 flex-1">
+                             <p className="font-black text-[9px] text-zinc-300 uppercase truncate pr-4">{item.char.codinome}</p>
                              <p className="font-mono text-[8px] text-zinc-600 truncate">{users.find(u => u.uid === slot.uid)?.displayName || '???'}</p>
                            </div>
+                           <button onClick={() => handleQuickRemoveMember(group.id, item.char.id, item.char.codinome)} className="absolute right-1 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center text-zinc-500 hover:text-red-500 hover:bg-red-500/10 rounded-sm opacity-0 group-hover/member:opacity-100 transition-all bg-black/80 backdrop-blur-sm z-10">
+                             <span className="material-symbols-outlined text-[14px]">close</span>
+                           </button>
                         </div>
                       );
                     })}
+                    <button onClick={() => { setQuickAddGroup(quickAddGroup === group.id ? null : group.id); setQuickAddSearch(""); }} className={`flex items-center justify-center w-8 h-8 rounded-sm transition-all ${quickAddGroup === group.id ? 'bg-primary text-black border-primary' : 'bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20'}`}>
+                      <span className="material-symbols-outlined text-[16px]">{quickAddGroup === group.id ? 'close' : 'person_add'}</span>
+                    </button>
                   </div>
+
+                  {quickAddGroup === group.id && (
+                    <div className="mt-4 p-4 bg-black/60 border border-primary/30 rounded-sm shadow-xl">
+                      <input 
+                        type="text" 
+                        placeholder="BUSCAR AGENTE PARA ADICIONAR..."
+                        value={quickAddSearch}
+                        onChange={(e) => setQuickAddSearch(e.target.value)}
+                        className="w-full bg-black border-2 border-[#1a1a1a] text-white px-3 py-2 text-[10px] font-bold focus:border-primary outline-none rounded-sm uppercase transition-all mb-2"
+                        autoFocus
+                      />
+                      <div className="max-h-32 overflow-y-auto space-y-1 custom-scrollbar">
+                        {allCharacters.filter(c => 
+                          (!quickAddSearch || c.char.codinome?.toLowerCase().includes(quickAddSearch.toLowerCase())) &&
+                          !group.characterSlots?.some(s => s.characterId === c.char.id)
+                        ).length === 0 ? (
+                          <p className="text-[9px] text-zinc-500 uppercase font-black py-2 text-center">NENHUM AGENTE ENCONTRADO</p>
+                        ) : (
+                          allCharacters.filter(c => 
+                            (!quickAddSearch || c.char.codinome?.toLowerCase().includes(quickAddSearch.toLowerCase())) &&
+                            !group.characterSlots?.some(s => s.characterId === c.char.id)
+                          ).map(c => (
+                            <div key={c.char.id} className="flex items-center justify-between p-2 bg-black hover:bg-white/5 border border-white/5 rounded-sm transition-all group/add">
+                               <div className="flex items-center gap-2">
+                                 <div className={`w-2 h-2 rounded-full ${c.char.agentStatus === 'vivo' ? 'bg-emerald-500' : c.char.agentStatus === 'morto' ? 'bg-red-500' : 'bg-yellow-500'}`} />
+                                 <div className="flex flex-col">
+                                   <span className="text-[10px] font-black text-white uppercase">{c.char.codinome}</span>
+                                   <span className="text-[8px] font-mono text-zinc-600 uppercase">{users.find(u => u.uid === c.uid)?.displayName || '???'}</span>
+                                 </div>
+                               </div>
+                               <button onClick={() => handleQuickAddMember(group.id, c.uid, c.char.id, c.char.codinome)} className="text-[9px] font-black bg-primary/10 text-primary px-3 py-1.5 rounded-sm uppercase hover:bg-primary hover:text-black transition-all opacity-0 group-hover/add:opacity-100">Adicionar</button>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             );
@@ -505,6 +631,19 @@ export default function GroupManager({ isAdmin }: GroupManagerProps) {
            title="Vetor de Transmissão: Esquadrão"
         />
       )}
+
+      {/* SMS NPC Distribution Modal */}
+      {showSmsModal && (() => {
+        const targetGroup = groups.find(g => g.id === showSmsModal);
+        return targetGroup ? (
+          <NpcSmsDistributionModal 
+             group={targetGroup}
+             allCharacters={allCharacters}
+             onClose={() => setShowSmsModal(null)}
+             onSuccess={() => {}}
+          />
+        ) : null;
+      })()}
 
       {modal}
     </div>

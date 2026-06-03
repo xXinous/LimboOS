@@ -1,7 +1,7 @@
 
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, getDocFromServer } from 'firebase/firestore';
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import { getAnalytics, isSupported } from 'firebase/analytics';
 import type { Analytics } from 'firebase/analytics';
@@ -18,7 +18,6 @@ const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 export const auth = getAuth(app);
 export const db = initializeFirestore(app, {
   localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
-  experimentalForceLongPolling: true,
 });
 export const storage = getStorage(app);
 
@@ -36,22 +35,7 @@ export async function getFirebaseAnalytics(): Promise<Analytics | null> {
   }
   return _analytics;
 }
-export async function testConnection() {
-  // Execute in the background with a timeout to avoid blocking the initial load
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 5000);
 
-  try {
-    // We don't await this in the main boot sequence, but we provide it as a utility
-    await getDocFromServer(doc(db, 'test', 'connection'));
-    clearTimeout(timeoutId);
-  } catch (error) {
-    clearTimeout(timeoutId);
-    if(error instanceof Error && error.message.includes('the client is offline')) {
-      console.warn("[Firebase] Client is offline, using local cache.");
-    }
-  }
-}
 import { activityLogger } from '../services/ActivityLogger';
 let _isLogging = false; 
 function argsToString(args: unknown[]): string {
@@ -80,40 +64,7 @@ function logGlobalBrowserError(tag: string, fullMessage: string, stack?: string,
     activityLogger.logError(user.uid, name, finalMessage, stack, metadata);
   }
 }
-const _origError = console.error.bind(console);
-console.error = (...args: unknown[]) => {
-  _origError(...args);
-  // Temporarily disabled for debugging connection issues
-  /*
-  if (_isLogging) return;
-  _isLogging = true;
-  try {
-    const msg = argsToString(args);
-    if (
-      msg.includes('[ActivityLogger]') ||
-      msg.includes('access control checks')
-    ) { _isLogging = false; return; }
-    logGlobalBrowserError('CONSOLE.ERROR', msg, undefined, undefined, args.length > 1 ? args : undefined);
-  } finally { _isLogging = false; }
-  */
-};
-const _origWarn = console.warn.bind(console);
-console.warn = (...args: unknown[]) => {
-  _origWarn(...args);
-  // Temporarily disabled for debugging connection issues
-  /*
-  if (_isLogging) return;
-  _isLogging = true;
-  try {
-    const msg = argsToString(args);
-    if (
-      msg.includes('access control checks') ||
-      msg.includes('[ActivityLogger]')
-    ) { _isLogging = false; return; }
-    logGlobalBrowserError('CONSOLE.WARN', msg, undefined, undefined, args.length > 1 ? args : undefined);
-  } finally { _isLogging = false; }
-  */
-};
+
 function getErrorDigest(error: unknown): { message: string; stack?: string; code?: string } {
   if (error instanceof Error) {
     return { message: error.message, stack: error.stack, code: (error as any).code };

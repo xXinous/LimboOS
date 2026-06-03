@@ -64,9 +64,8 @@ export default function AgentDossierView({ uid, character, masterAccount, onClos
       
       // Load groups the character belongs to
       const groupsSnap = await getDocs(collection(db, 'groups'));
-      const groups = groupsSnap.docs
-        .map(d => ({ id: d.id, ...d.data() } as Group))
-        .filter(g => g.characterSlots?.some(slot => slot.characterId === character.id));
+      const allGroupsList = groupsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Group));
+      const groups = allGroupsList.filter(g => g.characterSlots?.some(slot => slot.characterId === character.id));
 
       setDetails({ ...data, groups });
     } catch (error) {
@@ -75,6 +74,7 @@ export default function AgentDossierView({ uid, character, masterAccount, onClos
       setLoading(false);
     }
   };
+
 
   const handleUpdateChar = async () => {
     setSaveLoading(true);
@@ -310,18 +310,24 @@ export default function AgentDossierView({ uid, character, masterAccount, onClos
           
           {/* Sidebar / Stats */}
           <div className="w-full lg:w-80 border-r-4 border-[#1a1a1a] bg-black/20 p-8 space-y-10 overflow-y-auto custom-scrollbar">
-             {details?.groups && details.groups.length > 0 && (
-               <div>
-                  <h3 className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.3em] mb-4 border-b border-white/5 pb-2">Esquadrões Vinculados</h3>
-                  <div className="flex flex-wrap gap-2">
-                    {details.groups.map(g => (
+             <div>
+                <div className="flex justify-between items-center mb-4 border-b border-white/5 pb-2">
+                   <h3 className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.3em]">Esquadrões Vinculados</h3>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {details?.groups && details.groups.length > 0 ? (
+                    details.groups.map(g => (
                       <span key={g.id} className="text-[9px] font-black bg-primary/10 text-primary border border-primary/20 px-3 py-1 rounded-sm uppercase tracking-wider">
                         {g.name}
                       </span>
-                    ))}
-                  </div>
-               </div>
-             )}
+                    ))
+                  ) : (
+                    <span className="text-[9px] font-black text-zinc-700 italic uppercase tracking-wider py-1">
+                      Nenhum Esquadrão Vinculado
+                    </span>
+                  )}
+                </div>
+             </div>
 
              <div>
                 <h3 className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.3em] mb-6 border-b border-white/5 pb-2">Atividade_em_Campo</h3>

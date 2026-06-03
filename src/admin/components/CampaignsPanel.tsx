@@ -343,20 +343,20 @@ export default function CampaignsPanel() {
                 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <p className="text-[8px] text-industrial-silver/30 font-display font-bold uppercase tracking-widest">Acesso à Missão (Desbloquear)</p>
+                    <p className="text-[8px] text-industrial-silver/30 font-display font-bold uppercase tracking-widest">Autorizar Missão para Esquadrão</p>
                     <select 
                       className="w-full bg-surface-container-lowest border border-white/5 text-[10px] font-display font-bold text-primary p-3 outline-none rounded-sm focus:border-primary/40 transition-all appearance-none cursor-pointer shadow-inner"
                       onChange={(e) => e.target.value && handleUnlockForGroup(e.target.value, campaign.id, true)}
                       value=""
                     >
-                      <option value="">Desbloquear para Grupo...</option>
+                      <option value="">Autorizar para Esquadrão...</option>
                       {groups.filter(g => !(g.unlockedCampaigns || []).includes(campaign.id)).map(g => (
                         <option key={g.id} value={g.id}>{g.name}</option>
                       ))}
                     </select>
                   </div>
                   <div className="space-y-2">
-                    <p className="text-[8px] text-industrial-silver/30 font-display font-bold uppercase tracking-widest">Acesso Solo (Desbloquear)</p>
+                    <p className="text-[8px] text-industrial-silver/30 font-display font-bold uppercase tracking-widest">Autorizar Missão para Agente</p>
                     <select 
                       className="w-full bg-surface-container-lowest border border-white/5 text-[10px] font-display font-bold text-primary p-3 outline-none rounded-sm focus:border-primary/40 transition-all appearance-none cursor-pointer shadow-inner"
                       onChange={(e) => {
@@ -366,7 +366,7 @@ export default function CampaignsPanel() {
                       }}
                       value=""
                     >
-                      <option value="">Desbloquear para Agente...</option>
+                      <option value="">Autorizar para Agente...</option>
                       {allCharacters.filter(c => !(c.character.unlockedCampaigns || []).includes(campaign.id)).map(c => (
                         <option key={`${c.account.uid}_${c.character.id}`} value={`${c.account.uid}|${c.character.id}`}>{c.character.codinome}</option>
                       ))}
@@ -375,11 +375,11 @@ export default function CampaignsPanel() {
                 </div>
 
                 <div className="space-y-4">
-                  <p className="text-[8px] text-industrial-silver/30 font-display font-bold uppercase tracking-widest border-b border-white/5 pb-2">Rede de Acesso (Quem vê esta missão)</p>
+                  <p className="text-[8px] text-industrial-silver/30 font-display font-bold uppercase tracking-widest border-b border-white/5 pb-2">Acessos Autorizados (Quem tem acesso)</p>
                   <div className="flex flex-wrap gap-2">
                     {groups.filter(g => (g.unlockedCampaigns || []).includes(campaign.id)).map(g => (
                       <div key={g.id} className="flex items-center gap-2 bg-primary/5 border border-primary/20 rounded-sm pr-1">
-                        <span className="text-[9px] font-display font-bold text-primary/80 px-2 py-1 uppercase tracking-wider">GRP: {g.name}</span>
+                        <span className="text-[9px] font-display font-bold text-primary/80 px-2 py-1 uppercase tracking-wider">ESQ: {g.name}</span>
                         <button onClick={() => handleUnlockForGroup(g.id, campaign.id, false)} className="p-1 text-primary/40 hover:text-red-500 material-symbols-outlined text-xs">close</button>
                       </div>
                     ))}
@@ -393,14 +393,14 @@ export default function CampaignsPanel() {
                 </div>
 
                 <div className="space-y-4">
-                  <p className="text-[8px] text-emerald-500/50 font-display font-bold uppercase tracking-widest border-b border-emerald-500/10 pb-2">Em Operação (Ativa no App)</p>
+                  <p className="text-[8px] text-emerald-500/50 font-display font-bold uppercase tracking-widest border-b border-emerald-500/10 pb-2">Missão Ativa (Em Campo)</p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <select 
                       className="w-full bg-emerald-500/5 border border-emerald-500/20 text-[10px] font-display font-bold text-emerald-500 p-3 outline-none rounded-sm focus:border-emerald-500/40 transition-all appearance-none cursor-pointer"
                       onChange={(e) => e.target.value && handleAssignGroup(e.target.value, campaign.id)}
                       value=""
                     >
-                      <option value="">Designar Grupo para Campo...</option>
+                      <option value="">Designar Esquadrão para Campo...</option>
                       {groups.filter(g => g.campaignId !== campaign.id).map(g => (
                         <option key={g.id} value={g.id}>{g.name}</option>
                       ))}

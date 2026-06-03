@@ -223,17 +223,61 @@ export class GroupService {
     senderId: string,
     senderName: string,
     senderNumber: string,
-    text: string
+    text: string,
+    recipientId?: string,
+    recipientName?: string,
+    recipientNumber?: string
   ): Promise<void> {
     const messageRef = doc(collection(db, 'groups', groupId, 'messages'));
-    await setDoc(messageRef, {
+    const data: any = {
       id: messageRef.id,
       senderId,
       senderName,
       senderNumber,
       text,
       createdAt: serverTimestamp()
-    });
+    };
+    if (recipientId) data.recipientId = recipientId;
+    if (recipientName) data.recipientName = recipientName;
+    if (recipientNumber) data.recipientNumber = recipientNumber;
+    
+    await setDoc(messageRef, data);
+  }
+
+  /**
+   * Send a parsed NPC dialogue to a specific character.
+   */
+  public async sendNpcDialogueToCharacter(
+    groupId: string,
+    characterId: string,
+    characterCodename: string,
+    characterPhoneNumber: string,
+    dialogue: {
+      npcId: string;
+      npcName: string;
+      npcNumber: string;
+      messages: { speaker: 'npc' | 'player'; text: string }[];
+    }
+  ): Promise<void> {
+    const baseTime = Date.now();
+    for (let i = 0; i < dialogue.messages.length; i++) {
+      const msg = dialogue.messages[i];
+      const messageRef = doc(collection(db, 'groups', groupId, 'messages'));
+      
+      const isPlayer = msg.speaker === 'player';
+      
+      await setDoc(messageRef, {
+        id: messageRef.id,
+        senderId: isPlayer ? characterId : dialogue.npcId,
+        senderName: isPlayer ? characterCodename : dialogue.npcName,
+        senderNumber: isPlayer ? characterPhoneNumber : dialogue.npcNumber,
+        text: msg.text,
+        recipientId: isPlayer ? dialogue.npcId : characterId,
+        recipientName: isPlayer ? dialogue.npcName : characterCodename,
+        recipientNumber: isPlayer ? dialogue.npcNumber : characterPhoneNumber,
+        createdAt: Timestamp.fromMillis(baseTime + i * 2000)
+      });
+    }
   }
 }
 

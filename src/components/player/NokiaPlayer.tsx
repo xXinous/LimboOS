@@ -87,13 +87,6 @@ interface NokiaPlayerProps {
 
 type FilterTab = 'TODOS' | 'AUDIO' | 'DOCS' | 'SMS';
 
-const placeholderMessages = [
-  { id: '1', sender: 'DESCONHECIDO', text: 'Você ainda está aí?', time: '10:42', read: false },
-  { id: '2', sender: 'AGENTE K', text: 'O pacote foi entregue no ponto de encontro.', time: 'Ontem', read: true },
-  { id: '3', sender: 'SISTEMA', text: 'Nova pista detectada na zona sul.', time: 'Segunda', read: true },
-  { id: '4', sender: 'OPERADOR', text: 'Mantenha silêncio de rádio até novas ordens.', time: '23/05', read: true },
-];
-
 // Retro square-wave audio feedback engine
 class NokiaAudioFeedback {
   private ctx: AudioContext | null = null;
@@ -138,7 +131,11 @@ class NokiaAudioFeedback {
   }
 }
 
-const sfx = new NokiaAudioFeedback();
+let _sfxInstance: NokiaAudioFeedback | null = null;
+function getSfx(): NokiaAudioFeedback {
+  if (!_sfxInstance) _sfxInstance = new NokiaAudioFeedback();
+  return _sfxInstance;
+}
 
 function generateRandomUSPhoneNumber(): string {
   const areaCode = Math.floor(100 + Math.random() * 900); // 100-999
@@ -174,20 +171,102 @@ export default function NokiaPlayer({
   uid,
   onUpdatePhoneNumber,
 }: NokiaPlayerProps) {
-  const [activeTab, setActiveTab] = useState<FilterTab>('TODOS');
   const [audioProgress, setAudioProgress] = useState(0);
   const [audioDuration, setAudioDuration] = useState(0);
   const [currentTimeStr, setCurrentTimeStr] = useState('00:00');
   const [durationTimeStr, setDurationTimeStr] = useState('00:00');
   const [showVolumeBar, setShowVolumeBar] = useState(false);
   const volumeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const progressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const [activeTab, setActiveTab] = useState<FilterTab>(() => {
+    return (sessionStorage.getItem('nokia_active_tab') as FilterTab) || 'TODOS';
+  });
+  const [activeGroupId, setActiveGroupId] = useState<string | null>(() => {
+    return sessionStorage.getItem('nokia_active_group') || null;
+  });
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(() => {
+    return sessionStorage.getItem('nokia_active_conv') || null;
+  });
+
+  useEffect(() => {
+    if (activeGroupId) sessionStorage.setItem('nokia_active_group', activeGroupId);
+    else sessionStorage.removeItem('nokia_active_group');
+  }, [activeGroupId]);
+
+  useEffect(() => {
+    if (activeConversationId) sessionStorage.setItem('nokia_active_conv', activeConversationId);
+    else sessionStorage.removeItem('nokia_active_conv');
+  }, [activeConversationId]);
 
   const [userGroups, setUserGroups] = useState<Group[]>([]);
-  const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
   const [groupMessages, setGroupMessages] = useState<any[]>([]);
   const [newMessageText, setNewMessageText] = useState('');
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+
+  // Group messages into conversations
+  const conversations = useMemo(() => {
+    if (!activeCharacter) return [];
+    
+    const relevantMessages = groupMessages.filter(
+      msg => !msg.recipientId || msg.recipientId === activeCharacter.id || msg.senderId === activeCharacter.id
+    );
+
+    const convMap = new Map<string, {
+      contactId: string;
+      contactName: string;
+      contactNumber: string;
+      lastMessage: any;
+      messages: any[];
+    }>();
+
+    const sortedMessages = [...relevantMessages].sort((a, b) => {
+      const timeA = a.createdAt?.toMillis() || 0;
+      const timeB = b.createdAt?.toMillis() || 0;
+      return timeA - timeB;
+    });
+
+    sortedMessages.forEach(msg => {
+      let contactId = '';
+      let contactName = '';
+      let contactNumber = '';
+
+      if (msg.senderId === activeCharacter.id) {
+        if (!msg.recipientId) return; 
+        
+        // As of the GroupService fix, player messages now have the NPC correctly set in recipientId
+        contactId = msg.recipientId;
+        contactName = msg.recipientName || 'Desconhecido';
+        contactNumber = msg.recipientNumber || '';
+      } else {
+        contactId = msg.senderId;
+        contactName = msg.senderName;
+        contactNumber = msg.senderNumber || '';
+      }
+
+      if (!convMap.has(contactId)) {
+        convMap.set(contactId, {
+          contactId,
+          contactName,
+          contactNumber,
+          lastMessage: msg,
+          messages: []
+        });
+      }
+
+      const conv = convMap.get(contactId)!;
+      conv.messages.push(msg);
+      
+      if (msg.createdAt && (!conv.lastMessage.createdAt || msg.createdAt.toDate() > conv.lastMessage.createdAt.toDate())) {
+        conv.lastMessage = msg;
+      }
+    });
+
+    return Array.from(convMap.values()).sort((a, b) => {
+      const dateA = a.lastMessage.createdAt?.toDate() || new Date(0);
+      const dateB = b.lastMessage.createdAt?.toDate() || new Date(0);
+      return dateB.getTime() - dateA.getTime();
+    });
+  }, [groupMessages, activeCharacter]);
 
   // Subscribe to character's groups
   useEffect(() => {
@@ -226,17 +305,23 @@ export default function NokiaPlayer({
   }, [groupMessages, activeTab]);
 
   const handleSendMessage = async () => {
-    if (!newMessageText.trim() || !activeGroupId || !activeCharacter) return;
+    if (!newMessageText.trim() || !activeGroupId || !activeCharacter || !activeConversationId) return;
     try {
-      sfx.playConfirm();
+      getSfx().playConfirm();
       const text = newMessageText.trim();
       setNewMessageText('');
+      
+      const activeConv = conversations.find(c => c.contactId === activeConversationId);
+      
       await groupService.sendGroupMessage(
         activeGroupId,
         activeCharacter.id,
         activeCharacter.codinome,
         activeCharacter.phoneNumber || '',
-        text
+        text,
+        activeConv?.contactId,
+        activeConv?.contactName,
+        activeConv?.contactNumber
       );
     } catch (error) {
       console.error('[NokiaPlayer] Error sending message:', error);
@@ -283,39 +368,57 @@ export default function NokiaPlayer({
     return [...audioItems, ...(fileItems.length > 0 && audioItems.length > 0 ? [{ __divider: true, label: 'PISTAS / DOCS' } as any] : []), ...fileItems];
   }, [activeTab, audioItems, fileItems]);
 
+  const isPlayingRef = useRef(isPlaying);
+  isPlayingRef.current = isPlaying;
+  const rafRef = useRef<number | null>(null);
+  const lastUpdateRef = useRef(0);
+
   useEffect(() => {
-    progressIntervalRef.current = setInterval(() => {
-      const current = audioEngine.getCurrentTime();
-      const duration = audioEngine.getDuration();
-      setAudioProgress(current);
-      setAudioDuration(duration);
+    const updateProgress = (timestamp: number) => {
+      // Throttle to ~4 updates/sec (250ms) to avoid excessive re-renders
+      if (timestamp - lastUpdateRef.current >= 250) {
+        lastUpdateRef.current = timestamp;
+        const current = audioEngine.getCurrentTime();
+        const duration = audioEngine.getDuration();
+        setAudioProgress(current);
+        setAudioDuration(duration);
 
-      const formatTime = (time: number) => {
-        if (isNaN(time) || time < 0) return '00:00';
-        const mins = Math.floor(time / 60);
-        const secs = Math.floor(time % 60);
-        return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-      };
+        const formatTime = (time: number) => {
+          if (isNaN(time) || time < 0) return '00:00';
+          const mins = Math.floor(time / 60);
+          const secs = Math.floor(time % 60);
+          return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+        };
 
-      setCurrentTimeStr(formatTime(current));
-      setDurationTimeStr(formatTime(duration));
-    }, 250);
+        setCurrentTimeStr(formatTime(current));
+        setDurationTimeStr(formatTime(duration));
+      }
 
-    return () => {
-      if (progressIntervalRef.current) {
-        clearInterval(progressIntervalRef.current);
-        progressIntervalRef.current = null;
+      // Only continue the loop while playing
+      if (isPlayingRef.current) {
+        rafRef.current = requestAnimationFrame(updateProgress);
       }
     };
-  }, []);
+
+    if (isPlaying) {
+      rafRef.current = requestAnimationFrame(updateProgress);
+    }
+
+    return () => {
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+    };
+  }, [isPlaying]);
 
   const handleItemTap = (item: IntelBase) => {
-    sfx.playConfirm();
+    getSfx().playConfirm();
     onIntelSelect(item);
   };
 
   const handlePlayToggle = () => {
-    sfx.playConfirm();
+    getSfx().playConfirm();
     if (currentIntel?.type === 'AUDIO') {
       setIsPlaying(!isPlaying);
     }
@@ -325,7 +428,7 @@ export default function NokiaPlayer({
     if (onRewind) {
       onRewind();
     } else {
-      sfx.playBeep();
+      getSfx().playBeep();
       if (currentIntel) {
         audioEngine.stop();
         setTimeout(() => {
@@ -336,12 +439,12 @@ export default function NokiaPlayer({
   };
 
   const handleEject = () => {
-    sfx.playBack();
+    getSfx().playBack();
     onEject();
   };
 
   const handleVolumeTap = () => {
-    sfx.playConfirm();
+    getSfx().playConfirm();
     if (showVolumeBar) {
       setShowVolumeBar(false);
     } else {
@@ -359,8 +462,9 @@ export default function NokiaPlayer({
   };
 
   const handleTabChange = (tab: FilterTab) => {
-    sfx.playBeep();
+    getSfx().playBeep();
     setActiveTab(tab);
+    sessionStorage.setItem('nokia_active_tab', tab);
   };
 
   const isScanning = status === 'SCANNING';
@@ -586,12 +690,13 @@ export default function NokiaPlayer({
                           <span className="opacity-60">DE:</span>
                           <span className="font-mono">{activeCharacter.phoneNumber}</span>
                         </div>
-                        {userGroups.length > 1 ? (
+                        {userGroups.length > 1 && !activeConversationId ? (
                           <select
                             value={activeGroupId || ''}
                             onChange={(e) => {
-                              sfx.playBeep();
+                              getSfx().playBeep();
                               setActiveGroupId(e.target.value);
+                              setActiveConversationId(null);
                             }}
                             className="bg-[#edfeed] border border-[#111e14] text-[8px] p-0.5 font-bold uppercase focus:outline-none"
                           >
@@ -599,68 +704,128 @@ export default function NokiaPlayer({
                               <option key={g.id} value={g.id}>{g.name}</option>
                             ))}
                           </select>
-                        ) : (
+                        ) : !activeConversationId ? (
                           <span className="truncate max-w-[120px] uppercase font-bold">{userGroups[0].name}</span>
-                        )}
+                        ) : null}
                       </div>
 
-                      {/* Messages Container */}
-                      <div className="flex-grow overflow-y-auto min-h-0 px-0.5 space-y-1.5 custom-nokia-scrollbar">
-                        {groupMessages.map((msg) => {
-                          const isMe = msg.senderId === activeCharacter.id;
-                          const dateStr = msg.createdAt?.toDate 
-                            ? msg.createdAt.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                            : 'Agora';
-                          return (
-                            <div
-                              key={msg.id}
-                              className={`text-[11px] p-2 border-2 border-[#111e14] flex flex-col gap-0.5 shadow-[1px_1px_0px_#111e14] ${
-                                isMe 
-                                  ? 'bg-[#111e14] text-[#edfeed] ml-6' 
-                                  : 'bg-[#edfeed] mr-6'
-                              }`}
-                            >
-                              <div className="flex justify-between items-center text-[8px] font-black opacity-70">
-                                <span>{isMe ? 'VOCÊ' : `${msg.senderName} (${msg.senderNumber})`}</span>
-                                <span>{dateStr}</span>
-                              </div>
-                              <div className="leading-tight font-bold break-words whitespace-pre-wrap">
-                                {msg.text}
-                              </div>
+                      {!activeConversationId ? (
+                        /* CONVERSATIONS LIST */
+                        <div className="flex-grow overflow-y-auto min-h-0 px-0.5 space-y-1.5 custom-nokia-scrollbar">
+                          {conversations.map((conv) => {
+                            const dateStr = conv.lastMessage.createdAt?.toDate 
+                              ? conv.lastMessage.createdAt.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                              : 'Agora';
+                            return (
+                              <button
+                                key={conv.contactId}
+                                onClick={() => {
+                                  getSfx().playConfirm();
+                                  setActiveConversationId(conv.contactId);
+                                }}
+                                className="w-full text-left flex flex-col p-2 border-2 border-[#111e14] bg-[#edfeed] hover:bg-[#111e14]/5 active:scale-[0.98] transition-all shadow-[1px_1px_0px_#111e14]"
+                              >
+                                <div className="flex justify-between items-center text-[9px] font-black uppercase mb-1">
+                                  <span>{conv.contactName}</span>
+                                  <span className="opacity-50 font-mono text-[8px]">{dateStr}</span>
+                                </div>
+                                <div className="text-[10px] font-bold opacity-80 truncate uppercase tracking-tighter">
+                                  {conv.lastMessage.senderId === activeCharacter.id ? 'VOCÊ: ' : ''}{conv.lastMessage.text}
+                                </div>
+                              </button>
+                            );
+                          })}
+                          {conversations.length === 0 && (
+                            <div className="py-8 text-center opacity-30 text-[9px] font-black uppercase">
+                              CAIXA DE ENTRADA VAZIA
                             </div>
-                          );
-                        })}
-                        <div ref={messagesEndRef} />
-                        {groupMessages.length === 0 && (
-                          <div className="py-8 text-center opacity-30 text-[9px] font-black">
-                            SEM MENSAGENS NO GRUPO
+                          )}
+                        </div>
+                      ) : (
+                        /* ACTIVE CONVERSATION MESSAGES */
+                        <div className="flex flex-col flex-grow min-h-0 h-full">
+                          {/* Chat Header */}
+                          <div className="flex items-center gap-2 pb-2 mb-2 border-b-2 border-[#111e14] border-dotted shrink-0">
+                            <button
+                              onClick={() => {
+                                getSfx().playBack();
+                                setActiveConversationId(null);
+                              }}
+                              className="border border-[#111e14] px-1.5 py-0.5 font-black text-[9px] hover:bg-[#111e14] hover:text-[#edfeed] active:scale-95 uppercase transition-all"
+                            >
+                              [VOLTAR]
+                            </button>
+                            <span className="font-black text-[10px] uppercase truncate">
+                              {conversations.find(c => c.contactId === activeConversationId)?.contactName || 'DESCONHECIDO'}
+                            </span>
                           </div>
-                        )}
-                      </div>
 
-                      {/* Composer input */}
-                      <form
-                        onSubmit={(e) => {
-                          e.preventDefault();
-                          handleSendMessage();
-                        }}
-                        className="flex gap-1.5 mt-2 pt-1 border-t border-[#111e14]/25 shrink-0"
-                      >
-                        <input
-                          type="text"
-                          value={newMessageText}
-                          onChange={(e) => setNewMessageText(e.target.value)}
-                          placeholder="MENSAGEM..."
-                          className="flex-1 bg-[#edfeed] border-2 border-[#111e14] px-1.5 py-1 text-[10px] text-[#111e14] placeholder:text-[#111e14]/50 focus:outline-none font-bold uppercase"
-                        />
-                        <button
-                          type="submit"
-                          disabled={!newMessageText.trim()}
-                          className="border-2 border-[#111e14] bg-[#111e14] text-[#edfeed] font-black px-3 py-1 text-[10px] active:bg-[#edfeed] active:text-[#111e14] disabled:opacity-40"
-                        >
-                          [ENVIAR]
-                        </button>
-                      </form>
+                          {/* Messages list */}
+                          <div className="flex-grow overflow-y-auto min-h-0 px-0.5 space-y-2 custom-nokia-scrollbar">
+                            {(() => {
+                              const activeConv = conversations.find(c => c.contactId === activeConversationId);
+                              if (!activeConv) return null;
+                              
+                              // Sort messages chronologically
+                              const chatMsgs = [...activeConv.messages].sort((a, b) => {
+                                const tA = a.createdAt?.toMillis() || 0;
+                                const tB = b.createdAt?.toMillis() || 0;
+                                return tA - tB;
+                              });
+
+                              return chatMsgs.map((msg) => {
+                                const isMe = msg.senderId === activeCharacter.id;
+                                const dateStr = msg.createdAt?.toDate 
+                                  ? msg.createdAt.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                                  : 'Agora';
+                                return (
+                                  <div
+                                    key={msg.id}
+                                    className={`text-[11px] p-2 border-2 border-[#111e14] flex flex-col gap-0.5 shadow-[1px_1px_0px_#111e14] ${
+                                      isMe 
+                                        ? 'bg-[#111e14] text-[#edfeed] ml-4' 
+                                        : 'bg-[#edfeed] mr-4'
+                                    }`}
+                                  >
+                                    <div className="flex justify-between items-center text-[8px] font-black opacity-70 mb-0.5">
+                                      <span>{isMe ? 'VOCÊ' : `${msg.senderName}`}</span>
+                                      <span>{dateStr}</span>
+                                    </div>
+                                    <div className="leading-tight font-bold break-words whitespace-pre-wrap">
+                                      {msg.text}
+                                    </div>
+                                  </div>
+                                );
+                              });
+                            })()}
+                            <div ref={messagesEndRef} />
+                          </div>
+
+                          {/* Composer input */}
+                          <form
+                            onSubmit={(e) => {
+                              e.preventDefault();
+                              handleSendMessage();
+                            }}
+                            className="flex gap-1 mt-2 shrink-0"
+                          >
+                            <input
+                              type="text"
+                              value={newMessageText}
+                              onChange={(e) => setNewMessageText(e.target.value)}
+                              placeholder="DIGITE..."
+                              className="flex-1 bg-[#edfeed] border-2 border-[#111e14] px-1.5 py-1 text-[10px] text-[#111e14] placeholder:text-[#111e14]/50 focus:outline-none font-bold uppercase"
+                            />
+                            <button
+                              type="submit"
+                              disabled={!newMessageText.trim()}
+                              className="border-2 border-[#111e14] bg-[#111e14] text-[#edfeed] font-black px-2 py-1 text-[10px] active:scale-95 disabled:opacity-40 transition-all uppercase"
+                            >
+                              [ENV]
+                            </button>
+                          </form>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

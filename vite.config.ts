@@ -15,7 +15,9 @@ export default defineConfig(({mode}) => {
         output: {
           manualChunks: {
             firebase: ['firebase/app', 'firebase/firestore', 'firebase/auth', 'firebase/storage'],
-            vendor: ['react', 'react-dom', 'react-router-dom', 'motion']
+            vendor: ['react', 'react-dom', 'react-router-dom'],
+            animations: ['motion'],
+            scanner: ['qr-scanner', 'react-qr-code']
           }
         }
       }

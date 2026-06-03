@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { auth, db, testConnection } from '../lib/firebase';
+import { auth, db } from '../lib/firebase';
 import { logout } from '../store/profile';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
@@ -24,8 +24,7 @@ export default function App() {
       document.head.appendChild(link);
     }
 
-    // Non-blocking connectivity check
-    testConnection().catch(() => {});
+
     
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);

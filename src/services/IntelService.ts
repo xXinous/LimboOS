@@ -6,6 +6,7 @@ import { collection, onSnapshot } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { 
   fetchAudioTapeById, 
+  fetchAudioTapesByIds,
   fetchAllMediaAssets,
   fetchQrRedirect, 
   firestoreUnlockIntel,
@@ -200,17 +201,17 @@ class IntelService {
     // 1. Resolve itens desbloqueados
     const idsToFetch = playerData.unlockedIntelIds.filter(id => !intelRegistry.get(id));
     
-    // Busca remota apenas para o que não está no registry
-    const remoteMediaResults = await Promise.all(
-      idsToFetch.map(id => fetchAudioTapeById(id))
-    );
+    // Batch fetch remote items (max 30 per query via Firestore 'in' operator)
+    if (idsToFetch.length > 0) {
+      const remoteMediaResults = await fetchAudioTapesByIds(idsToFetch);
 
-    // Registra os novos itens remotos
-    remoteMediaResults.forEach(remoteMedia => {
-      if (remoteMedia) {
-        this.registerMediaAssetAsIntel(remoteMedia);
-      }
-    });
+      // Registra os novos itens remotos
+      remoteMediaResults.forEach(remoteMedia => {
+        if (remoteMedia) {
+          this.registerMediaAssetAsIntel(remoteMedia);
+        }
+      });
+    }
 
     // Agora todos os itens (locais + novos remotos) devem estar no registry
     let resolvedItems: IntelItem[] = playerData.unlockedIntelIds
