@@ -184,11 +184,11 @@ export class GroupService {
         if (charData.agentStatus !== 'vivo') continue;
       }
 
-      await setDoc(doc(db, 'users', slot.uid, 'characters', slot.characterId, 'tapes', intelId), {
-        tapeId: intelId,
+      await setDoc(doc(db, 'users', slot.uid, 'characters', slot.characterId, 'intel', intelId), {
+        intelId,
         unlockedAt: serverTimestamp(),
         campaignId: group.campaignId || null
-      });
+      }, { merge: true });
       grantCount++;
     }
 

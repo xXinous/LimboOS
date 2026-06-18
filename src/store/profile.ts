@@ -4,6 +4,9 @@ import {
   signInWithEmailAndPassword,
   signOut as firebaseSignOut,
   onAuthStateChanged as firebaseOnAuthStateChanged,
+  GoogleAuthProvider,
+  OAuthProvider,
+  signInWithPopup,
   type User,
 } from 'firebase/auth';
 import { auth } from '../lib/firebase';
@@ -63,6 +66,52 @@ export async function loginOrCreate(
       return { ok: false, error: 'network', message: 'SEM CONEXÃO: verifique a rede.' };
     }
     return { ok: false, error: 'unknown', message: `Erro inesperado (${code})` };
+  }
+}
+
+export async function loginWithProvider(providerName: 'google' | 'apple'): Promise<LoginResult> {
+  try {
+    let provider;
+    if (providerName === 'google') {
+      provider = new GoogleAuthProvider();
+    } else {
+      provider = new OAuthProvider('apple.com');
+    }
+
+    const { user } = await signInWithPopup(auth, provider);
+    await updateLastLogin(user.uid);
+    
+    let account;
+    try {
+      account = await loadMasterAccount(user.uid);
+    } catch {
+      // Conta não existe ainda, vamos criá-la
+      const email = user.email || `${user.uid}@limboos.local`;
+      const masterId = user.displayName || email.split('@')[0];
+      await createUserDoc(user.uid, email, masterId);
+      account = await loadMasterAccount(user.uid);
+    }
+
+    if (account.suspended && account.role !== 'admin') {
+      await firebaseSignOut(auth);
+      return { ok: false, error: 'unknown' as const, message: 'CONTA SUSPENSA: Contate o administrador.' };
+    }
+
+    return { ok: true, account };
+  } catch (err: unknown) {
+    const code = (err as { code?: string }).code ?? '';
+    
+    if (code === 'auth/popup-closed-by-user') {
+      return { ok: false, error: 'unknown', message: 'OPERAÇÃO CANCELADA PELO USUÁRIO' };
+    }
+    if (code.startsWith('auth/network')) {
+      return { ok: false, error: 'network', message: 'SEM CONEXÃO: verifique a rede.' };
+    }
+    if (code === 'auth/account-exists-with-different-credential') {
+      return { ok: false, error: 'unknown', message: 'E-mail já cadastrado através de outro método de login.' };
+    }
+    
+    return { ok: false, error: 'unknown', message: `Erro no login via provedor (${code})` };
   }
 }
 

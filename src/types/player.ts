@@ -22,8 +22,6 @@ export interface MasterAccount {
   hasMacAccess?: boolean;
   suspended?: boolean;
   notes?: string;
-  intelMigrated?: boolean;
-  intelMigratedAt?: Timestamp | null;
 }
 
 // --- Database Models: Character (Agent) ---
@@ -64,7 +62,7 @@ export interface PlayerData extends MasterAccount {
   activeCharacterId: string;
   character: CharacterData;
   achievementIds: string[];
-  /** Unified IDs from 'intel' subcollection (post-migration). Merges tapes + gallery + intel. */
+  /** Intel IDs from the 'intel' subcollection. */
   unlockedIntelIds: string[];
   stats: PlayerStats;
 }
@@ -122,11 +120,4 @@ export interface QrRedirect {
   targetId: string;
   reason: string;
   updatedAt?: Timestamp;
-}
-
-// --- Admin legacy user document shape ---
-export interface UserData extends MasterAccount {
-  displayName?: string;
-  username?: string;
-  campaignId?: string;
 }

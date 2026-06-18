@@ -24,7 +24,7 @@ interface AgentDossierViewProps {
 
 export default function AgentDossierView({ uid, character, masterAccount, onClose, onUpdate }: AgentDossierViewProps) {
   const [details, setDetails] = useState<{
-    tapes: { id: string; unlockedAt: any }[];
+    intel: { id: string; unlockedAt: any }[];
     playCounts: any[];
     stats: PlayerStats | null;
     achievements: string[];
@@ -401,11 +401,11 @@ export default function AgentDossierView({ uid, character, masterAccount, onClos
                    <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
                    <h3 className="text-[11px] font-black text-white uppercase tracking-[0.3em]">Cofre_de_Evidências</h3>
                 </div>
-                <span className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest">Registros_Totais: {details?.tapes.length}</span>
+                <span className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest">Registros_Totais: {details?.intel.length}</span>
              </div>
 
              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                {details?.tapes.map(t => {
+                {details?.intel.map(t => {
                   const intel = intelRegistry.get(t.id);
                   const audio = allAudios.find(a => a.id === t.id);
                   const label = intel?.title || audio?.title || audio?.originalName || t.id;
@@ -451,7 +451,7 @@ export default function AgentDossierView({ uid, character, masterAccount, onClos
                   );
                 })}
 
-                {details?.tapes.length === 0 && (
+                {details?.intel.length === 0 && (
                   <div className="col-span-full p-32 text-center border-4 border-dashed border-[#1a1a1a] rounded-2xl opacity-20 flex flex-col items-center justify-center">
                     <span className="material-symbols-outlined text-6xl mb-4">folder_off</span>
                     <p className="text-[12px] font-black uppercase tracking-[0.4em]">Inventário_Inativo</p>
@@ -466,7 +466,7 @@ export default function AgentDossierView({ uid, character, masterAccount, onClos
           <BulkInventoryModal 
             uid={uid}
             character={character}
-            existingItemIds={new Set(details?.tapes.map(t => t.id) || [])}
+            existingItemIds={new Set(details?.intel.map(t => t.id) || [])}
             onClose={() => setShowGrantModal(false)} 
             onSuccess={loadDetails}
           />

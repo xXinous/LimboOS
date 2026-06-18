@@ -40,24 +40,24 @@ export default function CampaignInventoryModal({ campaign, groups, allCharacters
       const results = await Promise.all(
         campaignCharacters.map(async (item) => {
           try {
-            const tapesSnap = await getDocs(collection(db, "users", item.account.uid, "characters", item.character.id, "tapes"));
-            const tapes = tapesSnap.docs.map(d => ({ 
+            const intelSnap = await getDocs(collection(db, "users", item.account.uid, "characters", item.character.id, "intel"));
+            const items = intelSnap.docs.map(d => ({ 
               id: d.id, 
               unlockedAt: d.data().unlockedAt,
               campaignId: d.data().campaignId
             })).filter(t => !t.campaignId || t.campaignId === campaign.id);
             
-            return { key: `${item.account.uid}_${item.character.id}`, tapes };
+            return { key: `${item.account.uid}_${item.character.id}`, items };
           } catch (err) {
             console.error("Error loading inventory for char", item.character.id, err);
-            return { key: `${item.account.uid}_${item.character.id}`, tapes: [] };
+            return { key: `${item.account.uid}_${item.character.id}`, items: [] };
           }
         })
       );
       
       const inventories: Record<string, { id: string; unlockedAt: any }[]> = {};
       results.forEach(res => {
-        inventories[res.key] = res.tapes;
+        inventories[res.key] = res.items;
       });
       
       setCharacterInventories(inventories);
@@ -78,12 +78,12 @@ export default function CampaignInventoryModal({ campaign, groups, allCharacters
       const batch = writeBatch(db);
       
       [...selectedIds].forEach(intelId => {
-        const docRef = doc(db, "users", showGrantModal.uid, "characters", showGrantModal.charId, "tapes", intelId);
+        const docRef = doc(db, "users", showGrantModal.uid, "characters", showGrantModal.charId, "intel", intelId);
         batch.set(docRef, {
-          tapeId: intelId,
+          intelId,
           unlockedAt: serverTimestamp(),
-          campaignId: campaign.id // Scoped to this campaign!
-        });
+          campaignId: campaign.id
+        }, { merge: true });
       });
       
       await batch.commit();
@@ -97,7 +97,7 @@ export default function CampaignInventoryModal({ campaign, groups, allCharacters
     const ok = await showConfirm('Revogar Evidência', 'Remover este item do inventário do personagem para esta campanha?', 'Remover');
     if (!ok) return;
     try {
-      await deleteDoc(doc(db, "users", uid, "characters", charId, "tapes", intelId));
+      await deleteDoc(doc(db, "users", uid, "characters", charId, "intel", intelId));
       await loadInventories();
     } catch (err) {
       console.error(err);
@@ -141,7 +141,7 @@ export default function CampaignInventoryModal({ campaign, groups, allCharacters
 
               {campaignCharacters.map(({ account, character }) => {
                 const compositeKey = `${account.uid}_${character.id}`;
-                const tapes = characterInventories[compositeKey] || [];
+                const items = characterInventories[compositeKey] || [];
                 return (
                   <div key={compositeKey} className="bg-black/40 border border-white/5 rounded-sm p-6 group hover:border-primary/20 transition-all shadow-inner">
                     <div className="flex justify-between items-center mb-6 border-b border-white/5 pb-4">
@@ -156,7 +156,7 @@ export default function CampaignInventoryModal({ campaign, groups, allCharacters
                        </div>
                        <div className="flex items-center gap-3">
                           <span className="text-[9px] font-display font-bold text-primary/40 uppercase tracking-widest bg-primary/5 px-3 py-1 rounded-sm border border-primary/10">
-                            {tapes.length} Itens
+                            {items.length} Itens
                           </span>
                           <button 
                             onClick={() => setShowGrantModal({ charId: character.id, uid: account.uid })}
@@ -168,7 +168,7 @@ export default function CampaignInventoryModal({ campaign, groups, allCharacters
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
-                       {tapes.map(t => {
+                       {items.map(t => {
                          const intel = intelRegistry.get(t.id);
                          return (
                            <div key={t.id} className="bg-surface-container-lowest border border-white/5 p-4 rounded-sm relative group/item hover:border-primary/30 transition-all shadow-md">
@@ -196,7 +196,7 @@ export default function CampaignInventoryModal({ campaign, groups, allCharacters
                            </div>
                          );
                        })}
-                       {tapes.length === 0 && (
+                       {items.length === 0 && (
                          <div className="col-span-full py-6 text-center border border-dashed border-white/5 rounded-sm opacity-20">
                             <span className="text-[9px] font-display font-bold uppercase tracking-widest text-industrial-silver/40">Inventário Vazio</span>
                          </div>

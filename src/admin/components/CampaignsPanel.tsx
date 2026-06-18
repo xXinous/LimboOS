@@ -15,7 +15,7 @@ import {
   arrayRemove
 } from 'firebase/firestore';
 import { Campaign, campaigns as initialCampaigns } from '../../data/campaigns';
-import { Group, UserData, MasterAccount, CharacterData } from '../../types/player';
+import { Group, MasterAccount, CharacterData } from '../../types/player';
 import { activityLogger } from '../../services/ActivityLogger';
 import { useModal } from './ConfirmModal';
 import { intelRegistry } from '../../data/intel_registry';
@@ -29,7 +29,7 @@ export default function CampaignsPanel() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [persistentItems, setPersistentItems] = useState<string[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
-  const [users, setUsers] = useState<UserData[]>([]);
+  const [users, setUsers] = useState<MasterAccount[]>([]);
   const [allCharacters, setAllCharacters] = useState<{account: MasterAccount; character: CharacterData}[]>([]);
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
@@ -82,7 +82,7 @@ export default function CampaignsPanel() {
     try {
       // Just fetch the most recent 50 agents to populate selectors
       const result = await userService.fetchUsersPage(50);
-      setUsers(result.users as unknown as UserData[]);
+      setUsers(result.users as MasterAccount[]);
       
       const charPromises = result.users.map(u => userService.fetchCharactersForUser(u.uid));
       const charResults = await Promise.all(charPromises);

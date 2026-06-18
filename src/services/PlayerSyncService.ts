@@ -26,8 +26,7 @@ export class PlayerSyncService {
     this.stopAll();
     if (!uid || !characterId) return;
 
-    // 1. Intel Listener — Unified: reads 'tapes', 'gallery' AND the new 'intel' subcollection.
-    //    Note: 'tapes' and 'gallery' are kept for backward compatibility during migration.
+    // 1. Intel Listener — reads the unified 'intel' subcollection.
 
     let latestIntelIds: string[] = [];
 

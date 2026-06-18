@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Group, UserData, CharacterData, GroupCharacterSlot } from '../../types/player';
+import { Group, MasterAccount, CharacterData, GroupCharacterSlot } from '../../types/player';
 import { Campaign } from '../../data/campaigns';
 import { groupService } from '../../services/GroupService';
 import { userService } from '../../services/UserService';
@@ -16,7 +16,7 @@ interface GroupManagerProps {
 
 export default function GroupManager({ isAdmin }: GroupManagerProps) {
   const [groups, setGroups] = useState<Group[]>([]);
-  const [users, setUsers] = useState<UserData[]>([]);
+  const [users, setUsers] = useState<MasterAccount[]>([]);
   const [allCharacters, setAllCharacters] = useState<{uid: string, char: CharacterData}[]>([]);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [isCreating, setIsCreating] = useState(false);
@@ -64,7 +64,7 @@ export default function GroupManager({ isAdmin }: GroupManagerProps) {
   const fetchInitialAgents = async () => {
     try {
       const result = await userService.fetchUsersPage(50);
-      setUsers(result.users as unknown as UserData[]);
+      setUsers(result.users as MasterAccount[]);
       
       const charPromises = result.users.map(u => userService.fetchCharactersForUser(u.uid));
       const charResults = await Promise.all(charPromises);
@@ -93,7 +93,7 @@ export default function GroupManager({ isAdmin }: GroupManagerProps) {
       const userPromises = uids.map(uid => userService.fetchUsersPage(1, null, 'uid', uid));
       const userResults = await Promise.all(userPromises);
       const foundUsers = userResults.flatMap(r => r.users);
-      setUsers(foundUsers as unknown as UserData[]);
+      setUsers(foundUsers as MasterAccount[]);
     } catch (err) {
       console.error("Erro ao buscar agentes:", err);
     }

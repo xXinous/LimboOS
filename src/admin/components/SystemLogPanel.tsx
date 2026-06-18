@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { collection, onSnapshot, query, orderBy, limit, getDocs, writeBatch, Timestamp } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useModal } from './ConfirmModal';
-import { migrateToUnifiedIntel, runGlobalSystemMigration } from '../../store/migration';
+import { wipeAllUserData, type WipeProgress } from '../wipeUsers';
 
 interface LogEntry {
   id: string;
@@ -150,7 +150,8 @@ export default function SystemLogPanel() {
   const [filterCategory, setFilterCategory] = useState('');
   const [filterUser, setFilterUser] = useState('');
   const [searchText, setSearchText] = useState('');
-  const [isMigrating, setIsMigrating] = useState(false);
+  const [isWiping, setIsWiping] = useState(false);
+  const [wipeProgress, setWipeProgress] = useState<WipeProgress | null>(null);
   const { showConfirm, showAlert, modal } = useModal();
 
   useEffect(() => {
@@ -213,30 +214,40 @@ export default function SystemLogPanel() {
     }
   };
 
-  const handleMigrateIntel = async () => {
+  const handleWipeUsers = async () => {
     const ok = await showConfirm(
-      'Migração Global do Sistema', 
-      'Isso consolidará dados legacy e migradas fitas/imagens para todos os usuários inativos. Esta ação é segura. A página será recarregada automaticamente ao concluir.', 
-      'Iniciar Migração Global'
+      '⚠️ WIPE COMPLETO DE USUÁRIOS', 
+      'ATENÇÃO: Esta operação é IRREVERSÍVEL. Todos os dados de jogadores, personagens, intel, achievements, playEvents, logs e grupos serão PERMANENTEMENTE DESTRUÍDOS. Confirmar?', 
+      'CONFIRMAR WIPE TOTAL'
     );
     if (!ok) return;
 
-    setIsMigrating(true);
+    // Double confirmation
+    const ok2 = await showConfirm(
+      'CONFIRMAÇÃO FINAL',
+      'Tem CERTEZA ABSOLUTA? Não há como reverter esta operação. Todos os dados de todos os jogadores serão perdidos.',
+      'SIM, DESTRUIR TUDO'
+    );
+    if (!ok2) return;
+
+    setIsWiping(true);
+    setWipeProgress(null);
     try {
-      const result = await runGlobalSystemMigration((msg) => console.log(msg));
+      const result = await wipeAllUserData((progress) => {
+        setWipeProgress(progress);
+      });
       if (result.success) {
-        await showAlert('Sucesso', `Migração concluída! ${result.usersProcessed} usuários foram processados. A página será recarregada para re-sincronizar os dados.`);
-        // Reload the page to re-establish all Firestore onSnapshot listeners cleanly
-        // After mass writes, some listeners may become stale or enter error states
+        await showAlert('Wipe Concluído', `${result.usersDeleted} usuários foram removidos permanentemente. A página será recarregada.`);
         window.location.reload();
       } else {
-        await showAlert('Erro', 'Ocorreu um erro durante a migração. Verifique o console.');
+        await showAlert('Erro', `Wipe parcial: ${result.usersDeleted} removidos. Erros: ${result.errors.join('; ')}`);
       }
     } catch (err) {
       console.error(err);
       await showAlert('Erro Crítico', 'Falha na comunicação com o servidor.');
     } finally {
-      setIsMigrating(false);
+      setIsWiping(false);
+      setWipeProgress(null);
     }
   };
 
@@ -292,16 +303,16 @@ export default function SystemLogPanel() {
           </button>
 
           <button
-            onClick={handleMigrateIntel}
-            disabled={isMigrating}
+            onClick={handleWipeUsers}
+            disabled={isWiping}
             className={`px-6 py-2 text-[10px] font-display font-bold uppercase tracking-widest border transition-all flex items-center gap-2 rounded-sm shadow-lg ${
-              isMigrating
-                ? 'bg-primary/20 text-primary border-primary/20'
-                : 'bg-primary/5 text-primary border-primary/10 hover:bg-primary/20'
+              isWiping
+                ? 'bg-red-500/20 text-red-400 border-red-500/20 animate-pulse'
+                : 'bg-red-500/5 text-red-500/60 border-red-500/10 hover:bg-red-500/10 hover:text-red-500'
             }`}
           >
-            <span className="material-symbols-outlined text-base">upgrade</span>
-            {isMigrating ? 'MIGRANDO...' : 'Migrar Intel (v2)'}
+            <span className="material-symbols-outlined text-base">delete_forever</span>
+            {isWiping ? (wipeProgress ? `${wipeProgress.phase}: ${wipeProgress.usersProcessed}/${wipeProgress.totalUsers}` : 'APAGANDO...') : 'Wipe de Usuários'}
           </button>
 
           <button
