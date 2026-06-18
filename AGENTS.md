@@ -5,7 +5,7 @@
 
 ## O que é este projeto
 
-**LimboOS** é um companion app web para campanhas de RPG de mesa. Jogadores interagem como **agentes** através de interfaces retro (walkman, Nokia, BIOS, Windows 95, Mac OS) para consumir **Intel** — conteúdo narrativo em áudio, texto, imagem e conquistas.
+**LimboOS** é um companion app web para campanhas de RPG de mesa. Jogadores interagem como **agentes** através de interfaces retro (walkman, Nokia, BIOS, Windows 95, Mac OS) para consumir **Intel** — conteúdo narrativo em áudio, texto, imagem, conquistas e, nos planos, vídeos e mapas interativos.
 
 Não é um OS real: é uma **SPA fictícia** com imersão ARG, lore temporal (Limbo, fenda, bug do milênio) e painel administrativo para o mestre de jogo.
 
@@ -65,7 +65,7 @@ Todas são lazy-loaded em `App.tsx` com `Suspense` + `RetroLoading`.
 
 | Termo | Significado |
 |-------|-------------|
-| **Intel** | Item colecionável unificado: `AUDIO`, `TEXT`, `VISUAL`, `META` |
+| **Intel** | Item colecionável unificado: `AUDIO`, `TEXT`, `VISUAL`, `META` (vídeo e mapas interativos planejados) |
 | **AccessLevel** | Sigilo RPG: 1 RESTRITO → 4 TOP SECRET |
 | **MasterAccount** | Conta Firebase (`users/{uid}`) |
 | **CharacterData** | Agente/personagem do jogador |
