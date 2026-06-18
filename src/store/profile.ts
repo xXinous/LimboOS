@@ -12,7 +12,7 @@ import type { MasterAccount } from '../types/player';
 
 function masterIdToEmail(masterId: string): string {
   const slug = masterId.trim().toLowerCase().replace(/[^a-z0-9._-]/g, '_');
-  return `${slug}@runningman.local`;
+  return `${slug}@limboos.local`;
 }
 
 export type LoginResult =

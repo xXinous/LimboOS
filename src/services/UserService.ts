@@ -282,7 +282,7 @@ export class UserService {
 
     const secondaryAuth = getAuth(secondaryApp);
     const slug = masterId.trim().toLowerCase().replace(/[^a-z0-9._-]/g, "_");
-    const email = `${slug}@runningman.local`;
+    const email = `${slug}@limboos.local`;
 
     const { user: newUser } = await createUserWithEmailAndPassword(secondaryAuth, email, rawPassword);
     

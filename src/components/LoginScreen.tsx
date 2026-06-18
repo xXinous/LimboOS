@@ -67,7 +67,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
                     Terminal <span className="text-primary">Mestre</span>
                   </h1>
                   <p className="text-xs font-display uppercase tracking-[0.2em] text-industrial-silver/60">
-                    Ponto de Acesso à Rede Running Man
+                    Ponto de Acesso à Rede LimboOS
                   </p>
                 </div>
                 <form onSubmit={handleLogin} className="space-y-8">

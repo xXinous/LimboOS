@@ -138,7 +138,7 @@ export default function UserRegistry({ isAdmin }: { isAdmin: boolean }) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `runningman_accounts_${new Date().toISOString().slice(0, 10)}.${extension}`;
+    a.download = `limboos_accounts_${new Date().toISOString().slice(0, 10)}.${extension}`;
     a.click();
     URL.revokeObjectURL(url);
     setShowExportMenu(false);

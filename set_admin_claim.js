@@ -16,7 +16,7 @@ initializeApp({
   credential: cert(serviceAccount)
 });
 
-const adminEmail = 'gm.mpg@runningman.local';
+const adminEmail = 'gm.mpg@limboos.local';
 
 async function setAdminClaim() {
   try {
