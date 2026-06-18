@@ -296,7 +296,7 @@ export default function Player() {
       activityLogger.setUser(masterAccount.uid, data.character.codinome, data.activeCharacterId);
       activityLogger.logAction('character_select', `Agente ${data.character.codinome} ativado`);
 
-      setScreen('campaignSelection');
+      setScreen(data.character.campaignId ? 'player' : 'campaignSelection');
     } catch (err) {
       console.error('[CharacterSelect] Error:', err);
       throw err;
@@ -574,67 +574,62 @@ useEffect(() => {
           backVisible={screen === 'player' ? nokiaBackVisible : true}
           onProfileOpen={handleProfileOpen}
         >
-          <AnimatePresence mode="wait">
-            {screen === 'player' && (
-              <motion.div key="nokiaPlayer" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }} className="w-full h-full flex flex-col flex-grow min-h-0">
-                <React.Suspense fallback={<RetroLoading message="CARREGANDO NOKIA..." />}>
-                  <NokiaPlayer
-                    currentIntel={currentIntel}
-                    status={walkmanStatus}
-                    isPlaying={isPlaying}
-                    setIsPlaying={handleSetIsPlaying}
-                    volume={volume}
-                    setVolume={setVolume}
-                    intelItems={intelManager?.getAll() || EMPTY_ARRAY}
-                    currentIntelId={currentIntel?.id ?? null}
-                    onIntelSelect={handleIntelSelect}
-                    onRewind={handleRewind}
-                    onEject={handleEject}
-                    onScanClick={handleScanClick}
-                    onCancelScan={handleCancelScan}
-                    onQrDetected={handleQrDetected}
-                    hasTerminalAccess={playerData.hasTerminalAccess}
-                    onTerminalOpen={handleTerminalOpen}
-                    hasMacAccess={playerData.hasMacAccess}
-                    onMacOpen={handleMacOpen}
-                    onProfileOpen={handleProfileOpen}
-                    onCharacterSwitch={handleCharacterSwitch}
-                    registerBackHandler={registerNokiaBackHandler}
-                    setBackVisible={setNokiaBackVisible}
-                    activeCharacter={playerData.character}
-                    uid={playerData.uid}
-                    onUpdatePhoneNumber={async (num) => {
-                      await firestoreUpdatePhoneNumber(playerData.uid, playerData.activeCharacterId, num);
-                      setPlayerData({ ...playerData, character: { ...playerData.character, phoneNumber: num } });
-                    }}
-                  />
-                </React.Suspense>
-              </motion.div>
-            )}
-            {screen === 'profile' && (
-              <motion.div key="profile" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }} className="w-full h-full flex flex-col flex-grow min-h-0">
-                <React.Suspense fallback={<RetroLoading message="ACESSANDO PERFIL..." />}>
-                  <ProfileScreen
-                    profile={playerData}
-                    galleryImages={visualGalleryImages}
-                    onBack={() => setScreen('player')}
-                    onLogout={handleLogout}
-                    onChangeMission={() => setScreen('campaignSelection')}
-                    onChangeCharacter={handleCharacterSwitch}
-                    onUpdateSpotify={async (url) => {
-                      await firestoreUpdateSpotifyPlaylist(playerData.uid, playerData.activeCharacterId, url);
-                      setPlayerData({ ...playerData, character: { ...playerData.character, spotifyPlaylistUrl: url } });
-                    }}
-                    onUpdatePhoneNumber={async (num) => {
-                      await firestoreUpdatePhoneNumber(playerData.uid, playerData.activeCharacterId, num);
-                      setPlayerData({ ...playerData, character: { ...playerData.character, phoneNumber: num } });
-                    }}
-                    variant="nokia"
-                  />
-                </React.Suspense>
-              </motion.div>
-            )}
-          </AnimatePresence>
+          {/* Both views stay mounted for state preservation (scroll, tabs, SMS drafts) */}
+          <div style={{ display: screen === 'player' ? 'flex' : 'none' }} className="w-full h-full flex-col flex-grow min-h-0">
+            <React.Suspense fallback={<RetroLoading message="CARREGANDO NOKIA..." />}>
+              <NokiaPlayer
+                currentIntel={currentIntel}
+                status={walkmanStatus}
+                isPlaying={isPlaying}
+                setIsPlaying={handleSetIsPlaying}
+                volume={volume}
+                setVolume={setVolume}
+                intelItems={intelManager?.getAll() || EMPTY_ARRAY}
+                currentIntelId={currentIntel?.id ?? null}
+                onIntelSelect={handleIntelSelect}
+                onRewind={handleRewind}
+                onEject={handleEject}
+                onScanClick={handleScanClick}
+                onCancelScan={handleCancelScan}
+                onQrDetected={handleQrDetected}
+                hasTerminalAccess={playerData.hasTerminalAccess}
+                onTerminalOpen={handleTerminalOpen}
+                hasMacAccess={playerData.hasMacAccess}
+                onMacOpen={handleMacOpen}
+                onProfileOpen={handleProfileOpen}
+                onCharacterSwitch={handleCharacterSwitch}
+                registerBackHandler={registerNokiaBackHandler}
+                setBackVisible={setNokiaBackVisible}
+                activeCharacter={playerData.character}
+                uid={playerData.uid}
+                onUpdatePhoneNumber={async (num) => {
+                  await firestoreUpdatePhoneNumber(playerData.uid, playerData.activeCharacterId, num);
+                  setPlayerData({ ...playerData, character: { ...playerData.character, phoneNumber: num } });
+                }}
+              />
+            </React.Suspense>
+          </div>
+          <div style={{ display: screen === 'profile' ? 'flex' : 'none' }} className="w-full h-full flex-col flex-grow min-h-0">
+            <React.Suspense fallback={<RetroLoading message="ACESSANDO PERFIL..." />}>
+              <ProfileScreen
+                profile={playerData}
+                galleryImages={visualGalleryImages}
+                onBack={() => setScreen('player')}
+                onLogout={handleLogout}
+                onChangeMission={() => setScreen('campaignSelection')}
+                onChangeCharacter={handleCharacterSwitch}
+                onUpdateSpotify={async (url) => {
+                  await firestoreUpdateSpotifyPlaylist(playerData.uid, playerData.activeCharacterId, url);
+                  setPlayerData({ ...playerData, character: { ...playerData.character, spotifyPlaylistUrl: url } });
+                }}
+                onUpdatePhoneNumber={async (num) => {
+                  await firestoreUpdatePhoneNumber(playerData.uid, playerData.activeCharacterId, num);
+                  setPlayerData({ ...playerData, character: { ...playerData.character, phoneNumber: num } });
+                }}
+                variant="nokia"
+              />
+            </React.Suspense>
+          </div>
         </NokiaDeviceWrapper>
       ) : (
         <AnimatePresence mode="wait">

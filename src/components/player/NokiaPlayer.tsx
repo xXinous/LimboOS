@@ -328,12 +328,12 @@ export default function NokiaPlayer({
     }
   };
 
-  // Always show back on menu (false = hidden)
+  // Show back button when in a sub-screen state (e.g., active SMS conversation)
   useEffect(() => {
     if (setBackVisible) {
-      setBackVisible(false);
+      setBackVisible(!!activeConversationId);
     }
-  }, [setBackVisible]);
+  }, [setBackVisible, activeConversationId]);
 
   // Register back button handler
   useEffect(() => {
@@ -347,13 +347,19 @@ export default function NokiaPlayer({
           setShowVolumeBar(false);
           return true;
         }
+        // If viewing an SMS conversation, go back to conversation list
+        if (activeConversationId) {
+          getSfx().playBack();
+          setActiveConversationId(null);
+          return true;
+        }
         return false;
       });
     }
     return () => {
       if (registerBackHandler) registerBackHandler(null);
     };
-  }, [registerBackHandler, status, showVolumeBar, onCancelScan]);
+  }, [registerBackHandler, status, showVolumeBar, onCancelScan, activeConversationId]);
 
   const audioItems = useMemo(() => intelItems.filter((item) => item.type === 'AUDIO'), [intelItems]);
   const fileItems = useMemo(() => intelItems.filter((item) => item.type !== 'AUDIO'), [intelItems]);

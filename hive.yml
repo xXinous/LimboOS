@@ -1,0 +1,12 @@
+name: RunningMan
+
+bees:
+  Dev:
+    command: "npm run dev"
+    auto_start: true
+
+  Claude:
+    command: "claude"
+    type: agent
+    auto_rename: true
+
