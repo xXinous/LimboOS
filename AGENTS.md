@@ -33,8 +33,14 @@ Se `backend/` estiver vazio, inicialize submódulos: `git submodule update --ini
 ```
 src/
 ├── App.tsx                 # Router: Player, Admin, Terminal
-├── Player.tsx              # App principal do jogador (fluxo + walkman/nokia)
+├── Player.tsx              # Entry fino do jogador (providers + shell)
 ├── main.tsx                # Entry point React
+├── player/                 # Orquestração do app jogador
+│   ├── context/            # PlayerSessionProvider + usePlayerSession/Playback
+│   ├── hooks/              # auth, intel, sync, walkman playback
+│   ├── components/         # ScreenRouter, WalkmanShell, NokiaLayout...
+│   ├── lazyScreens.ts      # React.lazy centralizado
+│   └── types.ts            # Contratos de context
 ├── admin/                  # Painel administrativo (/admin)
 │   ├── AdminApp.tsx
 │   └── components/         # Dashboard, campanhas, intel, mídia, users...
@@ -146,7 +152,8 @@ Nunca commite `.env` com credenciais reais.
 
 | Tarefa | Onde olhar |
 |--------|------------|
-| Fluxo do jogador / walkman | `src/Player.tsx`, `src/components/player/` |
+| Fluxo do jogador / walkman | `src/Player.tsx`, `src/player/`, `src/components/player/` |
+| Nova tela do jogador (`AppScreen`) | `src/player/components/PlayerScreenRouter.tsx` + `src/player/lazyScreens.ts` |
 | Nova campanha (seed local) | `src/data/campaigns.ts` + Firestore via admin |
 | Novo intel hardcoded | `src/data/intel_registry.ts` |
 | Lógica de unlock / intel | `src/services/IntelService.ts`, `IntelEngine.ts` |
@@ -176,10 +183,11 @@ Login → Seleção de personagem → Seleção de campanha → Dispositivo (wal
 
 1. `AGENTS.md` (este arquivo)
 2. `src/App.tsx` — rotas
-3. `src/Player.tsx` — orquestração do jogador
-4. `src/types/player.ts` + `src/types/intel.ts` — modelos
-5. `src/services/IntelEngine.ts` — arquitetura do sistema Intel
-6. `src/store/firestore.ts` — persistência
+3. `src/Player.tsx` — entry do jogador
+4. `src/player/context/PlayerProviders.tsx` — estado de sessão e playback
+5. `src/types/player.ts` + `src/types/intel.ts` — modelos
+6. `src/services/IntelEngine.ts` — arquitetura do sistema Intel
+7. `src/store/firestore.ts` — persistência
 
 ---
 
